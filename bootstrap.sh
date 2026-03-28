@@ -6,15 +6,15 @@ LOCAL_BIN="$HOME/.local/bin"
 ARCH="$(uname -m)"
 
 # Pinned versions (update these to upgrade)
-NEOVIM_VERSION="0.11.6"
+FD_VERSION="10.4.2"
 FZF_VERSION="0.70.0"
-ZOXIDE_VERSION="0.9.9"
 GITMUX_VERSION="0.11.5"
+LAZYDOCKER_VERSION="0.25.0"
+LAZYGIT_VERSION="0.60.0"
+NEOVIM_VERSION="0.11.6"
 NERD_FONT_VERSION="3.4.0"
 YAZI_VERSION="26.1.22"
-FD_VERSION="10.4.2"
-LAZYGIT_VERSION="0.60.0"
-LAZYDOCKER_VERSION="0.25.0"
+ZOXIDE_VERSION="0.9.9"
 
 log()  { echo -e "\033[1;34m[dotfiles]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[dotfiles]\033[0m $*"; }
@@ -66,21 +66,20 @@ install_nodejs() {
 # Binary tools -> ~/.local/bin
 # =============================================================================
 
-install_neovim() {
-    if [ -x "$LOCAL_BIN/nvim" ] && "$LOCAL_BIN/nvim" --version 2>/dev/null | grep -q "v${NEOVIM_VERSION}"; then
-        ok "neovim $NEOVIM_VERSION already installed"
+install_fd() {
+    if [ -x "$LOCAL_BIN/fd" ] && "$LOCAL_BIN/fd" --version 2>/dev/null | grep -q "$FD_VERSION"; then
+        ok "fd $FD_VERSION already installed"
         return
     fi
-    log "Installing neovim $NEOVIM_VERSION..."
-    rm -rf "$HOME/.local/nvim"
-    local url="https://github.com/neovim/neovim/releases/download/v${NEOVIM_VERSION}/nvim-linux-x86_64.tar.gz"
+    log "Installing fd $FD_VERSION..."
+    local url="https://github.com/sharkdp/fd/releases/download/v${FD_VERSION}/fd-v${FD_VERSION}-x86_64-unknown-linux-musl.tar.gz"
     local tmp
     tmp=$(mktemp -d)
     curl -sSL "$url" | tar xz -C "$tmp"
-    mv "$tmp"/nvim-linux-x86_64 "$HOME/.local/nvim"
-    ln -sf "$HOME/.local/nvim/bin/nvim" "$LOCAL_BIN/nvim"
+    mv "$tmp/fd-v${FD_VERSION}-x86_64-unknown-linux-musl/fd" "$LOCAL_BIN/fd"
+    chmod +x "$LOCAL_BIN/fd"
     rm -rf "$tmp"
-    ok "neovim $NEOVIM_VERSION installed"
+    ok "fd $FD_VERSION installed"
 }
 
 install_fzf() {
@@ -93,22 +92,6 @@ install_fzf() {
     curl -sSL "$url" | tar xz -C "$LOCAL_BIN" fzf
     chmod +x "$LOCAL_BIN/fzf"
     ok "fzf $FZF_VERSION installed"
-}
-
-install_zoxide() {
-    if [ -x "$LOCAL_BIN/zoxide" ] && "$LOCAL_BIN/zoxide" --version 2>/dev/null | grep -q "$ZOXIDE_VERSION"; then
-        ok "zoxide $ZOXIDE_VERSION already installed"
-        return
-    fi
-    log "Installing zoxide $ZOXIDE_VERSION..."
-    local url="https://github.com/ajeetdsouza/zoxide/releases/download/v${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-    local tmp
-    tmp=$(mktemp -d)
-    curl -sSL "$url" | tar xz -C "$tmp"
-    mv "$tmp/zoxide" "$LOCAL_BIN/zoxide"
-    chmod +x "$LOCAL_BIN/zoxide"
-    rm -rf "$tmp"
-    ok "zoxide $ZOXIDE_VERSION installed"
 }
 
 install_gitmux() {
@@ -126,6 +109,55 @@ install_gitmux() {
     echo "$GITMUX_VERSION" > "$LOCAL_BIN/.gitmux-version"
     rm -rf "$tmp"
     ok "gitmux $GITMUX_VERSION installed"
+}
+
+install_lazydocker() {
+    if [ -x "$LOCAL_BIN/lazydocker" ] && "$LOCAL_BIN/lazydocker" --version 2>/dev/null | grep -q "$LAZYDOCKER_VERSION"; then
+        ok "lazydocker $LAZYDOCKER_VERSION already installed"
+        return
+    fi
+    log "Installing lazydocker $LAZYDOCKER_VERSION..."
+    local url="https://github.com/jesseduffield/lazydocker/releases/download/v${LAZYDOCKER_VERSION}/lazydocker_${LAZYDOCKER_VERSION}_Linux_x86_64.tar.gz"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL "$url" | tar xz -C "$tmp"
+    mv "$tmp/lazydocker" "$LOCAL_BIN/lazydocker"
+    chmod +x "$LOCAL_BIN/lazydocker"
+    rm -rf "$tmp"
+    ok "lazydocker $LAZYDOCKER_VERSION installed"
+}
+
+install_lazygit() {
+    if [ -x "$LOCAL_BIN/lazygit" ] && "$LOCAL_BIN/lazygit" --version 2>/dev/null | grep -q "$LAZYGIT_VERSION"; then
+        ok "lazygit $LAZYGIT_VERSION already installed"
+        return
+    fi
+    log "Installing lazygit $LAZYGIT_VERSION..."
+    local url="https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL "$url" | tar xz -C "$tmp"
+    mv "$tmp/lazygit" "$LOCAL_BIN/lazygit"
+    chmod +x "$LOCAL_BIN/lazygit"
+    rm -rf "$tmp"
+    ok "lazygit $LAZYGIT_VERSION installed"
+}
+
+install_neovim() {
+    if [ -x "$LOCAL_BIN/nvim" ] && "$LOCAL_BIN/nvim" --version 2>/dev/null | grep -q "v${NEOVIM_VERSION}"; then
+        ok "neovim $NEOVIM_VERSION already installed"
+        return
+    fi
+    log "Installing neovim $NEOVIM_VERSION..."
+    rm -rf "$HOME/.local/nvim"
+    local url="https://github.com/neovim/neovim/releases/download/v${NEOVIM_VERSION}/nvim-linux-x86_64.tar.gz"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL "$url" | tar xz -C "$tmp"
+    mv "$tmp"/nvim-linux-x86_64 "$HOME/.local/nvim"
+    ln -sf "$HOME/.local/nvim/bin/nvim" "$LOCAL_BIN/nvim"
+    rm -rf "$tmp"
+    ok "neovim $NEOVIM_VERSION installed"
 }
 
 install_yazi() {
@@ -146,52 +178,20 @@ install_yazi() {
     ok "yazi $YAZI_VERSION installed"
 }
 
-install_fd() {
-    if [ -x "$LOCAL_BIN/fd" ] && "$LOCAL_BIN/fd" --version 2>/dev/null | grep -q "$FD_VERSION"; then
-        ok "fd $FD_VERSION already installed"
+install_zoxide() {
+    if [ -x "$LOCAL_BIN/zoxide" ] && "$LOCAL_BIN/zoxide" --version 2>/dev/null | grep -q "$ZOXIDE_VERSION"; then
+        ok "zoxide $ZOXIDE_VERSION already installed"
         return
     fi
-    log "Installing fd $FD_VERSION..."
-    local url="https://github.com/sharkdp/fd/releases/download/v${FD_VERSION}/fd-v${FD_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+    log "Installing zoxide $ZOXIDE_VERSION..."
+    local url="https://github.com/ajeetdsouza/zoxide/releases/download/v${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION}-x86_64-unknown-linux-musl.tar.gz"
     local tmp
     tmp=$(mktemp -d)
     curl -sSL "$url" | tar xz -C "$tmp"
-    mv "$tmp/fd-v${FD_VERSION}-x86_64-unknown-linux-musl/fd" "$LOCAL_BIN/fd"
-    chmod +x "$LOCAL_BIN/fd"
+    mv "$tmp/zoxide" "$LOCAL_BIN/zoxide"
+    chmod +x "$LOCAL_BIN/zoxide"
     rm -rf "$tmp"
-    ok "fd $FD_VERSION installed"
-}
-
-install_lazygit() {
-    if [ -x "$LOCAL_BIN/lazygit" ] && "$LOCAL_BIN/lazygit" --version 2>/dev/null | grep -q "$LAZYGIT_VERSION"; then
-        ok "lazygit $LAZYGIT_VERSION already installed"
-        return
-    fi
-    log "Installing lazygit $LAZYGIT_VERSION..."
-    local url="https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
-    local tmp
-    tmp=$(mktemp -d)
-    curl -sSL "$url" | tar xz -C "$tmp"
-    mv "$tmp/lazygit" "$LOCAL_BIN/lazygit"
-    chmod +x "$LOCAL_BIN/lazygit"
-    rm -rf "$tmp"
-    ok "lazygit $LAZYGIT_VERSION installed"
-}
-
-install_lazydocker() {
-    if [ -x "$LOCAL_BIN/lazydocker" ] && "$LOCAL_BIN/lazydocker" --version 2>/dev/null | grep -q "$LAZYDOCKER_VERSION"; then
-        ok "lazydocker $LAZYDOCKER_VERSION already installed"
-        return
-    fi
-    log "Installing lazydocker $LAZYDOCKER_VERSION..."
-    local url="https://github.com/jesseduffield/lazydocker/releases/download/v${LAZYDOCKER_VERSION}/lazydocker_${LAZYDOCKER_VERSION}_Linux_x86_64.tar.gz"
-    local tmp
-    tmp=$(mktemp -d)
-    curl -sSL "$url" | tar xz -C "$tmp"
-    mv "$tmp/lazydocker" "$LOCAL_BIN/lazydocker"
-    chmod +x "$LOCAL_BIN/lazydocker"
-    rm -rf "$tmp"
-    ok "lazydocker $LAZYDOCKER_VERSION installed"
+    ok "zoxide $ZOXIDE_VERSION installed"
 }
 
 # =============================================================================
@@ -319,14 +319,14 @@ mkdir -p "$LOCAL_BIN"
 
 install_apt_packages
 install_nodejs
-install_neovim
-install_fzf
-install_zoxide
-install_gitmux
-install_yazi
 install_fd
-install_lazygit
+install_fzf
+install_gitmux
 install_lazydocker
+install_lazygit
+install_neovim
+install_yazi
+install_zoxide
 install_nerd_font
 install_tpm
 install_ghostty
