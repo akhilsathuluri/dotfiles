@@ -11,6 +11,7 @@ FZF_VERSION="0.70.0"
 ZOXIDE_VERSION="0.9.9"
 GITMUX_VERSION="0.11.5"
 NERD_FONT_VERSION="3.4.0"
+YAZI_VERSION="26.1.22"
 
 log()  { echo -e "\033[1;34m[dotfiles]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[dotfiles]\033[0m $*"; }
@@ -121,6 +122,24 @@ install_gitmux() {
     echo "$GITMUX_VERSION" > "$LOCAL_BIN/.gitmux-version"
     rm -rf "$tmp"
     ok "gitmux $GITMUX_VERSION installed"
+}
+
+install_yazi() {
+    if [ -x "$LOCAL_BIN/yazi" ] && "$LOCAL_BIN/yazi" --version 2>/dev/null | grep -q "$YAZI_VERSION"; then
+        ok "yazi $YAZI_VERSION already installed"
+        return
+    fi
+    log "Installing yazi $YAZI_VERSION..."
+    local url="https://github.com/sxyazi/yazi/releases/download/v${YAZI_VERSION}/yazi-x86_64-unknown-linux-gnu.zip"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL "$url" -o "$tmp/yazi.zip"
+    unzip -o "$tmp/yazi.zip" -d "$tmp" >/dev/null
+    mv "$tmp/yazi-x86_64-unknown-linux-gnu/yazi" "$LOCAL_BIN/yazi"
+    mv "$tmp/yazi-x86_64-unknown-linux-gnu/ya" "$LOCAL_BIN/ya"
+    chmod +x "$LOCAL_BIN/yazi" "$LOCAL_BIN/ya"
+    rm -rf "$tmp"
+    ok "yazi $YAZI_VERSION installed"
 }
 
 # =============================================================================
@@ -244,6 +263,7 @@ install_neovim
 install_fzf
 install_zoxide
 install_gitmux
+install_yazi
 install_nerd_font
 install_tpm
 install_ghostty
