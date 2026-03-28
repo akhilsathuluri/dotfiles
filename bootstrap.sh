@@ -149,6 +149,24 @@ install_tpm() {
 }
 
 # =============================================================================
+# Ghostty
+# =============================================================================
+
+install_ghostty() {
+    if command -v ghostty &>/dev/null; then
+        ok "Ghostty already installed"
+        return
+    fi
+    log "Installing Ghostty..."
+    if ! grep -rq mkasberg/ghostty-ubuntu /etc/apt/sources.list.d/ 2>/dev/null; then
+        sudo add-apt-repository -y ppa:mkasberg/ghostty-ubuntu
+        sudo apt-get update -qq
+    fi
+    sudo apt-get install -y -qq ghostty
+    ok "Ghostty installed"
+}
+
+# =============================================================================
 # Stow packages
 # =============================================================================
 
@@ -215,6 +233,7 @@ install_zoxide
 install_gitmux
 install_nerd_font
 install_tpm
+install_ghostty
 stow_packages
 patch_bashrc
 
