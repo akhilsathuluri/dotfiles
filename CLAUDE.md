@@ -36,4 +36,4 @@ Personal dotfiles managed with GNU Stow on Ubuntu 24.04.
 
 ## Formatting
 
-- Format `README.md` with `npx prettier --write README.md`
+- Format markdown files with `npx prettier --write <file>.md`
