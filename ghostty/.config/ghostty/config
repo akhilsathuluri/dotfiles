@@ -7,7 +7,7 @@ font-family = JetBrainsMono Nerd Font
 font-size = 12
 
 # Cursor
-# cursor-style = block
+cursor-style = block
 cursor-style-blink = false
 
 # Hide mouse cursor while typing
