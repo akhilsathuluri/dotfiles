@@ -22,7 +22,8 @@ ok()   { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 # =============================================================================
 
 install_apt_packages() {
-    local pkgs=(bat build-essential curl direnv fontconfig ripgrep stow terminator tmux unzip wget)
+    # chafa: image previews for yazi
+    local pkgs=(bat build-essential chafa curl direnv fontconfig ripgrep stow terminator tmux unzip wget)
     local to_install=()
     for pkg in "${pkgs[@]}"; do
         dpkg -s "$pkg" &>/dev/null || to_install+=("$pkg")
