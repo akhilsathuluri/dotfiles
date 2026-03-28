@@ -12,6 +12,9 @@ ZOXIDE_VERSION="0.9.9"
 GITMUX_VERSION="0.11.5"
 NERD_FONT_VERSION="3.4.0"
 YAZI_VERSION="26.1.22"
+FD_VERSION="10.4.2"
+LAZYGIT_VERSION="0.60.0"
+LAZYDOCKER_VERSION="0.25.0"
 
 log()  { echo -e "\033[1;34m[dotfiles]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[dotfiles]\033[0m $*"; }
@@ -23,7 +26,7 @@ ok()   { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 
 install_apt_packages() {
     # chafa: image previews for yazi
-    local pkgs=(bat build-essential chafa curl direnv fontconfig ripgrep stow terminator tmux unzip wget)
+    local pkgs=(bat build-essential chafa curl direnv fontconfig jq ripgrep stow terminator tmux unzip wget)
     local to_install=()
     for pkg in "${pkgs[@]}"; do
         dpkg -s "$pkg" &>/dev/null || to_install+=("$pkg")
@@ -141,6 +144,54 @@ install_yazi() {
     chmod +x "$LOCAL_BIN/yazi" "$LOCAL_BIN/ya"
     rm -rf "$tmp"
     ok "yazi $YAZI_VERSION installed"
+}
+
+install_fd() {
+    if [ -x "$LOCAL_BIN/fd" ] && "$LOCAL_BIN/fd" --version 2>/dev/null | grep -q "$FD_VERSION"; then
+        ok "fd $FD_VERSION already installed"
+        return
+    fi
+    log "Installing fd $FD_VERSION..."
+    local url="https://github.com/sharkdp/fd/releases/download/v${FD_VERSION}/fd-v${FD_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL "$url" | tar xz -C "$tmp"
+    mv "$tmp/fd-v${FD_VERSION}-x86_64-unknown-linux-musl/fd" "$LOCAL_BIN/fd"
+    chmod +x "$LOCAL_BIN/fd"
+    rm -rf "$tmp"
+    ok "fd $FD_VERSION installed"
+}
+
+install_lazygit() {
+    if [ -x "$LOCAL_BIN/lazygit" ] && "$LOCAL_BIN/lazygit" --version 2>/dev/null | grep -q "$LAZYGIT_VERSION"; then
+        ok "lazygit $LAZYGIT_VERSION already installed"
+        return
+    fi
+    log "Installing lazygit $LAZYGIT_VERSION..."
+    local url="https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL "$url" | tar xz -C "$tmp"
+    mv "$tmp/lazygit" "$LOCAL_BIN/lazygit"
+    chmod +x "$LOCAL_BIN/lazygit"
+    rm -rf "$tmp"
+    ok "lazygit $LAZYGIT_VERSION installed"
+}
+
+install_lazydocker() {
+    if [ -x "$LOCAL_BIN/lazydocker" ] && "$LOCAL_BIN/lazydocker" --version 2>/dev/null | grep -q "$LAZYDOCKER_VERSION"; then
+        ok "lazydocker $LAZYDOCKER_VERSION already installed"
+        return
+    fi
+    log "Installing lazydocker $LAZYDOCKER_VERSION..."
+    local url="https://github.com/jesseduffield/lazydocker/releases/download/v${LAZYDOCKER_VERSION}/lazydocker_${LAZYDOCKER_VERSION}_Linux_x86_64.tar.gz"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL "$url" | tar xz -C "$tmp"
+    mv "$tmp/lazydocker" "$LOCAL_BIN/lazydocker"
+    chmod +x "$LOCAL_BIN/lazydocker"
+    rm -rf "$tmp"
+    ok "lazydocker $LAZYDOCKER_VERSION installed"
 }
 
 # =============================================================================
@@ -273,6 +324,9 @@ install_fzf
 install_zoxide
 install_gitmux
 install_yazi
+install_fd
+install_lazygit
+install_lazydocker
 install_nerd_font
 install_tpm
 install_ghostty
