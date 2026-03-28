@@ -11,6 +11,7 @@ Personal dotfiles managed with GNU Stow on Ubuntu 24.04.
 - `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/tmux-ci-status.sh`
 - `terminator/` → `~/.config/terminator/`
 - `bat/` → `~/.config/bat/`
+- `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
 
 ## Rules
 
