@@ -13,8 +13,9 @@ cursor-style-blink = false
 # Hide mouse cursor while typing
 mouse-hide-while-typing = true
 
-# Selecting text auto-copies to clipboard
+# Selecting text auto-copies to clipboard (suppress toast)
 copy-on-select = clipboard
+app-notifications = no-clipboard-copy
 
 # Extend content background color into padding for a seamless look
 window-padding-color = extend
