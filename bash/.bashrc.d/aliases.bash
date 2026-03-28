@@ -11,5 +11,8 @@ alias mrd='nvim -c "DiffviewOpen origin/main...HEAD"'
 alias docker-stop-all='docker stop $(docker ps -a -q)'
 alias docker-rm-all='docker rm $(docker ps -a -q)'
 
+# Files
+alias ll='ls -lrth'
+
 # Editor
 alias vim='nvim'
