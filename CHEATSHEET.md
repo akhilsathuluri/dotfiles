@@ -1,4 +1,4 @@
-# Cheatsheet — Muscle Memory Guide
+# Cheatsheet
 
 Commands and keys to internalize for this setup. Sorted by frequency of use.
 
