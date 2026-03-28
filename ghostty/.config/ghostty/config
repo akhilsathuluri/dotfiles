@@ -19,6 +19,9 @@ copy-on-select = clipboard
 # Extend content background color into padding for a seamless look
 window-padding-color = extend
 
+# Distribute extra space as padding instead of leaving a gap
+window-padding-balance = true
+
 # Merge titlebar and tab bar into one compact row
 gtk-titlebar-style = tabs
 gtk-wide-tabs = false
