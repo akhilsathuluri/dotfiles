@@ -211,7 +211,7 @@ backup_if_not_symlink() {
 }
 
 stow_packages() {
-    local packages=(bash nvim tmux terminator bat ghostty)
+    local packages=(bash nvim tmux terminator bat ghostty yazi)
 
     # Backup existing configs that would conflict
     backup_if_not_symlink "$HOME/.bashrc.d"
@@ -221,6 +221,7 @@ stow_packages() {
     backup_if_not_symlink "$HOME/.config/terminator"
     backup_if_not_symlink "$HOME/.config/bat"
     backup_if_not_symlink "$HOME/.config/ghostty"
+    backup_if_not_symlink "$HOME/.config/yazi"
     backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh"
 
     cd "$DOTFILES_DIR"
@@ -229,6 +230,13 @@ stow_packages() {
         stow --restow "$pkg"
     done
     ok "All packages stowed"
+
+    # Install yazi plugins from package.toml
+    if command -v ya &>/dev/null; then
+        log "Installing yazi plugins..."
+        ya pkg install
+        ok "Yazi plugins installed"
+    fi
 }
 
 # =============================================================================

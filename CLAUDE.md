@@ -12,6 +12,7 @@ Personal dotfiles managed with GNU Stow on Ubuntu 24.04.
 - `terminator/` → `~/.config/terminator/`
 - `bat/` → `~/.config/bat/`
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
+- `yazi/` → `~/.config/yazi/` (yazi file manager config)
 
 ## Rules
 
