@@ -1,5 +1,9 @@
-# Vi mode
+# Shell
 set -o vi
+export VISUAL=nvim
+export EDITOR=nvim
+export TERM="tmux-256color"
+export BROWSER="firefox"
 
 # Git
 alias gs='git status'
