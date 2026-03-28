@@ -10,11 +10,17 @@ font-size = 12
 # cursor-style = block
 cursor-style-blink = false
 
+# Hide mouse cursor while typing
+mouse-hide-while-typing = true
+
 # Selecting text auto-copies to clipboard
 copy-on-select = clipboard
 
 # Enables click-to-move cursor, command tracking, completion notifications
 shell-integration = bash
+
+# Extend content background color into padding for a seamless look
+window-padding-color = extend
 
 # Remove GTK titlebar for a cleaner look
 gtk-titlebar = false
