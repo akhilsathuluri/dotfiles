@@ -10,5 +10,14 @@ font-size = 12
 # cursor-style = block
 cursor-style-blink = false
 
+# Selecting text auto-copies to clipboard
+copy-on-select = clipboard
+
+# Enables click-to-move cursor, command tracking, completion notifications
+shell-integration = bash
+
+# Remove GTK titlebar for a cleaner look
+gtk-titlebar = false
+
 # URLs
 link-url = true
