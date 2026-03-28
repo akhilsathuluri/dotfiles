@@ -50,7 +50,7 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `prefix \|`             | split horizontal                        |
 | `prefix -`              | split vertical                          |
 | `prefix h/j/k/l`        | navigate panes (vim-style)              |
-| `Alt+n` / `Alt+m`       | cycle panes (no prefix!)                |
+| `Alt+m`                 | cycle panes (no prefix!)                |
 | `prefix H/J/K/L`        | resize pane (repeatable)                |
 | `prefix >` / `prefix <` | swap pane down / up                     |
 | `prefix =`              | tile all panes evenly                   |
