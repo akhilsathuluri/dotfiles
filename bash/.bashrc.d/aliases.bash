@@ -16,3 +16,6 @@ alias ll='ls -lrth'
 
 # Editor
 alias vim='nvim'
+
+# Quick reference
+alias cheat='bat ~/dotfiles/CHEATSHEET.md'
