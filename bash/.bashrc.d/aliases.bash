@@ -1,3 +1,6 @@
+# Vi mode
+set -o vi
+
 # Git
 alias gs='git status'
 alias gd='git diff'
