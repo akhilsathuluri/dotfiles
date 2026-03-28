@@ -179,7 +179,7 @@ backup_if_not_symlink() {
 }
 
 stow_packages() {
-    local packages=(bash nvim tmux terminator bat)
+    local packages=(bash nvim tmux terminator bat ghostty)
 
     # Backup existing configs that would conflict
     backup_if_not_symlink "$HOME/.bashrc.d"
@@ -188,6 +188,7 @@ stow_packages() {
     backup_if_not_symlink "$HOME/.gitmux.conf"
     backup_if_not_symlink "$HOME/.config/terminator"
     backup_if_not_symlink "$HOME/.config/bat"
+    backup_if_not_symlink "$HOME/.config/ghostty"
     backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh"
 
     cd "$DOTFILES_DIR"

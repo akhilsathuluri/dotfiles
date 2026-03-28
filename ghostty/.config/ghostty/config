@@ -1,0 +1,25 @@
+# Theme
+theme = iTerm2 Solarized Light
+window-theme = light
+
+# Font
+font-family = JetBrainsMono Nerd Font
+font-size = 14
+
+# Window
+window-padding-x = 8
+window-padding-y = 8
+window-padding-balance = true
+
+# Cursor
+cursor-style = block
+cursor-style-blink = false
+
+# Clipboard
+clipboard-trim-trailing-spaces = true
+
+# Since tmux handles sessions, skip close confirmation
+confirm-close-surface = false
+
+# URLs
+link-url = true
