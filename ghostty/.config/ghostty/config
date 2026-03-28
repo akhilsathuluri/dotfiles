@@ -1,6 +1,6 @@
 # Theme
 theme = iTerm2 Solarized Light
-window-theme = light
+window-theme = ghostty
 
 # Font
 font-family = JetBrainsMono Nerd Font
@@ -19,6 +19,8 @@ copy-on-select = clipboard
 # Extend content background color into padding for a seamless look
 window-padding-color = extend
 
-# Remove GTK titlebar for a cleaner look
-gtk-titlebar = false
+# Merge titlebar and tab bar into one compact row
+gtk-titlebar-style = tabs
+gtk-wide-tabs = false
+gtk-custom-css = ~/.config/ghostty/style.css
 
