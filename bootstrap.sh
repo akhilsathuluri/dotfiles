@@ -81,14 +81,6 @@ install_delta() {
     mv "$tmp/delta-${DELTA_VERSION}-x86_64-unknown-linux-musl/delta" "$LOCAL_BIN/delta"
     chmod +x "$LOCAL_BIN/delta"
     rm -rf "$tmp"
-    # Configure git to use delta as pager
-    git config --global core.pager delta
-    git config --global interactive.diffFilter "delta --color-only"
-    git config --global delta.navigate true
-    git config --global delta.light true
-    git config --global delta.side-by-side true
-    git config --global delta.line-numbers true
-    git config --global merge.conflictstyle zdiff3
     ok "delta $DELTA_VERSION installed"
 }
 
@@ -288,7 +280,7 @@ backup_if_not_symlink() {
 }
 
 stow_packages() {
-    local packages=(bash claude claude-indicator nvim tmux terminator bat ghostty yazi)
+    local packages=(bash bat claude claude-indicator ghostty git nvim terminator tmux yazi)
 
     # Backup existing configs that would conflict
     backup_if_not_symlink "$HOME/.bashrc.d"
