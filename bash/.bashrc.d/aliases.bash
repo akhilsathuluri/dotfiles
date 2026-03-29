@@ -8,6 +8,7 @@ export BROWSER="firefox"
 # Git (OMZ-aligned)
 alias gd='git diff'
 alias gf='git fetch'
+alias gl='git pull'
 alias glog='git log --oneline --decorate --graph'
 alias gp='git push'
 alias gst='git status'
