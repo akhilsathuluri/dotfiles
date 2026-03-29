@@ -23,23 +23,23 @@ Personal development environment managed with [GNU Stow](https://www.gnu.org/sof
 
 Installed via `bootstrap.sh` (apt + `~/.local/bin`):
 
-- [Neovim](https://neovim.io/) — editor
-- [tmux](https://github.com/tmux/tmux) — terminal multiplexer
-- [Ghostty](https://ghostty.org/) — terminal emulator
-- [direnv](https://direnv.net/) — per-directory environment variables
-- [fzf](https://github.com/junegunn/fzf) — fuzzy finder
-- [fd](https://github.com/sharkdp/fd) — fast find (powers fzf file search)
-- [zoxide](https://github.com/ajeetdsouza/zoxide) — smarter cd
-- [gitmux](https://github.com/arl/gitmux) — git status in tmux
-- [lazygit](https://github.com/jesseduffield/lazygit) — terminal git UI
-- [lazydocker](https://github.com/jesseduffield/lazydocker) — terminal Docker UI
-- [yazi](https://github.com/sxyazi/yazi) — terminal file manager
-- [delta](https://github.com/dandavison/delta) — git diff pager with syntax highlighting
 - [bat](https://github.com/sharkdp/bat) — cat with syntax highlighting
-- [ripgrep](https://github.com/BurntSushi/ripgrep) — fast recursive search
-- [jq](https://github.com/jqlang/jq) — JSON processor
-- [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) — terminal/editor font
+- [delta](https://github.com/dandavison/delta) — git diff pager with syntax highlighting
+- [direnv](https://direnv.net/) — per-directory environment variables
+- [fd](https://github.com/sharkdp/fd) — fast find (powers fzf file search)
+- [fzf](https://github.com/junegunn/fzf) — fuzzy finder
+- [Ghostty](https://ghostty.org/) — terminal emulator
+- [gitmux](https://github.com/arl/gitmux) — git status in tmux
 - [GNU Stow](https://www.gnu.org/software/stow/) — symlink manager
+- [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) — terminal/editor font
+- [jq](https://github.com/jqlang/jq) — JSON processor
+- [lazydocker](https://github.com/jesseduffield/lazydocker) — terminal Docker UI
+- [lazygit](https://github.com/jesseduffield/lazygit) — terminal git UI
+- [Neovim](https://neovim.io/) — editor
+- [ripgrep](https://github.com/BurntSushi/ripgrep) — fast recursive search
+- [tmux](https://github.com/tmux/tmux) — terminal multiplexer
+- [yazi](https://github.com/sxyazi/yazi) — terminal file manager
+- [zoxide](https://github.com/ajeetdsouza/zoxide) — smarter cd
 
 ## Setup on a new machine
 

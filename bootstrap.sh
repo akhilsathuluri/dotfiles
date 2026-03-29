@@ -280,7 +280,7 @@ backup_if_not_symlink() {
 }
 
 stow_packages() {
-    local packages=(bash bat claude claude-indicator ghostty git nvim terminator tmux yazi)
+    local packages=(bash bat claude claude-indicator git ghostty nvim terminator tmux yazi)
 
     # Backup existing configs that would conflict
     backup_if_not_symlink "$HOME/.bashrc.d"
@@ -342,15 +342,15 @@ install_nodejs
 install_delta
 install_fd
 install_fzf
+install_ghostty
 install_gitmux
 install_lazydocker
 install_lazygit
+install_nerd_font
 install_neovim
+install_tpm
 install_yazi
 install_zoxide
-install_nerd_font
-install_tpm
-install_ghostty
 stow_packages
 patch_bashrc
 
