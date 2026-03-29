@@ -6,13 +6,17 @@ Personal development environment managed with [GNU Stow](https://www.gnu.org/sof
 
 ### Configs (stow packages)
 
-| Package      | Description                                                         | Target                           |
-| ------------ | ------------------------------------------------------------------- | -------------------------------- |
-| `bash`       | Shell customizations, aliases, direnv/fzf/zoxide hooks, venv prompt | `~/.bashrc.d/`                   |
-| `nvim`       | Neovim config (LazyVim, LSP, plugins)                               | `~/.config/nvim/`                |
-| `tmux`       | Tmux config, gitmux, CI status script                               | `~/.tmux.conf`, `~/.gitmux.conf` |
-| `terminator` | Terminal emulator (Solarized theme, JetBrainsMono Nerd Font)        | `~/.config/terminator/`          |
-| `bat`        | Syntax highlighter theme                                            | `~/.config/bat/`                 |
+| Package            | Description                                                     | Target                                  |
+| ------------------ | --------------------------------------------------------------- | --------------------------------------- |
+| `bash`             | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode | `~/.bashrc.d/`                          |
+| `claude`           | Claude Code hooks (notification, stop) and statusline script    | `~/.claude/hooks/`, `~/.claude/`        |
+| `claude-indicator` | GNOME top bar indicator for Claude Code notifications           | `~/.local/bin/`, `~/.config/autostart/` |
+| `nvim`             | Neovim config (LazyVim, LSP, plugins)                           | `~/.config/nvim/`                       |
+| `tmux`             | Tmux config, gitmux, CI status script                           | `~/.tmux.conf`, `~/.gitmux.conf`        |
+| `terminator`       | Terminal emulator (Solarized theme, JetBrainsMono Nerd Font)    | `~/.config/terminator/`                 |
+| `bat`              | Syntax highlighter theme                                        | `~/.config/bat/`                        |
+| `ghostty`          | Ghostty terminal config (Solarized Light, block cursor)         | `~/.config/ghostty/`                    |
+| `yazi`             | Yazi file manager config with zoxide plugin                     | `~/.config/yazi/`                       |
 
 ### System dependencies
 
@@ -20,15 +24,20 @@ Installed via `bootstrap.sh` (apt + `~/.local/bin`):
 
 - [Neovim](https://neovim.io/) — editor
 - [tmux](https://github.com/tmux/tmux) — terminal multiplexer
+- [Ghostty](https://ghostty.org/) — terminal emulator
 - [direnv](https://direnv.net/) — per-directory environment variables
 - [fzf](https://github.com/junegunn/fzf) — fuzzy finder
+- [fd](https://github.com/sharkdp/fd) — fast find (powers fzf file search)
 - [zoxide](https://github.com/ajeetdsouza/zoxide) — smarter cd
 - [gitmux](https://github.com/arl/gitmux) — git status in tmux
-- [Terminator](https://gnome-terminator.org/) — terminal emulator
-- [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) — terminal/editor font
-- [GNU Stow](https://www.gnu.org/software/stow/) — symlink manager
+- [lazygit](https://github.com/jesseduffield/lazygit) — terminal git UI
+- [lazydocker](https://github.com/jesseduffield/lazydocker) — terminal Docker UI
+- [yazi](https://github.com/sxyazi/yazi) — terminal file manager
 - [bat](https://github.com/sharkdp/bat) — cat with syntax highlighting
 - [ripgrep](https://github.com/BurntSushi/ripgrep) — fast recursive search
+- [jq](https://github.com/jqlang/jq) — JSON processor
+- [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) — terminal/editor font
+- [GNU Stow](https://www.gnu.org/software/stow/) — symlink manager
 
 ## Setup on a new machine
 
@@ -104,49 +113,36 @@ stow -R <package>    # Re-link (unlink + link)
 
 ```
 dotfiles/
-├── bash/
-│   └── .bashrc.d/
-│       ├── 00-path.bash        # loads first (PATH must be set before tool inits)
-│       ├── aliases.bash
-│       ├── direnv.bash
-│       ├── fzf.bash
-│       ├── zoxide.bash
-│       ├── ssh-agent.bash
-│       └── tools.bash
-├── nvim/
-│   └── .config/
-│       └── nvim/
-│           ├── init.lua
-│           ├── lazy-lock.json
-│           ├── lazyvim.json
-│           ├── stylua.toml
-│           └── lua/
-│               ├── config/
-│               │   ├── autocmds.lua
-│               │   ├── keymaps.lua
-│               │   ├── lazy.lua
-│               │   └── options.lua
-│               └── plugins/
-│                   ├── colorscheme.lua
-│                   ├── diffview.lua
-│                   ├── example.lua
-│                   ├── indent.lua
-│                   └── python.lua
+├── bash/.bashrc.d/
+│   ├── 00-path.bash          # PATH (loads first)
+│   ├── aliases.bash           # shell options, git/docker aliases
+│   ├── direnv.bash
+│   ├── fzf.bash               # fzf + fd integration
+│   ├── python.bash            # pyright-init function
+│   ├── ssh-agent.bash
+│   ├── tools.bash
+│   └── zoxide.bash
+├── claude/.claude/
+│   ├── hooks/
+│   │   ├── on-notification.sh
+│   │   └── on-stop.sh
+│   └── statusline-command.sh
+├── claude-indicator/
+│   ├── .local/bin/claude-indicator
+│   └── .config/autostart/claude-indicator.desktop
+├── nvim/.config/nvim/
+│   ├── init.lua
+│   └── lua/{config,plugins}/
 ├── tmux/
 │   ├── .tmux.conf
 │   ├── .gitmux.conf
-│   └── .local/
-│       └── bin/
-│           └── tmux-ci-status.sh
-├── terminator/
-│   └── .config/
-│       └── terminator/
-│           └── config
-├── bat/
-│   └── .config/
-│       └── bat/
-│           └── config
+│   └── .local/bin/tmux-ci-status.sh
+├── ghostty/.config/ghostty/config
+├── yazi/.config/yazi/
+├── terminator/.config/terminator/config
+├── bat/.config/bat/config
 ├── bootstrap.sh
+├── CHEATSHEET.md
 └── README.md
 ```
 
