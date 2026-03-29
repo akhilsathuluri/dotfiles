@@ -13,6 +13,7 @@ alias gb='git branch --sort=committerdate --format="%(refname:short) %(committer
 alias gdd='nvim -c "DiffviewOpen"'
 alias gddm='nvim -c "DiffviewOpen main"'
 alias mrd='nvim -c "DiffviewOpen origin/main...HEAD"'
+alias gw='while clear; do git diff --stat --color && echo "---" && git diff --color | head -60; sleep 2; done'
 
 # Docker
 alias docker-stop-all='docker stop $(docker ps -a -q)'
