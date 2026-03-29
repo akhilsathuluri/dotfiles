@@ -263,7 +263,7 @@ backup_if_not_symlink() {
 }
 
 stow_packages() {
-    local packages=(bash claude-indicator nvim tmux terminator bat ghostty yazi)
+    local packages=(bash claude claude-indicator nvim tmux terminator bat ghostty yazi)
 
     # Backup existing configs that would conflict
     backup_if_not_symlink "$HOME/.bashrc.d"
@@ -275,6 +275,8 @@ stow_packages() {
     backup_if_not_symlink "$HOME/.config/ghostty"
     backup_if_not_symlink "$HOME/.config/yazi"
     backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh"
+    backup_if_not_symlink "$HOME/.claude/hooks"
+    backup_if_not_symlink "$HOME/.claude/statusline-command.sh"
 
     cd "$DOTFILES_DIR"
     for pkg in "${packages[@]}"; do
