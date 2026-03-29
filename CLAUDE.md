@@ -7,13 +7,13 @@ Personal dotfiles managed with GNU Stow on Ubuntu 24.04.
 ## Stow packages
 
 - `bash/` → `~/.bashrc.d/` (shell customizations)
+- `bat/` → `~/.config/bat/`
 - `claude/` → `~/.claude/hooks/`, `~/.claude/statusline-command.sh`
 - `claude-indicator/` → `~/.local/bin/claude-indicator`, `~/.config/autostart/`
-- `nvim/` → `~/.config/nvim/` (LazyVim config)
-- `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/tmux-ci-status.sh`
-- `terminator/` → `~/.config/terminator/`
-- `bat/` → `~/.config/bat/`
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
+- `nvim/` → `~/.config/nvim/` (LazyVim config)
+- `terminator/` → `~/.config/terminator/`
+- `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/tmux-ci-status.sh`
 - `yazi/` → `~/.config/yazi/` (yazi file manager config)
 
 ## Rules
