@@ -124,8 +124,9 @@ dotfiles/
 │   └── zoxide.bash
 ├── claude/.claude/
 │   ├── hooks/
-│   │   ├── on-notification.sh
-│   │   └── on-stop.sh
+│   │   ├── on-notification.sh   # 🔴 Claude needs your reply
+│   │   ├── on-prompt-submit.sh  # clears session indicator
+│   │   └── on-stop.sh           # 🟢 Claude finished
 │   └── statusline-command.sh
 ├── claude-indicator/
 │   ├── .local/bin/claude-indicator
