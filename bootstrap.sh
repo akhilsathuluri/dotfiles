@@ -6,6 +6,7 @@ LOCAL_BIN="$HOME/.local/bin"
 ARCH="$(uname -m)"
 
 # Pinned versions (update these to upgrade)
+DELTA_VERSION="0.19.2"
 FD_VERSION="10.4.2"
 FZF_VERSION="0.70.0"
 GITMUX_VERSION="0.11.5"
@@ -66,6 +67,30 @@ install_nodejs() {
 # =============================================================================
 # Binary tools -> ~/.local/bin
 # =============================================================================
+
+install_delta() {
+    if [ -x "$LOCAL_BIN/delta" ] && "$LOCAL_BIN/delta" --version 2>/dev/null | grep -q "$DELTA_VERSION"; then
+        ok "delta $DELTA_VERSION already installed"
+        return
+    fi
+    log "Installing delta $DELTA_VERSION..."
+    local url="https://github.com/dandavison/delta/releases/download/${DELTA_VERSION}/delta-${DELTA_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL "$url" | tar xz -C "$tmp"
+    mv "$tmp/delta-${DELTA_VERSION}-x86_64-unknown-linux-musl/delta" "$LOCAL_BIN/delta"
+    chmod +x "$LOCAL_BIN/delta"
+    rm -rf "$tmp"
+    # Configure git to use delta as pager
+    git config --global core.pager delta
+    git config --global interactive.diffFilter "delta --color-only"
+    git config --global delta.navigate true
+    git config --global delta.light true
+    git config --global delta.side-by-side true
+    git config --global delta.line-numbers true
+    git config --global merge.conflictstyle zdiff3
+    ok "delta $DELTA_VERSION installed"
+}
 
 install_fd() {
     if [ -x "$LOCAL_BIN/fd" ] && "$LOCAL_BIN/fd" --version 2>/dev/null | grep -q "$FD_VERSION"; then
@@ -322,6 +347,7 @@ mkdir -p "$LOCAL_BIN"
 
 install_apt_packages
 install_nodejs
+install_delta
 install_fd
 install_fzf
 install_gitmux
