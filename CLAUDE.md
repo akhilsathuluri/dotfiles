@@ -32,6 +32,7 @@ Personal dotfiles managed with GNU Stow on Ubuntu 24.04.
 - Each tool init file guards with `command -v tool &>/dev/null || return`
 - Private/work-specific config goes in `~/.bashrc.d/local.bash` (not tracked)
 - `bootstrap.sh` must be idempotent (safe to re-run)
+- Keep lists alphabetically sorted (stow packages, apt packages, pinned versions, bootstrap calls, docs)
 
 ## Commits
 
