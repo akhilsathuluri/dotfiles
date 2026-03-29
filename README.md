@@ -9,13 +9,13 @@ Personal development environment managed with [GNU Stow](https://www.gnu.org/sof
 | Package            | Description                                                     | Target                                  |
 | ------------------ | --------------------------------------------------------------- | --------------------------------------- |
 | `bash`             | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode | `~/.bashrc.d/`                          |
+| `bat`              | Syntax highlighter theme                                        | `~/.config/bat/`                        |
 | `claude`           | Claude Code hooks (notification, stop) and statusline script    | `~/.claude/hooks/`, `~/.claude/`        |
 | `claude-indicator` | GNOME top bar indicator for Claude Code notifications           | `~/.local/bin/`, `~/.config/autostart/` |
-| `nvim`             | Neovim config (LazyVim, LSP, plugins)                           | `~/.config/nvim/`                       |
-| `tmux`             | Tmux config, gitmux, CI status script                           | `~/.tmux.conf`, `~/.gitmux.conf`        |
-| `terminator`       | Terminal emulator (Solarized theme, JetBrainsMono Nerd Font)    | `~/.config/terminator/`                 |
-| `bat`              | Syntax highlighter theme                                        | `~/.config/bat/`                        |
 | `ghostty`          | Ghostty terminal config (Solarized Light, block cursor)         | `~/.config/ghostty/`                    |
+| `nvim`             | Neovim config (LazyVim, LSP, plugins)                           | `~/.config/nvim/`                       |
+| `terminator`       | Terminal emulator (Solarized theme, JetBrainsMono Nerd Font)    | `~/.config/terminator/`                 |
+| `tmux`             | Tmux config, gitmux, CI status script                           | `~/.tmux.conf`, `~/.gitmux.conf`        |
 | `yazi`             | Yazi file manager config with zoxide plugin                     | `~/.config/yazi/`                       |
 
 ### System dependencies
