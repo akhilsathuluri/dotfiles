@@ -15,7 +15,7 @@ alias gst='git status'
 alias gb='git branch --sort=committerdate --format="%(refname:short) %(committerdate:relative)" | tail -20 | awk -F" " "{name=\$1; \$1=\"\"; printf \"%-50s (%s)\\n\", name, substr(\$0,2)}" && echo "" && echo "* $(git branch --show-current)"'
 alias gdd='nvim -c "DiffviewOpen"'
 alias gddm='nvim -c "DiffviewOpen main"'
-alias mrd='nvim -c "DiffviewOpen origin/main...HEAD"'
+alias gmr='nvim -c "DiffviewOpen origin/main...HEAD"'
 alias gw='while clear; do git diff --stat --color && echo "---" && git diff --color | head -60; sleep 2; done'
 
 # Docker
