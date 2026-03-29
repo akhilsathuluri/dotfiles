@@ -16,9 +16,9 @@ NERD_FONT_VERSION="3.4.0"
 YAZI_VERSION="26.1.22"
 ZOXIDE_VERSION="0.9.9"
 
-log()  { echo -e "\033[1;34m[dotfiles]\033[0m $*"; }
+log() { echo -e "\033[1;34m[dotfiles]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[dotfiles]\033[0m $*"; }
-ok()   { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
+ok() { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 
 # =============================================================================
 # APT packages
@@ -26,7 +26,8 @@ ok()   { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 
 install_apt_packages() {
     # chafa: image previews for yazi
-    local pkgs=(bat build-essential chafa curl direnv fontconfig jq ripgrep stow terminator tmux unzip wl-clipboard wget)
+    # gir1.2-appindicator3-0.1: GNOME top bar indicator for claude-indicator
+    local pkgs=(bat build-essential chafa curl direnv fontconfig gir1.2-appindicator3-0.1 jq python3-gi ripgrep stow terminator tmux unzip wl-clipboard wget)
     local to_install=()
     for pkg in "${pkgs[@]}"; do
         dpkg -s "$pkg" &>/dev/null || to_install+=("$pkg")
@@ -106,7 +107,7 @@ install_gitmux() {
     curl -sSL "$url" | tar xz -C "$tmp"
     mv "$tmp/gitmux" "$LOCAL_BIN/gitmux"
     chmod +x "$LOCAL_BIN/gitmux"
-    echo "$GITMUX_VERSION" > "$LOCAL_BIN/.gitmux-version"
+    echo "$GITMUX_VERSION" >"$LOCAL_BIN/.gitmux-version"
     rm -rf "$tmp"
     ok "gitmux $GITMUX_VERSION installed"
 }
@@ -211,7 +212,7 @@ install_nerd_font() {
     curl -sSL "https://github.com/ryanoasis/nerd-fonts/releases/download/v${NERD_FONT_VERSION}/JetBrainsMono.tar.xz" -o "$tmp/JetBrainsMono.tar.xz"
     tar xf "$tmp/JetBrainsMono.tar.xz" -C "$font_dir"
     fc-cache -fv "$font_dir" >/dev/null 2>&1
-    echo "$NERD_FONT_VERSION" > "$font_dir/.nerd-font-version"
+    echo "$NERD_FONT_VERSION" >"$font_dir/.nerd-font-version"
     rm -rf "$tmp"
     ok "JetBrainsMono Nerd Font $NERD_FONT_VERSION installed"
 }
@@ -262,7 +263,7 @@ backup_if_not_symlink() {
 }
 
 stow_packages() {
-    local packages=(bash nvim tmux terminator bat ghostty yazi)
+    local packages=(bash claude-indicator nvim tmux terminator bat ghostty yazi)
 
     # Backup existing configs that would conflict
     backup_if_not_symlink "$HOME/.bashrc.d"
@@ -302,7 +303,7 @@ patch_bashrc() {
     fi
     log "Patching ~/.bashrc..."
     cp "$HOME/.bashrc" "$HOME/.bashrc.pre-dotfiles"
-    cat >> "$HOME/.bashrc" << 'EOF'
+    cat >>"$HOME/.bashrc" <<'EOF'
 
 # Load dotfiles shell customizations
 for f in ~/.bashrc.d/*.bash; do [ -r "$f" ] && source "$f"; done
