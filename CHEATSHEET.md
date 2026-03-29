@@ -13,10 +13,14 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `Ctrl+R`            | fzf fuzzy search shell history           |
 | `Ctrl+T`            | fzf insert file path (powered by fd)     |
 | `Alt+C`             | fzf cd into directory (powered by fd)    |
-| `gs` / `gd` / `gl`  | git status / diff / log                  |
+| `gst` / `gd`        | git status / diff                        |
+| `gl` / `gp` / `gf`  | git pull / push / fetch                  |
+| `glog`              | git log graph (oneline, decorated)       |
 | `gb`                | git branches sorted by recent use        |
 | `gdd`               | open diffview in nvim (unstaged changes) |
 | `gddm`              | diffview against main branch             |
+| `gmr`               | diffview for merge request (vs main)     |
+| `gw`                | live git diff in tmux split pane         |
 | `lazygit`           | terminal git UI                          |
 | `lazydocker`        | terminal docker UI                       |
 | `bat <file>`        | cat with syntax highlighting             |
