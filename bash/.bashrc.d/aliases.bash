@@ -5,13 +5,15 @@ export EDITOR=nvim
 export TERM="tmux-256color"
 export BROWSER="firefox"
 
-# Git (OMZ-aligned)
+# Git
 alias gd='git diff'
 alias gf='git fetch'
-alias gl='git pull'
+# alias gl='git pull'
+alias gl='git log'
 alias glog='git log --oneline --decorate --graph'
 alias gp='git push'
-alias gst='git status'
+alias gs='git status'
+# alias gst='git status'
 alias gb='git branch --sort=committerdate --format="%(refname:short) %(committerdate:relative)" | tail -20 | awk -F" " "{name=\$1; \$1=\"\"; printf \"%-50s (%s)\\n\", name, substr(\$0,2)}" && echo "" && echo "* $(git branch --show-current)"'
 alias gdd='nvim -c "DiffviewOpen"'
 alias gddm='nvim -c "DiffviewOpen main"'
