@@ -44,6 +44,10 @@ map("n", "<leader>7", "<cmd>BufferLineGoToBuffer 7<CR>", { desc = "Go to buffer 
 map("n", "<leader>8", "<cmd>BufferLineGoToBuffer 8<CR>", { desc = "Go to buffer 8" })
 map("n", "<leader>9", "<cmd>BufferLineGoToBuffer 9<CR>", { desc = "Go to buffer 9" })
 
+-- Window navigation
+map("n", "<leader>h", "<C-w>h", { desc = "Move to left window" })
+map("n", "<leader>l", "<C-w>l", { desc = "Move to right window" })
+
 -- Ctrl-u/d scroll 10 lines instead of half-page
 map("n", "<C-u>", "10k", { desc = "Scroll up 10 lines" })
 map("n", "<C-d>", "10j", { desc = "Scroll down 10 lines" })
