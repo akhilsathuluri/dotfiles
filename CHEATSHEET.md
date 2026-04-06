@@ -63,13 +63,14 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 
 ### Copy Mode
 
-| Key        | Action                    |
-| ---------- | ------------------------- |
-| `prefix [` | enter copy mode (vi keys) |
-| `v`        | begin selection           |
-| `Ctrl+v`   | rectangle selection       |
-| `y`        | yank to clipboard         |
-| `q`        | exit copy mode            |
+| Key        | Action                       |
+| ---------- | ---------------------------- |
+| `Alt+y`    | enter copy mode (no prefix!) |
+| `prefix [` | enter copy mode (vi keys)    |
+| `v`        | begin selection              |
+| `Ctrl+v`   | rectangle selection          |
+| `y`        | yank to clipboard + primary  |
+| `q`        | exit copy mode               |
 
 ### Other
 
@@ -97,13 +98,14 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 
 ### Buffers & Windows
 
-| Key                       | Action                 |
-| ------------------------- | ---------------------- |
-| `<leader>1..9`            | jump to buffer 1-9     |
-| `<leader>j` / `<leader>k` | previous / next buffer |
-| `<leader>bd`              | close buffer           |
-| `<leader>qq`              | quit all               |
-| `Ctrl+h/j/k/l`            | navigate splits        |
+| Key                       | Action                      |
+| ------------------------- | --------------------------- |
+| `<leader>1..9`            | jump to buffer 1-9          |
+| `<leader>j` / `<leader>k` | previous / next buffer      |
+| `<leader>bd`              | close buffer                |
+| `<leader>qq`              | quit all                    |
+| `<leader>h` / `<leader>l` | move to left / right window |
+| `Ctrl+h/j/k/l`            | navigate splits             |
 
 ### File Navigation
 
@@ -142,11 +144,13 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 
 ### Search & Replace
 
-| Key          | Action                      |
-| ------------ | --------------------------- |
-| `<leader>sr` | search & replace (grug-far) |
-| `*`          | search word under cursor    |
-| `n` / `N`    | next / previous match       |
+| Key                   | Action                                           |
+| --------------------- | ------------------------------------------------ |
+| `<leader>sr`          | search & replace (grug-far)                      |
+| `*`                   | search word under cursor                         |
+| `n` / `N`             | next / previous match                            |
+| `:cfdo %s/old/new/g`  | replace across all quickfix files                |
+| `:cfdo %s/old/new/gc` | replace across all quickfix files (confirm each) |
 
 ### UI & Info
 
@@ -183,5 +187,5 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | Search & replace across project | `<leader>sr` in nvim (grug-far)                         |
 | Review branch changes           | `gddm` or `<leader>gg` then navigate                    |
 | Run command in split            | `prefix \|` → run command → `prefix z` to zoom          |
-| Copy terminal output            | `prefix [` → navigate → `v` → select → `y`              |
+| Copy terminal output            | `Alt+y` → navigate → `v` → select → `y`                 |
 | Jump to recent directory        | `cd <partial-name>` (zoxide remembers)                  |
