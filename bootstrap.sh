@@ -298,7 +298,7 @@ stow_packages() {
     cd "$DOTFILES_DIR"
     for pkg in "${packages[@]}"; do
         log "Stowing $pkg..."
-        stow --restow "$pkg"
+        stow --restow -t "$HOME" "$pkg"
     done
     ok "All packages stowed"
 
