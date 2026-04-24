@@ -13,6 +13,7 @@ Personal dotfiles managed with GNU Stow on Ubuntu 24.04.
 - `git/` → `~/.config/git/config` (delta pager, merge settings)
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
 - `nvim/` → `~/.config/nvim/` (LazyVim config)
+- `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (auto-copy screenshots to clipboard)
 - `terminator/` → `~/.config/terminator/`
 - `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/tmux-ci-status.sh`
 - `yazi/` → `~/.config/yazi/` (yazi file manager config)

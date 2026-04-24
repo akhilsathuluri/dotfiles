@@ -34,3 +34,6 @@ alias vim='nvim'
 
 # Quick reference
 alias cheat='bat ~/dotfiles/CHEATSHEET.md'
+
+# Fuzzy grep: interactive ripgrep across all files from cwd
+alias rgg='rg --line-number "" | fzf --delimiter : --preview "bat --color=always {1} --highlight-line {2}"'

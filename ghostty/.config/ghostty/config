@@ -25,9 +25,20 @@ gtk-titlebar-style = tabs
 gtk-wide-tabs = false
 gtk-custom-css = ~/.config/ghostty/style.css
 
-# Tab navigation
+# Tab navigation — ghostty tabs use ctrl+shift+arrows (default)
 keybind = alt+h=previous_tab
 keybind = alt+l=next_tab
+
+# Pass alt+number through to tmux (unbind ghostty defaults)
+keybind = alt+1=unbind
+keybind = alt+2=unbind
+keybind = alt+3=unbind
+keybind = alt+4=unbind
+keybind = alt+5=unbind
+keybind = alt+6=unbind
+keybind = alt+7=unbind
+keybind = alt+8=unbind
+keybind = alt+9=unbind
 
 # Explicitly bind new tab to ghostty default (plain shell, no tmux)
 keybind = ctrl+shift+t=new_tab
