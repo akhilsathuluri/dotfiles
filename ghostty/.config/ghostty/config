@@ -1,10 +1,7 @@
-# Theme
-theme = iTerm2 Solarized Light
+# Theme — use Ghostty's built-in default (dark)
 window-theme = ghostty
 
-# Font
-font-family = JetBrainsMono Nerd Font
-font-size = 12
+# Font — use the system default monospace
 
 # Cursor
 cursor-style = block
