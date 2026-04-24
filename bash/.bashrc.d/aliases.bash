@@ -1,5 +1,7 @@
 # Shell
 set -o vi
+bind -m vi-insert '\C-l':clear-screen
+bind -m vi-command '\C-l':clear-screen
 export VISUAL=nvim
 export EDITOR=nvim
 export TERM="tmux-256color"

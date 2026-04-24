@@ -267,6 +267,16 @@ install_ghostty() {
     ok "Ghostty installed"
 }
 
+set_default_terminal() {
+    if [ "$(readlink /etc/alternatives/x-terminal-emulator)" = "/usr/bin/ghostty" ]; then
+        ok "x-terminal-emulator already set to ghostty"
+        return
+    fi
+    log "Setting ghostty as default x-terminal-emulator (Ctrl+Alt+T)..."
+    sudo update-alternatives --set x-terminal-emulator /usr/bin/ghostty
+    ok "Default terminal set to ghostty"
+}
+
 # =============================================================================
 # Stow packages
 # =============================================================================
@@ -311,6 +321,30 @@ stow_packages() {
 }
 
 # =============================================================================
+# Default terminal (ctrl+alt+t)
+# =============================================================================
+
+set_default_terminal() {
+    command -v ghostty &>/dev/null || { warn "ghostty not on PATH; skipping default-terminal setup"; return; }
+
+    local ghostty_path
+    ghostty_path=$(command -v ghostty)
+
+    if update-alternatives --query x-terminal-emulator 2>/dev/null | grep -q "^Value: $ghostty_path$"; then
+        ok "x-terminal-emulator already set to ghostty"
+    else
+        log "Setting x-terminal-emulator to ghostty..."
+        sudo update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator "$ghostty_path" 50 >/dev/null
+        sudo update-alternatives --set x-terminal-emulator "$ghostty_path"
+        ok "x-terminal-emulator set to ghostty"
+    fi
+
+    if command -v gsettings &>/dev/null; then
+        gsettings set org.gnome.desktop.default-applications.terminal exec 'ghostty' 2>/dev/null || true
+    fi
+}
+
+# =============================================================================
 # Patch ~/.bashrc
 # =============================================================================
 
@@ -343,6 +377,7 @@ install_delta
 install_fd
 install_fzf
 install_ghostty
+set_default_terminal
 install_gitmux
 install_lazydocker
 install_lazygit
@@ -353,6 +388,7 @@ install_yazi
 install_zoxide
 stow_packages
 patch_bashrc
+set_default_terminal
 
 echo ""
 ok "Done! Restart your shell or run: source ~/.bashrc"

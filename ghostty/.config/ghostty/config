@@ -29,3 +29,6 @@ gtk-custom-css = ~/.config/ghostty/style.css
 keybind = alt+h=previous_tab
 keybind = alt+l=next_tab
 
+# Explicitly bind new tab to ghostty default (plain shell, no tmux)
+keybind = ctrl+shift+t=new_tab
+

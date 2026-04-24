@@ -1,7 +1,7 @@
 -- Options are automatically loaded before lazy.nvim startup
 -- Default options that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
 -- Add any additional options here
-vim.o.background = "light"
+vim.o.background = "dark"
 
 -- Migrated from VS Code settings
 vim.o.colorcolumn = "120"          -- ruler at column 120
