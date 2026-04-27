@@ -1,7 +1,7 @@
 # Shell
 set -o vi
-bind -m vi-insert '\C-l':clear-screen
-bind -m vi-command '\C-l':clear-screen
+bind -m vi-insert -x '"\C-l": printf "\033[2J\033[H"'
+bind -m vi-command -x '"\C-l": printf "\033[2J\033[H"'
 export VISUAL=nvim
 export EDITOR=nvim
 export TERM="tmux-256color"
@@ -23,6 +23,8 @@ alias gmr='nvim -c "DiffviewOpen origin/main...HEAD"'
 alias gw='while clear; do git diff --stat --color && echo "---" && git diff --color | head -60; sleep 2; done'
 
 # Docker
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
 alias docker-stop-all='docker stop $(docker ps -a -q)'
 alias docker-rm-all='docker rm $(docker ps -a -q)'
 

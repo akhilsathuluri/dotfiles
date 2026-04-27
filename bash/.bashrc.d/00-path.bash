@@ -17,3 +17,9 @@ if [ -d "$FNM_PATH" ]; then
     export PATH="$FNM_PATH:$PATH"
     eval "$(fnm env)"
 fi
+
+# pixi
+[ -d "$HOME/.pixi/bin" ] && export PATH="$HOME/.pixi/bin:$PATH"
+
+# cargo/rust
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
