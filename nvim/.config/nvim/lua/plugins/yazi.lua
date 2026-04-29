@@ -7,5 +7,12 @@ return {
   },
   opts = {
     open_for_directories = true,
+    hooks = {
+      yazi_closed_successfully = function()
+        vim.schedule(function()
+          vim.cmd("redraw!")
+        end)
+      end,
+    },
   },
 }

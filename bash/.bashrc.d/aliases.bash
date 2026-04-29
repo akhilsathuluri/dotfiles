@@ -8,8 +8,12 @@ export TERM="tmux-256color"
 export BROWSER="firefox"
 
 # Git
+alias gsm='git switch main'
+alias gsw='git switch'
+alias gpm='git pull origin main'
+alias ga='git add .'
 alias gd='git diff'
-alias gf='git fetch'
+alias gf='git fetch --prune'
 # alias gl='git pull'
 alias gl='git log'
 alias glog='git log --oneline --decorate --graph'
