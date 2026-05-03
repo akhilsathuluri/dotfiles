@@ -11,6 +11,8 @@ vim.o.softtabstop = 4              -- tab key width
 vim.o.fixendofline = true          -- ensure final newline
 vim.opt.clipboard = "unnamedplus"  -- yank to system clipboard
 vim.o.relativenumber = false       -- absolute line numbers
+vim.o.wrap = true                  -- wrap long lines
+vim.o.linebreak = true             -- wrap at word boundaries, not mid-word
 
 
 -- Copy to both clipboard and primary selection (for Shift+Insert)

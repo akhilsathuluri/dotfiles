@@ -13,11 +13,13 @@ alias gsw='git switch'
 alias gpm='git pull origin main'
 alias ga='git add .'
 alias gd='git diff'
+alias gm='git commit -m'
 alias gf='git fetch --prune'
 # alias gl='git pull'
 alias gl='git log'
 alias glog='git log --oneline --decorate --graph'
-alias gp='git push'
+alias gpub='git push origin $(git branch --show-current)'
+alias gplb='git pull origin $(git branch --show-current)'
 alias gs='git status'
 # alias gst='git status'
 alias gb='git branch --sort=committerdate --format="%(refname:short) %(committerdate:relative)" | tail -20 | awk -F" " "{name=\$1; \$1=\"\"; printf \"%-50s (%s)\\n\", name, substr(\$0,2)}" && echo "" && echo "* $(git branch --show-current)"'
@@ -39,7 +41,7 @@ alias ll='ls -lrth'
 alias vim='nvim'
 
 # Quick reference
-alias cheat='bat ~/dotfiles/CHEATSHEET.md'
+alias cheat='bat ~/git/dotfiles/CHEATSHEET.md'
 
 # Fuzzy grep: interactive ripgrep across all files from cwd
 alias rgg='rg --line-number "" | fzf --delimiter : --preview "bat --color=always {1} --highlight-line {2}"'

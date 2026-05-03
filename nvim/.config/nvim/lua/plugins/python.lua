@@ -34,14 +34,26 @@ return {
           -- Pyright auto-detects .venv in its root_dir, no settings needed.
           -- python.pythonPath is the only LSP setting that works (venv/venvPath
           -- are pyrightconfig.json-only). Set it as a fallback.
+          -- Also add the repo root to analysis.extraPaths so imports relative to
+          -- the project root (e.g. `from alpha_x.foo import bar`) resolve for go-to-def.
           before_init = function(_, config)
             local root = config.root_dir
             if not root then
               return
             end
+            local extra_paths = { root }
+            local src = root .. "/src"
+            if vim.uv.fs_stat(src) then
+              table.insert(extra_paths, src)
+            end
+            config.settings = vim.tbl_deep_extend("force", config.settings or {}, {
+              python = {
+                analysis = { extraPaths = extra_paths },
+              },
+            })
             local venv_python = root .. "/.venv/bin/python"
             if vim.uv.fs_stat(venv_python) then
-              config.settings = vim.tbl_deep_extend("force", config.settings or {}, {
+              config.settings = vim.tbl_deep_extend("force", config.settings, {
                 python = { pythonPath = venv_python },
               })
             end

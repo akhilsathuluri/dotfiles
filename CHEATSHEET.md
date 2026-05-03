@@ -6,27 +6,34 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 
 ## Shell (Bash + Tools)
 
-| Key / Command       | Action                                   |
-| ------------------- | ---------------------------------------- |
-| `cd <partial>`      | zoxide smart jump (learns from usage)    |
-| `cdi <partial>`     | zoxide interactive (pick from matches)   |
-| `Ctrl+R`            | fzf fuzzy search shell history           |
-| `Ctrl+T`            | fzf insert file path (powered by fd)     |
-| `Alt+C`             | fzf cd into directory (powered by fd)    |
-| `gst` / `gd`        | git status / diff                        |
-| `gl` / `gp` / `gf`  | git pull / push / fetch                  |
-| `glog`              | git log graph (oneline, decorated)       |
-| `gb`                | git branches sorted by recent use        |
-| `gdd`               | open diffview in nvim (unstaged changes) |
-| `gddm`              | diffview against main branch             |
-| `gmr`               | diffview for merge request (vs main)     |
-| `gw`                | live git diff in tmux split pane         |
-| `lazygit`           | terminal git UI                          |
-| `lazydocker`        | terminal docker UI                       |
-| `bat <file>`        | cat with syntax highlighting             |
-| `rg <pattern>`      | ripgrep — fast recursive search          |
-| `fd <pattern>`      | fast find files (respects .gitignore)    |
-| `fd -t d <pattern>` | find directories only                    |
+| Key / Command       | Action                                     |
+| ------------------- | ------------------------------------------ |
+| `cd <partial>`      | zoxide smart jump (learns from usage)      |
+| `cdi <partial>`     | zoxide interactive (pick from matches)     |
+| `Ctrl+R`            | fzf fuzzy search shell history             |
+| `Ctrl+T`            | fzf insert file path (powered by fd)       |
+| `Alt+C`             | fzf cd into directory (powered by fd)      |
+| `gs` / `gd`         | git status / diff                          |
+| `gl` / `gf`         | git log / fetch --prune                    |
+| `glog`              | git log graph (oneline, decorated)         |
+| `ga` / `gm "<msg>"` | git add . / commit -m                      |
+| `gpub` / `gplb`     | push / pull current branch to/from origin  |
+| `gsm` / `gpm`       | switch to main / pull origin main          |
+| `gsw <branch>`      | git switch                                 |
+| `gb`                | git branches sorted by recent use          |
+| `gdd`               | open diffview in nvim (unstaged changes)   |
+| `gddm`              | diffview against main branch               |
+| `gmr`               | diffview for merge request (vs main)       |
+| `gw`                | live git diff in tmux split pane           |
+| `lazygit`           | terminal git UI                            |
+| `lazydocker`        | terminal docker UI                         |
+| `bat <file>`        | cat with syntax highlighting               |
+| `rg <pattern>`      | ripgrep — fast recursive search            |
+| `rgg`               | interactive ripgrep + fzf preview          |
+| `fd <pattern>`      | fast find files (respects .gitignore)      |
+| `fd -t d <pattern>` | find directories only                      |
+| `y [path]`          | yazi file manager (cd to last dir on quit) |
+| `cheat`             | show this cheatsheet                       |
 
 ---
 
@@ -42,7 +49,6 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `prefix X`        | kill session                        |
 | `prefix ,`        | rename window                       |
 | `prefix $`        | rename session                      |
-| `Alt+1..9`        | switch to window 1-9 (no prefix!)   |
 | `Alt+j` / `Alt+k` | previous / next window (no prefix!) |
 | `prefix P`        | move window left                    |
 | `prefix N`        | move window right                   |
@@ -115,8 +121,6 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `<leader>/`       | live grep (search in project) |
 | `<leader>fr`      | recent files                  |
 | `<leader>fb`      | open buffers                  |
-| `<leader>-`       | open yazi at current file     |
-| `<leader>cw`      | open yazi at cwd              |
 | `<leader>e`       | toggle file explorer (snacks) |
 
 ### LSP & Code
@@ -137,7 +141,8 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | Key                      | Action                   |
 | ------------------------ | ------------------------ |
 | `<leader>gg`             | open lazygit             |
-| `<leader>gB`             | git blame line           |
+| `<leader>gB`             | git blame line (popup)   |
+| `<leader>gb`             | toggle inline git blame  |
 | `]h` / `[h`              | next / previous git hunk |
 | `:DiffviewOpen`          | side-by-side diff        |
 | `:DiffviewFileHistory %` | current file history     |
