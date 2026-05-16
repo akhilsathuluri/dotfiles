@@ -22,6 +22,21 @@ warn() { echo -e "\033[1;33m[dotfiles]\033[0m $*"; }
 ok() { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 
 # =============================================================================
+# Locale
+# =============================================================================
+
+setup_locale() {
+    if locale -a 2>/dev/null | grep -q "en_US.utf8"; then
+        ok "Locale en_US.UTF-8 already generated"
+        return
+    fi
+    log "Generating en_US.UTF-8 locale..."
+    sudo locale-gen en_US.UTF-8
+    sudo update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+    ok "Locale configured"
+}
+
+# =============================================================================
 # APT packages
 # =============================================================================
 
@@ -255,6 +270,11 @@ install_tpm() {
 # =============================================================================
 
 install_ghostty() {
+    # PPAs require Ubuntu; skip on Debian and other distros
+    if ! grep -qi ubuntu /etc/os-release 2>/dev/null; then
+        warn "Skipping Ghostty install (Ubuntu-only PPA, detected non-Ubuntu system)"
+        return
+    fi
     if command -v ghostty &>/dev/null; then
         ok "Ghostty already installed"
         return
@@ -269,6 +289,7 @@ install_ghostty() {
 }
 
 set_default_terminal() {
+    grep -qi ubuntu /etc/os-release 2>/dev/null || return
     if [ "$(readlink /etc/alternatives/x-terminal-emulator)" = "/usr/bin/ghostty" ]; then
         ok "x-terminal-emulator already set to ghostty"
         return
@@ -312,13 +333,6 @@ stow_packages() {
         stow --restow -t "$HOME" "$pkg"
     done
     ok "All packages stowed"
-
-    # Install yazi plugins from package.toml
-    if command -v ya &>/dev/null; then
-        log "Installing yazi plugins..."
-        ya pkg install
-        ok "Yazi plugins installed"
-    fi
 }
 
 # =============================================================================
@@ -372,6 +386,7 @@ EOF
 log "Starting dotfiles bootstrap..."
 mkdir -p "$LOCAL_BIN"
 
+setup_locale
 install_apt_packages
 install_nodejs
 install_delta
