@@ -30,6 +30,7 @@ alias docker-rm-all='docker rm $(docker ps -a -q)'
 
 # Files
 alias ll='ls -lrth'
+alias bat='bat --paging=never --style=plain'
 
 # Editor
 alias vim='nvim'
