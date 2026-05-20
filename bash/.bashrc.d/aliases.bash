@@ -35,5 +35,9 @@ alias ll='ls -lrth'
 alias vim='nvim'
 alias vimr='NVIM_RESTORE=1 nvim'
 
+# Tmux
+# Attach to session (default: current dir name), creating if missing
+ta() { tmux new-session -A -s "${1:-$(basename "$PWD")}"; }
+
 # Quick reference
 alias cheat='bat ~/dotfiles/CHEATSHEET.md'
