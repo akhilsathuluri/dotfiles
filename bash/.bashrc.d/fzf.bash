@@ -7,16 +7,26 @@ if command -v fd &>/dev/null; then
     export FZF_ALT_C_COMMAND='fd --type d --hidden --exclude .git'
 fi
 
-# Global look + preview toggle
+# Force Solarized Light for bat in fzf preview contexts (bat config isn't always
+# picked up when bat runs as a preview subprocess).
+export BAT_THEME='Solarized (light)'
+
+# Global look + Solarized Light palette + preview toggle
 export FZF_DEFAULT_OPTS='
   --height=80% --layout=reverse --border
   --bind ctrl-/:toggle-preview
+  --color=light
+  --color=fg:#586e75,bg:#fdf6e3,hl:#268bd2
+  --color=fg+:#073642,bg+:#eee8d5,hl+:#cb4b16
+  --color=info:#b58900,prompt:#859900,pointer:#dc322f
+  --color=marker:#dc322f,spinner:#b58900,header:#2aa198
+  --color=border:#93a1a1,gutter:#fdf6e3
 '
 
 # Ctrl-T: file picker with bat preview; Ctrl-Y copies file contents to wl-clipboard
 if command -v bat &>/dev/null && command -v wl-copy &>/dev/null; then
     export FZF_CTRL_T_OPTS="
-      --preview 'bat --color=always --style=numbers --line-range=:200 {}'
+      --preview 'bat --color=always --theme=\"Solarized (light)\" --style=numbers --line-range=:200 {}'
       --bind 'ctrl-y:execute-silent(wl-copy < {})+abort'
     "
 fi
@@ -40,7 +50,7 @@ if command -v rg &>/dev/null && command -v bat &>/dev/null; then
             --bind "change:reload:sleep 0.1; $rg_prefix {q} || :" \
             --bind "enter:become(nvim {1} +{2})" \
             --delimiter=: \
-            --preview 'bat --color=always --highlight-line {2} --style=numbers {1}' \
+            --preview 'bat --color=always --theme="Solarized (light)" --highlight-line {2} --style=numbers {1}' \
             --preview-window 'up,60%,border-bottom,+{2}+3/3'
     }
 fi
