@@ -6,18 +6,17 @@ Personal development environment managed with [GNU Stow](https://www.gnu.org/sof
 
 ### Configs (stow packages)
 
-| Package            | Description                                                                  | Target                                  |
-| ------------------ | ---------------------------------------------------------------------------- | --------------------------------------- |
-| `bash`             | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode              | `~/.bashrc.d/`                          |
-| `bat`              | Syntax highlighter theme                                                     | `~/.config/bat/`                        |
-| `claude`           | Claude Code hooks (notification, stop) and statusline script                 | `~/.claude/hooks/`, `~/.claude/`        |
-| `claude-indicator` | GNOME top bar indicator for Claude Code notifications                        | `~/.local/bin/`, `~/.config/autostart/` |
-| `git`              | Git tool settings (delta pager, merge). Toggle: `stow -D git`                | `~/.config/git/config`                  |
-| `ghostty`          | Ghostty terminal config (Solarized Light, block cursor, cursor trail shader) | `~/.config/ghostty/`                    |
-| `nvim`             | Neovim config (LazyVim, LSP, plugins)                                        | `~/.config/nvim/`                       |
-| `terminator`       | Terminal emulator (Solarized theme, JetBrainsMono Nerd Font)                 | `~/.config/terminator/`                 |
-| `tmux`             | Tmux config, gitmux, CI status script                                        | `~/.tmux.conf`, `~/.gitmux.conf`        |
-| `yazi`             | Yazi file manager config with zoxide plugin                                  | `~/.config/yazi/`                       |
+| Package      | Description                                                                  | Target                           |
+| ------------ | ---------------------------------------------------------------------------- | -------------------------------- |
+| `bash`       | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode              | `~/.bashrc.d/`                   |
+| `bat`        | Syntax highlighter theme                                                     | `~/.config/bat/`                 |
+| `claude`     | Claude Code hooks (notification, stop) and statusline script                 | `~/.claude/hooks/`, `~/.claude/` |
+| `git`        | Git tool settings (delta pager, merge). Toggle: `stow -D git`                | `~/.config/git/config`           |
+| `ghostty`    | Ghostty terminal config (Solarized Light, block cursor, cursor trail shader) | `~/.config/ghostty/`             |
+| `nvim`       | Neovim config (LazyVim, LSP, plugins)                                        | `~/.config/nvim/`                |
+| `terminator` | Terminal emulator (Solarized theme, JetBrainsMono Nerd Font)                 | `~/.config/terminator/`          |
+| `tmux`       | Tmux config, gitmux, CI status script                                        | `~/.tmux.conf`, `~/.gitmux.conf` |
+| `yazi`       | Yazi file manager config with zoxide plugin                                  | `~/.config/yazi/`                |
 
 ### System dependencies
 
@@ -130,9 +129,6 @@ dotfiles/
 │   │   ├── on-prompt-submit.sh  # clears session indicator
 │   │   └── on-stop.sh           # 🟢 Claude finished
 │   └── statusline-command.sh
-├── claude-indicator/
-│   ├── .local/bin/claude-indicator
-│   └── .config/autostart/claude-indicator.desktop
 ├── git/.config/git/config         # delta pager, merge settings
 ├── nvim/.config/nvim/
 │   ├── init.lua

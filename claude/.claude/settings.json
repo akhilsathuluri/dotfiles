@@ -1,63 +1,64 @@
 {
-    "hooks": {
-        "Notification": [
-            {
-                "hooks": [
-                    {
-                        "command": "bash ${HOME}/.claude/hooks/on-notification.sh",
-                        "type": "command"
-                    }
-                ],
-                "matcher": ""
-            }
-        ],
-        "Stop": [
-            {
-                "hooks": [
-                    {
-                        "command": "bash ${HOME}/.claude/hooks/on-stop.sh",
-                        "type": "command"
-                    }
-                ],
-                "matcher": ""
-            }
-        ],
-        "UserPromptSubmit": [
-            {
-                "hooks": [
-                    {
-                        "command": "bash ${HOME}/.claude/hooks/on-prompt-submit.sh",
-                        "type": "command"
-                    }
-                ],
-                "matcher": ""
-            }
-        ],
-        "PreToolUse": [
-            {
-                "hooks": [
-                    {
-                        "command": "bash ${HOME}/.claude/hooks/on-pre-tool-use.sh",
-                        "type": "command"
-                    }
-                ],
-                "matcher": ""
-            }
-        ],
-        "SessionEnd": [
-            {
-                "hooks": [
-                    {
-                        "command": "bash ${HOME}/.claude/hooks/on-session-end.sh",
-                        "type": "command"
-                    }
-                ],
-                "matcher": ""
-            }
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/on-notification.sh"
+          }
         ]
-    },
-    "statusLine": {
-        "command": "bash ${HOME}/.claude/statusline-command.sh",
-        "type": "command"
-    }
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/on-stop.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/on-prompt-submit.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/on-pre-tool-use.sh"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/on-session-end.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash $HOME/.claude/statusline-command.sh"
+  },
+  "skipAutoPermissionPrompt": true
 }
