@@ -49,7 +49,7 @@ icon_for() {
 # ---- Aggregate state across all panes in this session ----------------------
 agg_state=
 agg_ts=0
-panes_in_session=$(tmux list-panes -t "$session" -F '#{pane_id}' 2>/dev/null)
+panes_in_session=$(tmux list-panes -s -t "$session" -F '#{pane_id}' 2>/dev/null)
 for p in $panes_in_session; do
   st=${PANE_STATE[$p]:-}
   [ -z "$st" ] && continue
@@ -84,7 +84,7 @@ echo "windows:"
 # Use tab (#{\t} not supported; tmux passes literal $'\t' through -F if quoted).
 # Filter to this session via -t. Fields: window_index, window_name, pane_id,
 # pane_active, window_active.
-tmux list-panes -t "$session" -F $'#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_active}\t#{window_active}' 2>/dev/null \
+tmux list-panes -s -t "$session" -F $'#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_active}\t#{window_active}' 2>/dev/null \
   | while IFS=$'\t' read -r widx wname pid pactive wactive; do
       marker=' '
       [ "$wactive" = "1" ] && [ "$pactive" = "1" ] && marker='*'
