@@ -135,7 +135,7 @@ dotfiles/
 │   ├── 00-path.bash          # PATH (loads first)
 │   ├── aliases.bash           # shell options, git/docker aliases
 │   ├── direnv.bash
-│   ├── fzf.bash               # fzf + fd integration
+│   ├── fzf.bash               # fzf + fd + Solarized opts, bat preview, `rfv` live-grep
 │   ├── python.bash            # pyright-init function
 │   ├── ssh-agent.bash
 │   ├── tools.bash

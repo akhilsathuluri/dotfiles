@@ -11,8 +11,9 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `cd <partial>`      | zoxide smart jump (learns from usage)    |
 | `cdi <partial>`     | zoxide interactive (pick from matches)   |
 | `Ctrl+R`            | fzf fuzzy search shell history           |
-| `Ctrl+T`            | fzf insert file path (powered by fd)     |
+| `Ctrl+T`            | fzf insert file path (bat preview)       |
 | `Alt+C`             | fzf cd into directory (powered by fd)    |
+| `rfv [query]`       | live ripgrep + fzf, opens nvim at line   |
 | `gs` / `gd`         | git status / diff                        |
 | `gdl`               | diff of the last commit (HEAD~1..HEAD)   |
 | `gl` / `gp` / `gf`  | git log / push / fetch                   |
@@ -30,6 +31,16 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `fd -t d <pattern>` | find directories only                    |
 | `vim`               | nvim (clean start, no session restore)   |
 | `vimr`              | nvim, restore saved session for cwd      |
+
+---
+
+### fzf (inside a picker)
+
+| Key      | Action                                                                     |
+| -------- | -------------------------------------------------------------------------- |
+| `Ctrl+/` | toggle preview pane (in `Ctrl+T` and `rfv`)                                |
+| `Ctrl+Y` | copy to clipboard and exit: file contents in `Ctrl+T`, command in `Ctrl+R` |
+| `Enter`  | accept selection (in `rfv`: opens nvim at file + line)                     |
 
 ---
 
@@ -198,6 +209,7 @@ Sessions are scoped per cwd and saved on quit. Use `vimr` to restore buffers and
 | Scenario                        | Keys                                                    |
 | ------------------------------- | ------------------------------------------------------- |
 | Quick file edit                 | `cd proj` → `vim .` → `<leader><space>` → type filename |
+| Jump to code by content         | `rfv parseConfig` → Enter (opens nvim at the line)      |
 | Search & replace across project | `<leader>sr` in nvim (grug-far)                         |
 | Review branch changes           | `gddm` or `<leader>gg` then navigate                    |
 | Run command in split            | `prefix \|` → run command → `prefix z` to zoom          |
