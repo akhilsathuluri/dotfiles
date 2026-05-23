@@ -292,6 +292,7 @@ stow_packages() {
     backup_if_not_symlink "$HOME/.config/yazi"
     backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh"
     backup_if_not_symlink "$HOME/.claude/hooks"
+    backup_if_not_symlink "$HOME/.claude/settings.json"
     backup_if_not_symlink "$HOME/.claude/statusline-command.sh"
 
     cd "$DOTFILES_DIR"
