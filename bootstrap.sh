@@ -27,8 +27,7 @@ ok() { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 
 install_apt_packages() {
     # chafa: image previews for yazi
-    # gir1.2-appindicator3-0.1: GNOME top bar indicator for claude-indicator
-    local pkgs=(bat build-essential chafa curl direnv fontconfig gir1.2-appindicator3-0.1 jq python3-gi ripgrep stow terminator tmux unzip wl-clipboard wget)
+    local pkgs=(bat build-essential chafa curl direnv fontconfig jq ripgrep stow terminator tmux unzip wl-clipboard wget)
     local to_install=()
     for pkg in "${pkgs[@]}"; do
         dpkg -s "$pkg" &>/dev/null || to_install+=("$pkg")
@@ -280,7 +279,7 @@ backup_if_not_symlink() {
 }
 
 stow_packages() {
-    local packages=(bash bat claude claude-indicator git ghostty nvim terminator tmux yazi)
+    local packages=(bash bat claude git ghostty nvim terminator tmux yazi)
 
     # Backup existing configs that would conflict
     backup_if_not_symlink "$HOME/.bashrc.d"

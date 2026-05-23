@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # fzf-based tmux session picker. Sorts by last-attached (most recent first),
-# excludes the current session, shows branch inline, and previews windows.
+# excludes the current session, shows branch + Claude state inline, previews
+# windows with per-pane state breakdown.
 
 set -euo pipefail
 
@@ -15,8 +16,49 @@ sessions=$(
 
 [ -z "$sessions" ] && exit 0
 
-# Build "<name>TAB<display>" lines so fzf shows formatted text but we can
-# recover the raw session name from field 1 after selection.
+# ---- Build map: tmux_session -> aggregated Claude state (worst wins) -------
+# State priority: question(3) > working(2) > done(1) > blank(0).
+# Skip orphaned state files (PID dead) and stale working files (>5 min).
+declare -A STATE_BY_SESSION
+state_rank() {
+  case $1 in
+    question) echo 3 ;;
+    working)  echo 2 ;;
+    done)     echo 1 ;;
+    *)        echo 0 ;;
+  esac
+}
+
+now=$(date +%s)
+stale_working_threshold=300  # 5 minutes
+
+shopt -s nullglob
+for f in /tmp/claude-sessions/*; do
+  read -r state pid ts tsess < <(
+    jq -r '[.state, (.pid // 0), (.ts // 0), (.tmux_session // "")] | @tsv' "$f" 2>/dev/null
+  ) || continue
+  [ -z "$tsess" ] && continue
+  [ "$pid" -gt 0 ] && ! kill -0 "$pid" 2>/dev/null && continue
+  if [ "$state" = "working" ] && [ $((now - ts)) -gt "$stale_working_threshold" ]; then
+    continue
+  fi
+  prev=${STATE_BY_SESSION[$tsess]:-}
+  if [ "$(state_rank "$state")" -gt "$(state_rank "$prev")" ]; then
+    STATE_BY_SESSION[$tsess]=$state
+  fi
+done
+shopt -u nullglob
+
+icon_for() {
+  case $1 in
+    question) printf '🔴' ;;
+    working)  printf '🟡' ;;
+    done)     printf '🟢' ;;
+    *)        printf '  ' ;;
+  esac
+}
+
+# ---- Build "<name>TAB<display>" lines -------------------------------------
 lines=$(
   while IFS= read -r name; do
     [ -z "$name" ] && continue
@@ -27,7 +69,8 @@ lines=$(
                || git -C "$path" rev-parse --short HEAD 2>/dev/null \
                || true)
     fi
-    printf '%s\t%-18s  %s\n' "$name" "$name" "$branch"
+    icon=$(icon_for "${STATE_BY_SESSION[$name]:-}")
+    printf '%s\t%s %-18s  %s\n' "$name" "$icon" "$name" "$branch"
   done <<< "$sessions"
 )
 

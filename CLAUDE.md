@@ -9,7 +9,6 @@ Personal dotfiles managed with GNU Stow on Ubuntu 24.04.
 - `bash/` → `~/.bashrc.d/` (shell customizations)
 - `bat/` → `~/.config/bat/`
 - `claude/` → `~/.claude/hooks/`, `~/.claude/statusline-command.sh`
-- `claude-indicator/` → `~/.local/bin/claude-indicator`, `~/.config/autostart/`
 - `git/` → `~/.config/git/config` (delta pager, merge settings)
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
 - `nvim/` → `~/.config/nvim/` (LazyVim config)
