@@ -10,7 +10,7 @@ Personal development environment managed with [GNU Stow](https://www.gnu.org/sof
 | ------------ | ---------------------------------------------------------------------------- | -------------------------------- |
 | `bash`       | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode              | `~/.bashrc.d/`                   |
 | `bat`        | Syntax highlighter theme                                                     | `~/.config/bat/`                 |
-| `claude`     | Claude Code hooks (notification, stop) and statusline script                 | `~/.claude/hooks/`, `~/.claude/` |
+| `claude`     | Claude Code hooks, statusline, and settings.json (hooks/statusLine wiring)   | `~/.claude/hooks/`, `~/.claude/` |
 | `git`        | Git tool settings (delta pager, merge). Toggle: `stow -D git`                | `~/.config/git/config`           |
 | `ghostty`    | Ghostty terminal config (Solarized Light, block cursor, cursor trail shader) | `~/.config/ghostty/`             |
 | `nvim`       | Neovim config (LazyVim, LSP, plugins)                                        | `~/.config/nvim/`                |
@@ -145,6 +145,7 @@ dotfiles/
 │   │   ├── on-notification.sh   # 🔴 Claude needs your reply
 │   │   ├── on-prompt-submit.sh  # clears session indicator
 │   │   └── on-stop.sh           # 🟢 Claude finished
+│   ├── settings.json            # hooks + statusLine wiring (portable, uses $HOME)
 │   └── statusline-command.sh
 ├── git/.config/git/config         # delta pager, merge settings
 ├── nvim/.config/nvim/
