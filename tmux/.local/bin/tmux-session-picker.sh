@@ -116,7 +116,7 @@ lines=$(
 
 target=$(
   printf '%s\n' "$lines" \
-    | fzf --reverse --no-input \
+    | fzf --reverse --no-input --highlight-line \
           --delimiter=$'\t' --with-nth=2 \
           --preview "$HOME/.local/bin/tmux-session-preview.sh {1}" \
           --preview-window=down:50% \
