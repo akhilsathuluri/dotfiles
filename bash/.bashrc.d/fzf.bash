@@ -50,7 +50,7 @@ if command -v rg &>/dev/null && command -v bat &>/dev/null; then
             --bind "change:reload:sleep 0.1; $rg_prefix {q} || :" \
             --bind "enter:become(nvim {1} +{2})" \
             --delimiter=: \
-            --preview 'bat --color=always --theme="Solarized (light)" --style=numbers {1}' \
+            --preview 'bat --color=always --theme="Solarized (light)" --style=numbers --highlight-line {2} {1}' \
             --preview-window 'up,60%,border-bottom,+{2}+3/3'
     }
 fi
