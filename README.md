@@ -98,6 +98,23 @@ Create `~/.bashrc.d/local.bash` (not tracked in git):
 vim ~/.bashrc.d/local.bash
 ```
 
+### Machine-specific Claude Code settings
+
+The dotfiles ship a minimal `~/.claude/settings.json` (hooks + statusline only).
+Machine-specific preferences — `theme`, `voiceEnabled`, `effortLevel`,
+`enabledPlugins`, `skipAutoPermissionPrompt`, etc. — belong in
+`~/.claude/settings.local.json`, which Claude Code merges on top of the shipped
+file and which stays out of the dotfiles repo.
+
+If you already have a `~/.claude/settings.json` with preferences when you run
+`bootstrap.sh`, it gets backed up to `~/.claude/settings.json.pre-dotfiles`.
+Migrate the keys you want to keep:
+
+```bash
+jq '{autoCompactEnabled, theme, voiceEnabled, effortLevel, enabledPlugins, skipAutoPermissionPrompt}' \
+  ~/.claude/settings.json.pre-dotfiles > ~/.claude/settings.local.json
+```
+
 ### Edit a config
 
 Edit files directly in `~/dotfiles/` — the symlinks mean changes take effect immediately.
