@@ -7,12 +7,10 @@ if command -v fd &>/dev/null; then
     export FZF_ALT_C_COMMAND='fd --type d --hidden --exclude .git'
 fi
 
-# Global look + preview/scroll keys (alt-u/d to avoid overriding fzf's ctrl-u clear-query)
+# Global look + preview toggle
 export FZF_DEFAULT_OPTS='
   --height=80% --layout=reverse --border
   --bind ctrl-/:toggle-preview
-  --bind alt-u:preview-half-page-up
-  --bind alt-d:preview-half-page-down
 '
 
 # Ctrl-T: file picker with bat preview; Ctrl-Y copies file contents to wl-clipboard
