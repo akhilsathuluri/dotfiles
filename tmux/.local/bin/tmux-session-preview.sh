@@ -32,8 +32,11 @@ for f in /tmp/claude-sessions/*; do
     [ -z "$pane" ] && continue
   fi
   if [ "$state" = "working" ] && [ $((now - ts)) -gt 300 ]; then continue; fi
-  PANE_STATE[$pane]=$state
-  PANE_TS[$pane]=$ts
+  # Keep the most recent ts per pane (stale background-session files lose).
+  if [ "$ts" -gt "${PANE_TS[$pane]:-0}" ]; then
+    PANE_STATE[$pane]=$state
+    PANE_TS[$pane]=$ts
+  fi
 done
 shopt -u nullglob
 

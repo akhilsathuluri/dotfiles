@@ -45,6 +45,10 @@ while IFS=$'\t' read -r sess pid cmd path; do
   esac
 done < <(tmux list-panes -a -F $'#{session_name}\t#{pane_id}\t#{pane_current_command}\t#{pane_current_path}')
 
+# First pass: collapse all state files to one (state, ts) per live pane,
+# keeping the most recent ts. Prevents a stale background-session file from
+# beating a fresh one when both cwd-resolve to the same pane.
+declare -A PANE_STATE PANE_TS PANE_SESSION
 shopt -s nullglob
 for f in /tmp/claude-sessions/*; do
   jq -e . "$f" >/dev/null 2>&1 || continue
@@ -66,12 +70,24 @@ for f in /tmp/claude-sessions/*; do
   if [ "$state" = "working" ] && [ $((now - ts)) -gt "$stale_working_threshold" ]; then
     continue
   fi
+
+  if [ "$ts" -gt "${PANE_TS[$tpane]:-0}" ]; then
+    PANE_STATE[$tpane]=$state
+    PANE_TS[$tpane]=$ts
+    PANE_SESSION[$tpane]=$tsess
+  fi
+done
+shopt -u nullglob
+
+# Second pass: aggregate per tmux session, worst state across its panes wins.
+for tpane in "${!PANE_STATE[@]}"; do
+  tsess=${PANE_SESSION[$tpane]}
+  state=${PANE_STATE[$tpane]}
   prev=${STATE_BY_SESSION[$tsess]:-}
   if [ "$(state_rank "$state")" -gt "$(state_rank "$prev")" ]; then
     STATE_BY_SESSION[$tsess]=$state
   fi
 done
-shopt -u nullglob
 
 icon_for() {
   case $1 in
