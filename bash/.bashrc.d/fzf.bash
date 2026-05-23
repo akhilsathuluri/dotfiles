@@ -28,11 +28,4 @@ if command -v wl-copy &>/dev/null; then
     "
 fi
 
-# Alt-C: directory jump with tree/eza preview
-if command -v eza &>/dev/null; then
-    export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always --level=2 {} | head -200'"
-elif command -v tree &>/dev/null; then
-    export FZF_ALT_C_OPTS="--preview 'tree -C {} | head -200'"
-fi
-
 eval "$(fzf --bash)"
