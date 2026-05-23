@@ -271,29 +271,61 @@ install_ghostty() {
 # =============================================================================
 
 backup_if_not_symlink() {
-    local target="$1"
-    if [ -e "$target" ] && [ ! -L "$target" ]; then
+    # $1: target path. $2 (optional): the repo source path.
+    # Behavior:
+    #   * target doesn't exist or is a symlink → nothing to do.
+    #   * target resolves (via realpath, catching parent-dir symlinks)
+    #     to the same inode as src → nothing to do; stow has already
+    #     folded the parent directory.
+    #   * src given AND content matches → silently remove target so stow
+    #     can replace it with a symlink (no noisy .pre-dotfiles).
+    #   * otherwise → move target aside to ${target}.pre-dotfiles.
+    local target="$1" src="${2:-}"
+    [ -e "$target" ] && [ ! -L "$target" ] || return 0
+    if [ -n "$src" ] && [ "$(readlink -f -- "$target")" = "$(readlink -f -- "$src")" ]; then
+        return 0
+    fi
+    if [ -n "$src" ] && [ -f "$target" ] && [ -f "$src" ] && cmp -s "$target" "$src"; then
+        rm "$target"
+    else
         warn "Backing up $target -> ${target}.pre-dotfiles"
         mv "$target" "${target}.pre-dotfiles"
     fi
 }
 
+# Per-file backup for directories shared with the user's own files.
+# Only backs up files we're about to stow in — user's other files stay put.
+backup_pkg_files() {
+    local pkg_src="$1" target_dir="$2"
+    [ -d "$pkg_src" ] || return
+    local f
+    for f in "$pkg_src"/*; do
+        [ -e "$f" ] || continue
+        backup_if_not_symlink "$target_dir/$(basename "$f")" "$f"
+    done
+}
+
 stow_packages() {
     local packages=(bash bat claude git ghostty nvim terminator tmux yazi)
 
-    # Backup existing configs that would conflict
-    backup_if_not_symlink "$HOME/.bashrc.d"
+    # Single files we own outright: back up the file itself.
+    backup_if_not_symlink "$HOME/.tmux.conf"                    "$DOTFILES_DIR/tmux/.tmux.conf"
+    backup_if_not_symlink "$HOME/.gitmux.conf"                  "$DOTFILES_DIR/tmux/.gitmux.conf"
+    backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh"  "$DOTFILES_DIR/tmux/.local/bin/tmux-ci-status.sh"
+    backup_if_not_symlink "$HOME/.claude/settings.json"         "$DOTFILES_DIR/claude/.claude/settings.json"
+    backup_if_not_symlink "$HOME/.claude/statusline-command.sh" "$DOTFILES_DIR/claude/.claude/statusline-command.sh"
+
+    # Directories the user may share with their own files: back up only the
+    # specific files we ship, leaving the rest of the directory intact.
+    backup_pkg_files "$DOTFILES_DIR/bash/.bashrc.d"          "$HOME/.bashrc.d"
+    backup_pkg_files "$DOTFILES_DIR/claude/.claude/hooks"    "$HOME/.claude/hooks"
+
+    # Directories we own outright: back up the whole directory.
     backup_if_not_symlink "$HOME/.config/nvim"
-    backup_if_not_symlink "$HOME/.tmux.conf"
-    backup_if_not_symlink "$HOME/.gitmux.conf"
     backup_if_not_symlink "$HOME/.config/terminator"
     backup_if_not_symlink "$HOME/.config/bat"
     backup_if_not_symlink "$HOME/.config/ghostty"
     backup_if_not_symlink "$HOME/.config/yazi"
-    backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh"
-    backup_if_not_symlink "$HOME/.claude/hooks"
-    backup_if_not_symlink "$HOME/.claude/settings.json"
-    backup_if_not_symlink "$HOME/.claude/statusline-command.sh"
 
     cd "$DOTFILES_DIR"
     for pkg in "${packages[@]}"; do
