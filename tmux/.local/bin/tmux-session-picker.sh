@@ -18,7 +18,8 @@ sessions=$(
 
 # ---- Build map: tmux_session -> aggregated Claude state (worst wins) -------
 # State priority: question(3) > working(2) > done(1) > blank(0).
-# Skip orphaned state files (PID dead) and stale working files (>5 min).
+# Liveness: state file's tmux_pane must still exist in tmux. Working files
+# older than 5 min are also dropped (covers hung Claudes).
 declare -A STATE_BY_SESSION
 state_rank() {
   case $1 in
@@ -32,13 +33,17 @@ state_rank() {
 now=$(date +%s)
 stale_working_threshold=300  # 5 minutes
 
+# Set of currently-live tmux pane ids (e.g. "%17")
+declare -A LIVE_PANES
+while read -r p; do LIVE_PANES[$p]=1; done < <(tmux list-panes -a -F '#{pane_id}')
+
 shopt -s nullglob
 for f in /tmp/claude-sessions/*; do
-  read -r state pid ts tsess < <(
-    jq -r '[.state, (.pid // 0), (.ts // 0), (.tmux_session // "")] | @tsv' "$f" 2>/dev/null
+  read -r state ts tsess tpane < <(
+    jq -r '[.state, (.ts // 0), (.tmux_session // ""), (.tmux_pane // "")] | @tsv' "$f" 2>/dev/null
   ) || continue
   [ -z "$tsess" ] && continue
-  [ "$pid" -gt 0 ] && ! kill -0 "$pid" 2>/dev/null && continue
+  [ -n "$tpane" ] && [ -z "${LIVE_PANES[$tpane]:-}" ] && continue
   if [ "$state" = "working" ] && [ $((now - ts)) -gt "$stale_working_threshold" ]; then
     continue
   fi

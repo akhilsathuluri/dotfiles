@@ -11,14 +11,18 @@ home_short=${path/#$HOME/\~}
 now=$(date +%s)
 
 # ---- Read Claude state files, key by tmux_pane (e.g. "%17") ----------------
+# Liveness: pane must still exist; working files older than 5 min are dropped.
+declare -A LIVE_PANES
+while read -r p; do LIVE_PANES[$p]=1; done < <(tmux list-panes -a -F '#{pane_id}')
+
 declare -A PANE_STATE PANE_TS
 shopt -s nullglob
 for f in /tmp/claude-sessions/*; do
-  read -r pane state pid ts < <(
-    jq -r '[(.tmux_pane // ""), .state, (.pid // 0), (.ts // 0)] | @tsv' "$f" 2>/dev/null
+  read -r pane state ts < <(
+    jq -r '[(.tmux_pane // ""), .state, (.ts // 0)] | @tsv' "$f" 2>/dev/null
   ) || continue
   [ -z "$pane" ] && continue
-  [ "$pid" -gt 0 ] && ! kill -0 "$pid" 2>/dev/null && continue
+  [ -z "${LIVE_PANES[$pane]:-}" ] && continue
   if [ "$state" = "working" ] && [ $((now - ts)) -gt 300 ]; then continue; fi
   PANE_STATE[$pane]=$state
   PANE_TS[$pane]=$ts
