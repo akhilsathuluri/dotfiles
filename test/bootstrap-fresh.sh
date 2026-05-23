@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Fresh-install smoke test: runs bootstrap.sh in a clean Ubuntu 24.04 container,
+# verifies all binaries install and stow targets get symlinked, then runs
+# bootstrap a second time to confirm idempotency. ~5 min on first run; cached
+# subsequent runs are faster.
+#
+# Usage: test/bootstrap-fresh.sh
+# Requires: docker.
+
+set -euo pipefail
+
+DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+command -v docker >/dev/null || { echo "docker not found"; exit 1; }
+
+docker run --rm -v "$DOTFILES_DIR:/dotfiles:ro" ubuntu:24.04 bash -c '
+set -e
+apt-get update -qq && apt-get install -y -qq sudo git curl ca-certificates >/dev/null
+useradd -m -s /bin/bash test
+echo "test ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+cp -r /dotfiles /home/test/dotfiles
+chown -R test:test /home/test/dotfiles
+
+su - test -c "cd ~/dotfiles && ./bootstrap.sh 2>&1 | tail -40"
+
+su - test -c "
+export PATH=\$HOME/.local/bin:\$PATH
+echo
+echo \"--- binaries ---\"
+fail=0
+for b in fzf fd delta lazygit lazydocker yazi zoxide gitmux nvim ghostty; do
+  if v=\$(\"\$b\" --version 2>/dev/null | head -1); then
+    printf \"OK   %-12s %s\n\" \"\$b\" \"\$v\"
+  else
+    printf \"MISS %s\n\" \"\$b\"
+    fail=1
+  fi
+done
+
+echo
+echo \"--- symlinks ---\"
+for f in ~/.tmux.conf ~/.gitmux.conf ~/.bashrc.d ~/.config/nvim ~/.local/bin/tmux-ci-status.sh; do
+  if [ -L \"\$f\" ]; then printf \"OK   %s\n\" \"\$f\"
+  else printf \"MISS %s\n\" \"\$f\"; fail=1; fi
+done
+
+echo
+echo \"--- 2nd run (idempotency) ---\"
+cd ~/dotfiles && ./bootstrap.sh 2>&1 | grep -E \"already installed|already patched\" | wc -l | xargs -I{} echo \"{} steps already-installed (expect >= 10)\"
+
+exit \$fail
+"
+'

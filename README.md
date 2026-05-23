@@ -161,6 +161,7 @@ dotfiles/
 ├── terminator/.config/terminator/config
 ├── bat/.config/bat/config
 ├── bootstrap.sh
+├── test/bootstrap-fresh.sh    # docker smoke test (fresh Ubuntu 24.04)
 ├── CHEATSHEET.md
 └── README.md
 ```
@@ -172,3 +173,4 @@ dotfiles/
 - **Neovim plugins**: Managed by lazy.nvim. `lazy-lock.json` pins plugin versions — commit it to keep installs reproducible.
 - **Python venvs**: direnv auto-activates `.venv` per project directory.
 - **Idempotent**: `bootstrap.sh` is safe to re-run — it skips what's already installed.
+- **Smoke test**: `test/bootstrap-fresh.sh` runs the bootstrap in a clean Ubuntu 24.04 Docker container and verifies binaries, symlinks, and idempotency. Run before bumping pinned versions or touching bootstrap.
