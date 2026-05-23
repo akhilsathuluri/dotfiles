@@ -33,17 +33,36 @@ state_rank() {
 now=$(date +%s)
 stale_working_threshold=300  # 5 minutes
 
-# Set of currently-live tmux pane ids (e.g. "%17")
-declare -A LIVE_PANES
-while read -r p; do LIVE_PANES[$p]=1; done < <(tmux list-panes -a -F '#{pane_id}')
+# Build maps of live tmux panes + Claude panes (for cwd-based fallback when
+# the hook didn't inherit TMUX_PANE).
+declare -A LIVE_PANES CLAUDE_PANE_SESSION PATH_TO_CLAUDE_PANE
+while IFS=$'\t' read -r sess pid cmd path; do
+  LIVE_PANES[$pid]=1
+  case $cmd in claude|node)
+    CLAUDE_PANE_SESSION[$pid]=$sess
+    PATH_TO_CLAUDE_PANE[$path]=$pid
+  ;;
+  esac
+done < <(tmux list-panes -a -F $'#{session_name}\t#{pane_id}\t#{pane_current_command}\t#{pane_current_path}')
 
 shopt -s nullglob
 for f in /tmp/claude-sessions/*; do
-  read -r state ts tsess tpane < <(
-    jq -r '[.state, (.ts // 0), (.tmux_session // ""), (.tmux_pane // "")] | @tsv' "$f" 2>/dev/null
-  ) || continue
+  jq -e . "$f" >/dev/null 2>&1 || continue
+  state=$(jq -r '.state' "$f")
+  ts=$(jq -r '.ts // 0' "$f")
+  tsess=$(jq -r '.tmux_session // ""' "$f")
+  tpane=$(jq -r '.tmux_pane // ""' "$f")
+  cwd=$(jq -r '.cwd // ""' "$f")
+
+  # Resolve to a live pane. Prefer recorded tmux_pane; fall back to cwd match
+  # against panes currently running claude.
+  if [ -z "$tpane" ] || [ -z "${LIVE_PANES[$tpane]:-}" ]; then
+    tpane=${PATH_TO_CLAUDE_PANE[$cwd]:-}
+    [ -z "$tpane" ] && continue
+    tsess=${CLAUDE_PANE_SESSION[$tpane]:-}
+  fi
   [ -z "$tsess" ] && continue
-  [ -n "$tpane" ] && [ -z "${LIVE_PANES[$tpane]:-}" ] && continue
+
   if [ "$state" = "working" ] && [ $((now - ts)) -gt "$stale_working_threshold" ]; then
     continue
   fi

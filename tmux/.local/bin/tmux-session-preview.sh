@@ -12,17 +12,25 @@ now=$(date +%s)
 
 # ---- Read Claude state files, key by tmux_pane (e.g. "%17") ----------------
 # Liveness: pane must still exist; working files older than 5 min are dropped.
-declare -A LIVE_PANES
-while read -r p; do LIVE_PANES[$p]=1; done < <(tmux list-panes -a -F '#{pane_id}')
+# Fall back to matching by cwd against claude panes when tmux_pane is empty.
+declare -A LIVE_PANES PATH_TO_CLAUDE_PANE
+while IFS=$'\t' read -r pid cmd path; do
+  LIVE_PANES[$pid]=1
+  case $cmd in claude|node) PATH_TO_CLAUDE_PANE[$path]=$pid ;; esac
+done < <(tmux list-panes -a -F $'#{pane_id}\t#{pane_current_command}\t#{pane_current_path}')
 
 declare -A PANE_STATE PANE_TS
 shopt -s nullglob
 for f in /tmp/claude-sessions/*; do
-  read -r pane state ts < <(
-    jq -r '[(.tmux_pane // ""), .state, (.ts // 0)] | @tsv' "$f" 2>/dev/null
-  ) || continue
-  [ -z "$pane" ] && continue
-  [ -z "${LIVE_PANES[$pane]:-}" ] && continue
+  jq -e . "$f" >/dev/null 2>&1 || continue
+  pane=$(jq -r '.tmux_pane // ""' "$f")
+  state=$(jq -r '.state' "$f")
+  ts=$(jq -r '.ts // 0' "$f")
+  cwd=$(jq -r '.cwd // ""' "$f")
+  if [ -z "$pane" ] || [ -z "${LIVE_PANES[$pane]:-}" ]; then
+    pane=${PATH_TO_CLAUDE_PANE[$cwd]:-}
+    [ -z "$pane" ] && continue
+  fi
   if [ "$state" = "working" ] && [ $((now - ts)) -gt 300 ]; then continue; fi
   PANE_STATE[$pane]=$state
   PANE_TS[$pane]=$ts
