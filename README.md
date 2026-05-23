@@ -37,7 +37,7 @@ Installed via `bootstrap.sh` (apt + `~/.local/bin`):
 - [Neovim](https://neovim.io/) — editor
 - [ripgrep](https://github.com/BurntSushi/ripgrep) — fast recursive search
 - [tmux](https://github.com/tmux/tmux) — terminal multiplexer
-- [tree](https://gitlab.com/OldManProgrammer/unix-tree) — directory listing (used in fzf cd preview)
+- [tree](https://gitlab.com/OldManProgrammer/unix-tree) — directory listing utility
 - [yazi](https://github.com/sxyazi/yazi) — terminal file manager
 - [zoxide](https://github.com/ajeetdsouza/zoxide) — smarter cd
 
