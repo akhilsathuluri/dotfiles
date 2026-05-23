@@ -120,6 +120,8 @@ target=$(
           --delimiter=$'\t' --with-nth=2 \
           --preview "$HOME/.local/bin/tmux-session-preview.sh {1}" \
           --preview-window=down:50% \
+          --pointer=' ' \
+          --color='bg+:#eee8d5,fg+:#073642,gutter:-1,pointer:-1,hl:#cb4b16,hl+:#cb4b16,border:#93a1a1,info:#93a1a1,prompt:#586e75' \
           --bind 'j:down,k:up,g:first,G:last,alt-;:abort' \
     | cut -f1
 ) || exit 0
