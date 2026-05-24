@@ -18,7 +18,20 @@ write_claude_state() {
     sid=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
     [ -z "$sid" ] && return 0
     cwd=$(printf '%s' "$INPUT" | jq -r '.cwd // empty')
-    project=$(basename "${cwd:-unknown}")
+
+    # Project name must be stable across worktrees of the same repo.
+    # --git-common-dir points at the main repo's .git even from a worktree;
+    # --show-toplevel would return the worktree path and split one repo into N.
+    project=$(
+        d=${cwd:-unknown}
+        if [ -d "$d" ] && common=$(git -C "$d" rev-parse --git-common-dir 2>/dev/null); then
+            [ "${common#/}" = "$common" ] && common="$d/$common"
+            common=${common%/.git}
+            basename "$(readlink -f "$common" 2>/dev/null || echo "$common")"
+        else
+            basename "$d"
+        fi
+    )
 
     local tmux_session='' tmux_window='' tmux_pane=''
     if [ -n "${TMUX_PANE:-}" ] && command -v tmux >/dev/null 2>&1; then

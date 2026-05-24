@@ -76,11 +76,16 @@ done
 echo "dir:     $home_short"
 
 if [ -n "$path" ] && [ -d "$path" ]; then
-  repo=$(git -C "$path" rev-parse --show-toplevel 2>/dev/null)
-  if [ -n "$repo" ]; then
+  # --git-common-dir is stable across worktrees; --show-toplevel would name
+  # each worktree as a different repo.
+  common=$(git -C "$path" rev-parse --git-common-dir 2>/dev/null)
+  if [ -n "$common" ]; then
+    [ "${common#/}" = "$common" ] && common="$path/$common"
+    common=${common%/.git}
+    repo=$(basename "$(readlink -f "$common" 2>/dev/null || echo "$common")")
     branch=$(git -C "$path" symbolic-ref --short HEAD 2>/dev/null \
              || git -C "$path" rev-parse --short HEAD 2>/dev/null)
-    echo "repo:    $(basename "$repo")"
+    echo "repo:    $repo"
     echo "branch:  $branch"
   fi
 fi
