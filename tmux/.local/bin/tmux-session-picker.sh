@@ -295,7 +295,8 @@ lines=$(
                || true)
     fi
     icon=$(icon_for "${STATE_BY_SESSION[$name]:-}")
-    printf '%s\t%s %-18s  %s\n' "$name" "$icon" "$name" "$branch"
+    [ "$name" = "$current" ] && mark='▸' || mark=' '
+    printf '%s\t%s %s %-18s  %s\n' "$name" "$mark" "$icon" "$name" "$branch"
   done <<< "$sessions"
 )
 
@@ -317,6 +318,7 @@ self=$(realpath "$0")
 target=$(
   printf '%s\n' "$lines" \
     | fzf --sync --reverse --no-input --highlight-line \
+          --header='? for help' --header-first \
           --delimiter=$'\t' --with-nth=2 \
           --preview "$HOME/.local/bin/tmux-session-preview.sh {1}" \
           --preview-window=down:50% \
