@@ -3,15 +3,18 @@
 # windows with per-pane state breakdown. Opens with the current session
 # pre-selected.
 #
-# Keys: r = rename, K = move up, J = move down. Order is persisted in
-# $XDG_STATE_HOME/tmux/session-order; sessions not in that file are appended
-# alphabetically.
+# Keys: c = new session, r = rename, D = kill, K = move up, J = move down.
+# Order is persisted in $XDG_STATE_HOME/tmux/session-order; sessions not in
+# that file are appended alphabetically.
 #
 # Internal flags (used by fzf reload callbacks):
 #   --list                       emit fzf line data
 #   --move-up    NAME            shift NAME up in the order file
 #   --move-down  NAME            shift NAME down
+#   --rename     NAME            interactive rename
 #   --rename-in-order OLD NEW    rewrite OLD → NEW in the order file
+#   --kill       NAME            interactive kill
+#   --new                        interactive new session
 
 set -euo pipefail
 
@@ -60,6 +63,59 @@ rename_in_order() {
   mv "$tmp" "$order_file"
 }
 
+remove_in_order() {
+  local target=$1 tmp
+  tmp=$(mktemp)
+  awk -v t="$target" '$0 != t' "$order_file" > "$tmp"
+  mv "$tmp" "$order_file"
+}
+
+append_in_order() {
+  local target=$1
+  grep -Fxq -- "$target" "$order_file" 2>/dev/null || printf '%s\n' "$target" >> "$order_file"
+}
+
+do_new() {
+  local name dir default_dir err
+  clear
+  read -e -p "new session name: " name || return 0
+  [ -z "$name" ] && return 0
+  if tmux list-sessions -F '#{session_name}' | grep -Fxq -- "$name"; then
+    printf '\n✗ session "%s" already exists\n' "$name" >&2
+    sleep 1.2
+    return 0
+  fi
+  default_dir=$(tmux display-message -p '#{pane_current_path}' 2>/dev/null || true)
+  { [ -z "$default_dir" ] || [ ! -d "$default_dir" ]; } && default_dir=$HOME
+  read -e -i "$default_dir" -p "start dir: " dir || return 0
+  dir=${dir/#~/$HOME}
+  if [ ! -d "$dir" ]; then
+    printf '\n✗ no such directory: %s\n' "$dir" >&2
+    sleep 1.2
+    return 0
+  fi
+  if ! err=$(tmux new-session -d -s "$name" -c "$dir" 2>&1); then
+    printf '\n✗ %s\n' "$err" >&2
+    sleep 1.2
+    return 0
+  fi
+  append_in_order "$name"
+}
+
+do_kill() {
+  local name=$1 ans err
+  clear
+  printf 'kill session "%s"? [y/N] ' "$name"
+  read -r ans || return 0
+  case $ans in y|Y|yes) ;; *) return 0 ;; esac
+  if ! err=$(tmux kill-session -t "$name" 2>&1); then
+    printf '\n✗ %s\n' "$err" >&2
+    sleep 1.2
+    return 0
+  fi
+  remove_in_order "$name"
+}
+
 do_rename() {
   local old=$1 new err
   clear
@@ -86,6 +142,8 @@ case "${1:-}" in
   --move-down)        move_in_order "$2"  1; exit 0 ;;
   --rename)           do_rename "$2"; exit 0 ;;
   --rename-in-order)  rename_in_order "$2" "$3"; exit 0 ;;
+  --kill)             do_kill "$2"; exit 0 ;;
+  --new)              do_new; exit 0 ;;
 esac
 
 current=$(tmux display-message -p '#S')
@@ -213,6 +271,8 @@ target=$(
           --bind "start:pos($current_pos)" \
           --bind 'j:down,k:up,g:first,G:last,alt-;:abort' \
           --bind "r:execute($self --rename {1})+reload($self --list)" \
+          --bind "D:execute($self --kill {1})+reload($self --list)" \
+          --bind "c:execute($self --new)+reload($self --list)+last" \
           --bind "K:execute-silent($self --move-up {1})+reload($self --list)+up" \
           --bind "J:execute-silent($self --move-down {1})+reload($self --list)+down" \
     | cut -f1
