@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # fzf-based tmux session picker. Sorts alphabetically, shows branch + Claude
 # state inline, previews windows with per-pane state breakdown. Opens with the
-# current session pre-selected.
+# current session pre-selected. Press `r` to rename the highlighted session.
+#
+# Internal: invoke with `--list` to emit just the fzf line data (used by
+# fzf's `reload` action after rename).
 
 set -euo pipefail
+
+list_only=0
+[ "${1:-}" = "--list" ] && list_only=1
 
 current=$(tmux display-message -p '#S')
 
@@ -109,8 +115,16 @@ lines=$(
   done <<< "$sessions"
 )
 
+if [ "$list_only" = 1 ]; then
+  printf '%s\n' "$lines"
+  exit 0
+fi
+
 current_pos=$(printf '%s\n' "$lines" | awk -F'\t' -v c="$current" '$1==c{print NR; exit}')
 : "${current_pos:=1}"
+
+self=$(realpath "$0")
+rename_cmd='bash -c '\''clear; read -e -i "$1" -p "rename to: " new; [ -n "$new" ] && [ "$new" != "$1" ] && tmux rename-session -t "$1" -- "$new"'\'' _ {1}'
 
 target=$(
   printf '%s\n' "$lines" \
@@ -122,6 +136,7 @@ target=$(
           --color='bg+:#268bd2,fg+:#fdf6e3,gutter:-1,pointer:-1,hl:#268bd2,hl+:#fdf6e3,border:#93a1a1,info:#93a1a1,prompt:#586e75' \
           --bind "load:pos($current_pos)" \
           --bind 'j:down,k:up,g:first,G:last,alt-;:abort' \
+          --bind "r:execute($rename_cmd)+reload($self --list)" \
     | cut -f1
 ) || exit 0
 
