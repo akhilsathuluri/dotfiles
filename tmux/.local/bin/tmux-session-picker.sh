@@ -60,11 +60,31 @@ rename_in_order() {
   mv "$tmp" "$order_file"
 }
 
+do_rename() {
+  local old=$1 new err
+  clear
+  read -e -i "$old" -p "rename to: " new || return 0
+  [ -z "$new" ] && return 0
+  [ "$new" = "$old" ] && return 0
+  if tmux list-sessions -F '#{session_name}' | grep -Fxq -- "$new"; then
+    printf '\n✗ session "%s" already exists\n' "$new" >&2
+    sleep 1.2
+    return 0
+  fi
+  if ! err=$(tmux rename-session -t "$old" -- "$new" 2>&1); then
+    printf '\n✗ rename failed: %s\n' "$err" >&2
+    sleep 1.2
+    return 0
+  fi
+  rename_in_order "$old" "$new"
+}
+
 list_only=0
 case "${1:-}" in
   --list)             list_only=1 ;;
   --move-up)          move_in_order "$2" -1; exit 0 ;;
   --move-down)        move_in_order "$2"  1; exit 0 ;;
+  --rename)           do_rename "$2"; exit 0 ;;
   --rename-in-order)  rename_in_order "$2" "$3"; exit 0 ;;
 esac
 
@@ -181,19 +201,18 @@ current_pos=$(printf '%s\n' "$lines" | awk -F'\t' -v c="$current" '$1==c{print N
 : "${current_pos:=1}"
 
 self=$(realpath "$0")
-rename_cmd='bash -c '\''clear; read -e -i "$1" -p "rename to: " new; [ -n "$new" ] && [ "$new" != "$1" ] && tmux rename-session -t "$1" -- "$new" && "$0" --rename-in-order "$1" "$new"'\'' '"$self"' {1}'
 
 target=$(
   printf '%s\n' "$lines" \
-    | fzf --reverse --no-input --highlight-line \
+    | fzf --sync --reverse --no-input --highlight-line \
           --delimiter=$'\t' --with-nth=2 \
           --preview "$HOME/.local/bin/tmux-session-preview.sh {1}" \
           --preview-window=down:50% \
           --pointer=' ' \
           --color='bg+:#268bd2,fg+:#fdf6e3,gutter:-1,pointer:-1,hl:#268bd2,hl+:#fdf6e3,border:#93a1a1,info:#93a1a1,prompt:#586e75' \
-          --bind "load:pos($current_pos)" \
+          --bind "start:pos($current_pos)" \
           --bind 'j:down,k:up,g:first,G:last,alt-;:abort' \
-          --bind "r:execute($rename_cmd)+reload($self --list)" \
+          --bind "r:execute($self --rename {1})+reload($self --list)" \
           --bind "K:execute-silent($self --move-up {1})+reload($self --list)+up" \
           --bind "J:execute-silent($self --move-down {1})+reload($self --list)+down" \
     | cut -f1
