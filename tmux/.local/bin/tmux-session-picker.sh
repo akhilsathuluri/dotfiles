@@ -10,6 +10,7 @@
 #   r             rename highlighted session
 #   D             kill highlighted session (with confirm)
 #   c             create new session (prompts for name + starting dir)
+#   ?             show this help overlay
 #   Alt-;         dismiss picker
 #
 # Order is persisted in $XDG_STATE_HOME/tmux/session-order, one name per line.
@@ -23,6 +24,7 @@
 #   --rename    NAME      interactive rename of NAME
 #   --kill      NAME      interactive kill of NAME
 #   --new                 interactive new-session prompt
+#   --help                show help overlay
 
 set -euo pipefail
 
@@ -105,6 +107,26 @@ pin_last_in_order() {
 
 # ---- Interactive actions ---------------------------------------------------
 
+do_help() {
+  clear
+  cat <<'EOF'
+tmux session picker
+
+  j / k       cursor down / up
+  g / G       jump to first / last
+  K / J       move session up / down (persisted)
+  r           rename session
+  D           kill session (with confirm)
+  c           new session (name + start dir)
+  ?           this help
+  Enter       switch to selected session
+  Alt-;       dismiss
+
+EOF
+  printf 'press any key to dismiss...'
+  read -rsn1 _
+}
+
 do_kill() {
   local name=$1 ans err
   [ -z "$name" ] && return 0
@@ -166,6 +188,7 @@ do_rename() {
 list_only=0
 case "${1:-}" in
   --list)       list_only=1 ;;
+  --help)       do_help;                 exit 0 ;;
   --kill)       do_kill "${2:-}";        exit 0 ;;
   --move-down)  move_in_order "${2:-}"  1; exit 0 ;;
   --move-up)    move_in_order "${2:-}" -1; exit 0 ;;
@@ -301,6 +324,7 @@ target=$(
           --color='bg+:#268bd2,fg+:#fdf6e3,gutter:-1,pointer:-1,hl:#268bd2,hl+:#fdf6e3,border:#93a1a1,info:#93a1a1,prompt:#586e75' \
           --bind "start:pos($current_pos)" \
           --bind 'j:down,k:up,g:first,G:last,alt-;:abort' \
+          --bind "?:execute($self --help)" \
           --bind "r:execute($self --rename {1})+reload($self --list)" \
           --bind "D:execute($self --kill {1})+reload($self --list)" \
           --bind "c:execute($self --new)+reload($self --list)+last" \
