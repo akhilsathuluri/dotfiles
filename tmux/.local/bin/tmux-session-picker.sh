@@ -1,19 +1,76 @@
 #!/usr/bin/env bash
-# fzf-based tmux session picker. Sorts alphabetically, shows branch + Claude
-# state inline, previews windows with per-pane state breakdown. Opens with the
-# current session pre-selected. Press `r` to rename the highlighted session.
+# fzf-based tmux session picker. Shows branch + Claude state inline, previews
+# windows with per-pane state breakdown. Opens with the current session
+# pre-selected.
 #
-# Internal: invoke with `--list` to emit just the fzf line data (used by
-# fzf's `reload` action after rename).
+# Keys: r = rename, K = move up, J = move down. Order is persisted in
+# $XDG_STATE_HOME/tmux/session-order; sessions not in that file are appended
+# alphabetically.
+#
+# Internal flags (used by fzf reload callbacks):
+#   --list                       emit fzf line data
+#   --move-up    NAME            shift NAME up in the order file
+#   --move-down  NAME            shift NAME down
+#   --rename-in-order OLD NEW    rewrite OLD → NEW in the order file
 
 set -euo pipefail
 
+order_file="${XDG_STATE_HOME:-$HOME/.local/state}/tmux/session-order"
+mkdir -p "$(dirname "$order_file")"
+touch "$order_file"
+
+ordered_session_names() {
+  local -A live seen
+  local s
+  while IFS= read -r s; do live[$s]=1; done < <(tmux list-sessions -F '#{session_name}')
+  while IFS= read -r s; do
+    [ -z "$s" ] && continue
+    if [ -n "${live[$s]:-}" ] && [ -z "${seen[$s]:-}" ]; then
+      printf '%s\n' "$s"
+      seen[$s]=1
+    fi
+  done < "$order_file"
+  while IFS= read -r s; do
+    [ -z "${seen[$s]:-}" ] && printf '%s\n' "$s"
+  done < <(tmux list-sessions -F '#{session_name}' | sort)
+  return 0
+}
+
+move_in_order() {
+  local target=$1 dir=$2 tmp
+  tmp=$(mktemp)
+  ordered_session_names > "$tmp"
+  awk -v t="$target" -v d="$dir" '
+    {a[NR]=$0}
+    END {
+      idx=0
+      for (i=1;i<=NR;i++) if (a[i]==t) { idx=i; break }
+      j=idx+d
+      if (idx>=1 && j>=1 && j<=NR) { x=a[idx]; a[idx]=a[j]; a[j]=x }
+      for (i=1;i<=NR;i++) print a[i]
+    }
+  ' "$tmp" > "$order_file"
+  rm -f "$tmp"
+}
+
+rename_in_order() {
+  local old=$1 new=$2 tmp
+  tmp=$(mktemp)
+  awk -v o="$old" -v n="$new" '{ if ($0==o) print n; else print }' "$order_file" > "$tmp"
+  mv "$tmp" "$order_file"
+}
+
 list_only=0
-[ "${1:-}" = "--list" ] && list_only=1
+case "${1:-}" in
+  --list)             list_only=1 ;;
+  --move-up)          move_in_order "$2" -1; exit 0 ;;
+  --move-down)        move_in_order "$2"  1; exit 0 ;;
+  --rename-in-order)  rename_in_order "$2" "$3"; exit 0 ;;
+esac
 
 current=$(tmux display-message -p '#S')
 
-sessions=$(tmux list-sessions -F '#{session_name}' | sort)
+sessions=$(ordered_session_names)
 
 [ -z "$sessions" ] && exit 0
 
@@ -124,7 +181,7 @@ current_pos=$(printf '%s\n' "$lines" | awk -F'\t' -v c="$current" '$1==c{print N
 : "${current_pos:=1}"
 
 self=$(realpath "$0")
-rename_cmd='bash -c '\''clear; read -e -i "$1" -p "rename to: " new; [ -n "$new" ] && [ "$new" != "$1" ] && tmux rename-session -t "$1" -- "$new"'\'' _ {1}'
+rename_cmd='bash -c '\''clear; read -e -i "$1" -p "rename to: " new; [ -n "$new" ] && [ "$new" != "$1" ] && tmux rename-session -t "$1" -- "$new" && "$0" --rename-in-order "$1" "$new"'\'' '"$self"' {1}'
 
 target=$(
   printf '%s\n' "$lines" \
@@ -137,6 +194,8 @@ target=$(
           --bind "load:pos($current_pos)" \
           --bind 'j:down,k:up,g:first,G:last,alt-;:abort' \
           --bind "r:execute($rename_cmd)+reload($self --list)" \
+          --bind "K:execute-silent($self --move-up {1})+reload($self --list)+up" \
+          --bind "J:execute-silent($self --move-down {1})+reload($self --list)+down" \
     | cut -f1
 ) || exit 0
 
