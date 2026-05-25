@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
-# fzf-based tmux session picker. Sorts by last-attached (most recent first),
-# excludes the current session, shows branch + Claude state inline, previews
-# windows with per-pane state breakdown.
+# fzf-based tmux session picker. Sorts alphabetically, shows branch + Claude
+# state inline, previews windows with per-pane state breakdown. Opens with the
+# current session pre-selected.
 
 set -euo pipefail
 
 current=$(tmux display-message -p '#S')
 
-sessions=$(
-  tmux list-sessions -F '#{session_last_attached} #{session_name}' \
-    | sort -rn \
-    | cut -d' ' -f2- \
-    | { grep -vx -- "$current" || true; }
-)
+sessions=$(tmux list-sessions -F '#{session_name}' | sort)
 
 [ -z "$sessions" ] && exit 0
 
@@ -114,6 +109,9 @@ lines=$(
   done <<< "$sessions"
 )
 
+current_pos=$(printf '%s\n' "$lines" | awk -F'\t' -v c="$current" '$1==c{print NR; exit}')
+: "${current_pos:=1}"
+
 target=$(
   printf '%s\n' "$lines" \
     | fzf --reverse --no-input --highlight-line \
@@ -122,6 +120,7 @@ target=$(
           --preview-window=down:50% \
           --pointer=' ' \
           --color='bg+:#268bd2,fg+:#fdf6e3,gutter:-1,pointer:-1,hl:#268bd2,hl+:#fdf6e3,border:#93a1a1,info:#93a1a1,prompt:#586e75' \
+          --bind "load:pos($current_pos)" \
           --bind 'j:down,k:up,g:first,G:last,alt-;:abort' \
     | cut -f1
 ) || exit 0
