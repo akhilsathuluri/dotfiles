@@ -1,6 +1,6 @@
 -- Obsidian-style markdown notes: a ~/notes vault with [[wiki-links]],
 -- backlinks, tags, daily notes and templates. Inline image rendering is
--- handled by snacks.image (see snacks.lua); clipboard paste by img-clip.
+-- handled by image.nvim (see image.lua); clipboard paste by img-clip.
 return {
   {
     "obsidian-nvim/obsidian.nvim",
@@ -10,6 +10,10 @@ return {
     opts = {
       -- Use the new `:Obsidian <subcommand>` form (keymaps below already do).
       legacy_commands = false,
+      -- Keep raw markdown (matches the `conceallevel = 0` markdown autocmd in
+      -- config/autocmds.lua). Obsidian's conceal-based UI would fight that, so
+      -- leave it off. Image rendering (snacks.image) is independent of this.
+      ui = { enable = false },
       workspaces = {
         { name = "notes", path = "~/notes" },
       },

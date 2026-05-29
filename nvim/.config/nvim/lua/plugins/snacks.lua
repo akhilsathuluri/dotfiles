@@ -1,16 +1,9 @@
 return {
   "folke/snacks.nvim",
-  -- Render images inline in markdown via Ghostty's Kitty graphics protocol
-  -- (works through tmux thanks to `allow-passthrough on`). Uses ImageMagick's
-  -- `convert`/`identify` under the hood.
+  -- Image rendering is handled by image.nvim (see image.lua), which works
+  -- inline through tmux. snacks.image is disabled to avoid two renderers.
   opts = {
-    image = {
-      enabled = true,
-      doc = {
-        inline = true,
-        float = true,
-      },
-    },
+    image = { enabled = false },
   },
   keys = {
     {
