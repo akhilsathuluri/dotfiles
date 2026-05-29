@@ -48,8 +48,8 @@ return {
       { "<leader>ol", "<cmd>Obsidian links<cr>", desc = "Links in note", ft = "markdown" },
       { "<leader>oT", "<cmd>Obsidian tags<cr>", desc = "Search tags", ft = "markdown" },
       { "<leader>or", "<cmd>Obsidian rename<cr>", desc = "Rename note & update links", ft = "markdown" },
-      { "<leader>oc", "<cmd>Obsidian toggle_checkbox<cr>", desc = "Toggle checkbox", ft = "markdown" },
-      { "<leader>og", "<cmd>Obsidian follow_link<cr>", desc = "Follow link under cursor", ft = "markdown" },
+      -- Toggle-checkbox and follow-link are covered by obsidian's built-in
+      -- buffer keys: <CR> (smart action) and `gf`. No custom maps needed.
     },
   },
 
