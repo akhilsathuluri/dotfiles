@@ -190,6 +190,29 @@ Sessions are scoped per cwd and saved on quit. Use `vimr` to restore buffers and
 | ----------- | --------------------------------- |
 | `<leader>p` | send last yank to right tmux pane |
 
+### Notes (Obsidian vault in `~/notes`)
+
+Markdown vault with `[[wiki-links]]`, daily notes and tags (obsidian.nvim).
+Images render inline in the buffer (image.nvim) and paste from the clipboard
+(img-clip.nvim). Keys below work in markdown buffers.
+
+| Key          | Action                               |
+| ------------ | ------------------------------------ |
+| `<leader>on` | new note                             |
+| `<leader>oo` | quick-switch note                    |
+| `<leader>os` | search notes (grep)                  |
+| `<leader>ot` | today's daily note                   |
+| `<leader>oy` | yesterday's daily note               |
+| `<leader>od` | list daily notes                     |
+| `<leader>ob` | backlinks to this note               |
+| `<leader>ol` | links in this note                   |
+| `<leader>oT` | search tags                          |
+| `<leader>or` | rename note (updates links)          |
+| `<leader>oc` | toggle checkbox                      |
+| `<leader>og` | follow link under cursor             |
+| `<leader>op` | paste image from clipboard into note |
+| `gf`         | follow `[[wiki-link]]` under cursor  |
+
 ---
 
 ## Ghostty
