@@ -363,6 +363,14 @@ EOF
     ok "~/.bashrc patched (backup at ~/.bashrc.pre-dotfiles)"
 }
 
+create_notes_vault() {
+    # obsidian.nvim errors on startup if its workspace path is missing and does
+    # not create it itself. Layout matches nvim's obsidian.lua.
+    local vault="$HOME/notes"
+    mkdir -p "$vault/notes" "$vault/dailies" "$vault/templates"
+    ok "notes vault ready at $vault"
+}
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -386,6 +394,7 @@ install_yazi
 install_zoxide
 stow_packages
 patch_bashrc
+create_notes_vault
 
 echo ""
 ok "Done! Restart your shell or run: source ~/.bashrc"
