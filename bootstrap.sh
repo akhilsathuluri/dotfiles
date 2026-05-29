@@ -371,6 +371,18 @@ create_notes_vault() {
     ok "notes vault ready at $vault"
 }
 
+install_nvim_plugins() {
+    # Pre-install plugins headlessly so the first interactive launch is ready.
+    # Must run after the nvim config is stowed. Idempotent: `install` only
+    # fetches missing plugins, `restore` pins them to the committed lazy-lock.json.
+    if [ ! -x "$LOCAL_BIN/nvim" ]; then
+        return
+    fi
+    log "Installing Neovim plugins (headless)..."
+    timeout 300 "$LOCAL_BIN/nvim" --headless "+Lazy! install" "+Lazy! restore" +qa >/dev/null 2>&1 || true
+    ok "Neovim plugins installed"
+}
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -395,6 +407,7 @@ install_zoxide
 stow_packages
 patch_bashrc
 create_notes_vault
+install_nvim_plugins
 
 echo ""
 ok "Done! Restart your shell or run: source ~/.bashrc"
