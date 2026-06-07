@@ -24,6 +24,44 @@ alias gmr='nvim -c "DiffviewOpen origin/main...HEAD"'
 alias gmrd='git diff origin/main...HEAD'
 alias gw='while clear; do git diff --stat --color && echo "---" && git diff --color | head -60; sleep 2; done'
 
+# Worktree family (mirrors oh-my-zsh git plugin naming: gwt/gwta/gwtls/gwtmv/gwtrm)
+alias gwt='git worktree'
+alias gwtls='git worktree list'
+alias gwtmv='git worktree move'
+alias gwtrm='git worktree remove'
+
+# gwta: add a worktree for a branch, resolving it wherever it exists.
+# Remote (latest) > local-only > new branch off base (default origin/main).
+# Usage: gwta <branch> <dir> [base]
+gwta() {
+  local branch="$1" dir="$2" base="${3:-origin/main}"
+  if [ -z "$branch" ] || [ -z "$dir" ]; then
+    echo "usage: gwta <branch> <dir> [base]" >&2
+    return 1
+  fi
+  git fetch origin "$branch" 2>/dev/null
+  if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    # exists on remote -> (re)point local branch at remote tip
+    git worktree add "$dir" -B "$branch" "origin/$branch"
+  elif git show-ref --verify --quiet "refs/heads/$branch"; then
+    # local-only branch -> check out as-is
+    git worktree add "$dir" "$branch"
+  else
+    # nowhere -> create new branch off base
+    git fetch origin 2>/dev/null
+    echo "branch '$branch' not found; creating it off '$base'" >&2
+    git worktree add "$dir" -b "$branch" "$base"
+  fi
+}
+
+# gwts: fuzzy-switch between worktrees of the current repo (cd into the pick).
+gwts() {
+  local line dir
+  line=$(git worktree list | grep -v ' (bare)$' | fzf --prompt='worktree> ') || return
+  dir="${line%% *}"
+  [ -n "$dir" ] && cd "$dir"
+}
+
 # Docker
 alias docker-stop-all='docker stop $(docker ps -a -q)'
 alias docker-rm-all='docker rm $(docker ps -a -q)'
