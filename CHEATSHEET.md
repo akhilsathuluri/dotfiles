@@ -23,7 +23,7 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `gddm`              | diffview against main branch             |
 | `gmr`               | diffview for merge request (vs main)     |
 | `gw`                | live git diff in tmux split pane         |
-| `gwta`              | add worktree (remote-aware resolution)   |
+| `gwta`              | add worktree: <dir> <branch>             |
 | `gwts`              | fzf-switch worktree (cd into pick)       |
 | `gwtls`             | list worktrees                           |
 | `gwtrm`             | remove a worktree (not rm -rf)           |
