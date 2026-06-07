@@ -31,12 +31,13 @@ alias gwtmv='git worktree move'
 alias gwtrm='git worktree remove'
 
 # gwta: add a worktree for a branch, resolving it wherever it exists.
+# Arg order mirrors `git worktree add <dir> <branch>`.
 # Remote (latest) > local-only > new branch off base (default origin/main).
-# Usage: gwta <branch> <dir> [base]
+# Usage: gwta <dir> <branch> [base]
 gwta() {
-  local branch="$1" dir="$2" base="${3:-origin/main}"
-  if [ -z "$branch" ] || [ -z "$dir" ]; then
-    echo "usage: gwta <branch> <dir> [base]" >&2
+  local dir="$1" branch="$2" base="${3:-origin/main}"
+  if [ -z "$dir" ] || [ -z "$branch" ]; then
+    echo "usage: gwta <dir> <branch> [base]" >&2
     return 1
   fi
   git fetch origin "$branch" 2>/dev/null
