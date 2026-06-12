@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 INPUT=$(cat)
-SID=$(echo "$INPUT" | jq -r '.session_id // empty')
-[ -z "$SID" ] && exit 0
-rm -f "/tmp/claude-sessions/$SID"
+# shellcheck source=_write-state.sh
+. "$(dirname "$0")/_write-state.sh"
+write_claude_state working

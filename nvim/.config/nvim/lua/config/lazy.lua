@@ -30,6 +30,10 @@ require("lazy").setup({
     version = false, -- always use the latest git commit
     -- version = "*", -- try installing the latest stable version for plugins that support semver
   },
+  -- No plugin here needs luarocks; image.nvim uses the `magick_cli` processor
+  -- (ImageMagick `convert`), so skip lazy's luarocks build (avoids a failing
+  -- build step when `luarocks` isn't installed).
+  rocks = { enabled = false },
   install = { colorscheme = { "tokyonight", "habamax" } },
   checker = {
     enabled = true, -- check for plugin updates periodically

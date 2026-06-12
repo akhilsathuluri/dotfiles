@@ -15,10 +15,12 @@ vim.o.wrap = true                  -- wrap long lines
 vim.o.linebreak = true             -- wrap at word boundaries, not mid-word
 
 
--- Copy to both clipboard and primary selection (for Shift+Insert)
-vim.api.nvim_create_autocmd("TextYankPost", {
-  callback = function()
-    local text = vim.fn.getreg('"')
-    vim.fn.system("wl-copy --primary", text)
-  end,
-})
+-- Mirror yank to the primary selection on Linux/Wayland (so Shift+Insert pastes).
+-- macOS has no primary selection, so this is a no-op there.
+if vim.fn.executable("wl-copy") == 1 then
+  vim.api.nvim_create_autocmd("TextYankPost", {
+    callback = function()
+      vim.fn.system("wl-copy --primary", vim.fn.getreg('"'))
+    end,
+  })
+end

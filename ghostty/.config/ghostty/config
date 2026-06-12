@@ -7,12 +7,28 @@ window-theme = ghostty
 cursor-style = block
 cursor-style-blink = false
 
+# Cursor trail (Neovide-like warp effect via custom shader)
+# https://github.com/sahaj-b/ghostty-cursor-shaders
+custom-shader = shaders/cursor_warp.glsl
+custom-shader-animation = always
+
 # Hide mouse cursor while typing
 mouse-hide-while-typing = true
 
 # Selecting text auto-copies to clipboard (suppress toast)
 copy-on-select = clipboard
 app-notifications = no-clipboard-copy
+
+# Don't fire desktop notifications (avoids dock badge counter)
+desktop-notifications = false
+
+# Don't ring the bell when a foreground command finishes (Ghostty's default
+# fires on every prompt-marker, causing the tab to flash on every command).
+notify-on-command-finish-action = no-bell,no-notify
+
+# Disable all bell reactions (audio, tab attention icon, title bell, etc.).
+# Bell character or bell events from any source are now silently ignored.
+bell-features = no-system,no-audio,no-attention,no-title,no-border
 
 # Extend content background color into padding for a seamless look
 window-padding-color = extend
@@ -32,4 +48,3 @@ keybind = alt+l=next_tab
 
 # Explicitly bind new tab to ghostty default (plain shell, no tmux)
 keybind = ctrl+shift+t=new_tab
-
