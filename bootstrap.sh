@@ -439,27 +439,14 @@ patch_shell_rc() {
     fi
     log "Patching $rc..."
     cp "$rc" "${rc}.pre-dotfiles"
-    if is_macos; then
-        # zsh has its own `bind`, `set -o vi`, etc. Source via bash subshell?
-        # No — these scripts set env vars that need to live in the interactive
-        # shell. zsh can `source` .bash files; lines that use bash-only builtins
-        # (`bind`, certain `complete` flags) error softly and skip. Use `emulate
-        # -L sh` per file so most of the syntax parses. Wrap each source so a
-        # single bad line in one file doesn't abort the whole loop.
-        cat >>"$rc" <<'EOF'
-
-# Load dotfiles shell customizations
-for f in ~/.bashrc.d/*.bash; do
-    [ -r "$f" ] && { emulate -L sh; source "$f"; } 2>/dev/null
-done
-EOF
-    else
-        cat >>"$rc" <<'EOF'
+    # Same loop for bash and zsh. Each .bashrc.d/*.bash file is responsible for
+    # guarding bash-only or zsh-only sections internally (via $BASH_VERSION /
+    # $ZSH_VERSION) so a single source line works for both shells.
+    cat >>"$rc" <<'EOF'
 
 # Load dotfiles shell customizations
 for f in ~/.bashrc.d/*.bash; do [ -r "$f" ] && source "$f"; done
 EOF
-    fi
     ok "$rc patched (backup at ${rc}.pre-dotfiles)"
 }
 
