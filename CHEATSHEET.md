@@ -11,10 +11,14 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `cd <partial>`      | zoxide smart jump (learns from usage)      |
 | `cdi <partial>`     | zoxide interactive (pick from matches)     |
 | `Ctrl+R`            | fzf fuzzy search shell history             |
-| `Ctrl+T`            | fzf insert file path (powered by fd)       |
+| `Ctrl+T`            | fzf insert file path (bat preview)         |
 | `Alt+C`             | fzf cd into directory (powered by fd)      |
+| `rfv [query]`       | live ripgrep + fzf, opens nvim at line     |
+| `rgg`               | interactive ripgrep + fzf preview          |
 | `gs` / `gd`         | git status / diff                          |
+| `gdl`               | diff of the last commit (HEAD~1..HEAD)     |
 | `gl` / `gf`         | git log / fetch --prune                    |
+| `gp`                | git push                                   |
 | `glog`              | git log graph (oneline, decorated)         |
 | `ga` / `gm "<msg>"` | git add . / commit -m                      |
 | `gpub` / `gplb`     | push / pull current branch to/from origin  |
@@ -25,15 +29,31 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `gddm`              | diffview against main branch               |
 | `gmr`               | diffview for merge request (vs main)       |
 | `gw`                | live git diff in tmux split pane           |
+| `gwta`              | add worktree: <dir> <branch>               |
+| `gwts`              | fzf-switch worktree (cd into pick)         |
+| `gwtls`             | list worktrees                             |
+| `gwtrm`             | remove a worktree (not rm -rf)             |
+| `gwt`               | git worktree (raw passthrough)             |
 | `lazygit`           | terminal git UI                            |
 | `lazydocker`        | terminal docker UI                         |
 | `bat <file>`        | cat with syntax highlighting               |
 | `rg <pattern>`      | ripgrep — fast recursive search            |
-| `rgg`               | interactive ripgrep + fzf preview          |
 | `fd <pattern>`      | fast find files (respects .gitignore)      |
 | `fd -t d <pattern>` | find directories only                      |
 | `y [path]`          | yazi file manager (cd to last dir on quit) |
+| `vim`               | nvim (clean start, no session restore)     |
+| `vimr`              | nvim, restore saved session for cwd        |
 | `cheat`             | show this cheatsheet                       |
+
+---
+
+### fzf (inside a picker)
+
+| Key      | Action                                                                     |
+| -------- | -------------------------------------------------------------------------- |
+| `Ctrl+/` | toggle preview pane (in `Ctrl+T` and `rfv`)                                |
+| `Ctrl+Y` | copy to clipboard and exit: file contents in `Ctrl+T`, command in `Ctrl+R` |
+| `Enter`  | accept selection (in `rfv`: opens nvim at file + line)                     |
 
 ---
 
@@ -49,6 +69,7 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `prefix X`        | kill session                        |
 | `prefix ,`        | rename window                       |
 | `prefix $`        | rename session                      |
+| `Alt+1..9`        | switch to window 1-9 (no prefix!)   |
 | `Alt+j` / `Alt+k` | previous / next window (no prefix!) |
 | `prefix P`        | move window left                    |
 | `prefix N`        | move window right                   |
@@ -121,6 +142,8 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `<leader>/`       | live grep (search in project) |
 | `<leader>fr`      | recent files                  |
 | `<leader>fb`      | open buffers                  |
+| `<leader>-`       | open yazi at current file     |
+| `<leader>cw`      | open yazi at cwd              |
 | `<leader>e`       | toggle file explorer (snacks) |
 
 ### LSP & Code
@@ -165,11 +188,44 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `<leader>cm` | open Mason (LSP installer) |
 | `<leader>xx` | diagnostics list (trouble) |
 
+### Sessions (persistence.nvim)
+
+Sessions are scoped per cwd and saved on quit. Use `vimr` to restore buffers and the explorer (if it was open); plain `vim`/`nvim` always starts clean.
+
+| Key          | Action                              |
+| ------------ | ----------------------------------- |
+| `<leader>qs` | restore session for cwd             |
+| `<leader>ql` | restore last session (any cwd)      |
+| `<leader>qd` | stop saving current session on quit |
+
 ### tmux Integration
 
 | Key         | Action                            |
 | ----------- | --------------------------------- |
 | `<leader>p` | send last yank to right tmux pane |
+
+### Notes (Obsidian vault in `~/notes`)
+
+Markdown vault with `[[wiki-links]]`, daily notes and tags (obsidian.nvim).
+Images render inline in the buffer (image.nvim) and paste from the clipboard
+(img-clip.nvim). Keys below work in markdown buffers.
+
+| Key          | Action                                       |
+| ------------ | -------------------------------------------- |
+| `<leader>on` | new note                                     |
+| `<leader>oo` | quick-switch note                            |
+| `<leader>os` | search notes (grep)                          |
+| `<leader>ot` | today's daily note                           |
+| `<leader>oy` | yesterday's daily note                       |
+| `<leader>od` | list daily notes                             |
+| `<leader>ob` | backlinks to this note                       |
+| `<leader>ol` | links in this note                           |
+| `<leader>oT` | search tags                                  |
+| `<leader>or` | rename note (updates links)                  |
+| `<leader>op` | paste image from clipboard into note         |
+| `<CR>`       | smart action (follow link / toggle checkbox) |
+| `]o` / `[o`  | next / previous link in note                 |
+| `gf`         | follow `[[wiki-link]]` under cursor          |
 
 ---
 
@@ -178,6 +234,7 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | Key               | Action                   |
 | ----------------- | ------------------------ |
 | `Alt+h` / `Alt+l` | previous / next tab      |
+| `Ctrl+Shift+,`    | reload config            |
 | `Ctrl+Shift+C`    | copy to clipboard        |
 | `Ctrl+Shift+V`    | paste from clipboard     |
 | select text       | auto-copies to clipboard |
@@ -189,6 +246,7 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | Scenario                        | Keys                                                    |
 | ------------------------------- | ------------------------------------------------------- |
 | Quick file edit                 | `cd proj` → `vim .` → `<leader><space>` → type filename |
+| Jump to code by content         | `rfv parseConfig` → Enter (opens nvim at the line)      |
 | Search & replace across project | `<leader>sr` in nvim (grug-far)                         |
 | Review branch changes           | `gddm` or `<leader>gg` then navigate                    |
 | Run command in split            | `prefix \|` → run command → `prefix z` to zoom          |

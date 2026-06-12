@@ -1,7 +1,11 @@
 command -v direnv &>/dev/null || return
 
 export DIRENV_LOG_FORMAT=""
-eval "$(direnv hook bash)"
+if [ -n "${ZSH_VERSION:-}" ]; then
+    eval "$(direnv hook zsh)"
+else
+    eval "$(direnv hook bash)"
+fi
 
 # Show direnv-activated venv in prompt
 _ORIG_PS1="${PS1}"

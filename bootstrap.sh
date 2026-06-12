@@ -5,16 +5,26 @@ DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOCAL_BIN="$HOME/.local/bin"
 ARCH="$(uname -m)"
 
-# Pinned versions (update these to upgrade)
+# Platform detection: OS_KIND is "linux" or "macos"; everything else fails fast.
+case "$(uname -s)" in
+    Linux)  OS_KIND="linux" ;;
+    Darwin) OS_KIND="macos" ;;
+    *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+esac
+
+is_linux() { [ "$OS_KIND" = "linux" ]; }
+is_macos() { [ "$OS_KIND" = "macos" ]; }
+
+# Pinned versions (Linux tarballs only — macOS uses Homebrew)
 DELTA_VERSION="0.19.2"
 FD_VERSION="10.4.2"
-FZF_VERSION="0.70.0"
+FZF_VERSION="0.72.0"
 GITMUX_VERSION="0.11.5"
-LAZYDOCKER_VERSION="0.25.0"
-LAZYGIT_VERSION="0.60.0"
-NEOVIM_VERSION="0.12.0"
+LAZYDOCKER_VERSION="0.25.2"
+LAZYGIT_VERSION="0.61.1"
+NEOVIM_VERSION="0.12.2"
 NERD_FONT_VERSION="3.4.0"
-YAZI_VERSION="26.1.22"
+YAZI_VERSION="26.5.6"
 ZOXIDE_VERSION="0.9.9"
 
 log() { echo -e "\033[1;34m[dotfiles]\033[0m $*"; }
@@ -22,29 +32,15 @@ warn() { echo -e "\033[1;33m[dotfiles]\033[0m $*"; }
 ok() { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 
 # =============================================================================
-# Locale
-# =============================================================================
-
-setup_locale() {
-    if locale -a 2>/dev/null | grep -q "en_US.utf8"; then
-        ok "Locale en_US.UTF-8 already generated"
-        return
-    fi
-    log "Generating en_US.UTF-8 locale..."
-    sudo locale-gen en_US.UTF-8
-    sudo update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
-    ok "Locale configured"
-}
-
-# =============================================================================
-# APT packages
+# System packages
 # =============================================================================
 
 install_apt_packages() {
     # chafa: image previews for yazi
-    # gir1.2-appindicator3-0.1: GNOME top bar indicator for claude-indicator
+    # gir1.2-appindicator3-0.1 + python3-gi: GNOME top bar indicator for claude-indicator
+    # imagemagick: convert/identify, used by snacks.image to render images in nvim
     # inotify-tools: screenshot-watcher (auto-copy screenshots to clipboard)
-    local pkgs=(bat build-essential chafa curl direnv fontconfig gir1.2-appindicator3-0.1 inotify-tools jq python3-gi ripgrep stow terminator tmux unzip wl-clipboard wget)
+    local pkgs=(bat build-essential chafa curl direnv fontconfig gir1.2-appindicator3-0.1 imagemagick inotify-tools jq python3-gi ripgrep software-properties-common stow terminator tmux tree unzip wl-clipboard wget)
     local to_install=()
     for pkg in "${pkgs[@]}"; do
         dpkg -s "$pkg" &>/dev/null || to_install+=("$pkg")
@@ -63,8 +59,59 @@ install_apt_packages() {
     fi
 }
 
+install_brew() {
+    if command -v brew &>/dev/null; then
+        ok "Homebrew already installed"
+        return
+    fi
+    log "Installing Homebrew..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    # Add brew to PATH for this script's session (shellenv prints PATH exports).
+    if [ -x /opt/homebrew/bin/brew ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -x /usr/local/bin/brew ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+    ok "Homebrew installed"
+}
+
+install_brew_packages() {
+    # Mirrors the Linux apt + binary-tool lists. Brew gives us up-to-date
+    # versions and handles macOS-specific quirks (e.g. neovim from formula).
+    local pkgs=(bat chafa direnv fd fzf imagemagick jq lazydocker lazygit neovim node ripgrep stow tmux tree yazi zoxide)
+    local missing=()
+    for pkg in "${pkgs[@]}"; do
+        brew list --formula "$pkg" &>/dev/null || missing+=("$pkg")
+    done
+    if [ ${#missing[@]} -gt 0 ]; then
+        log "Installing brew packages: ${missing[*]}"
+        brew install "${missing[@]}"
+    else
+        ok "Brew packages already installed"
+    fi
+
+    # delta and gitmux live in taps / separate formulae.
+    brew list --formula git-delta &>/dev/null || { log "Installing git-delta..."; brew install git-delta; }
+    brew list --formula gitmux    &>/dev/null || { log "Installing gitmux...";    brew install arl/arl/gitmux 2>/dev/null || brew install gitmux; }
+
+    # Cask: JetBrainsMono Nerd Font (no fc-cache needed; Font Book picks it up).
+    brew list --cask font-jetbrains-mono-nerd-font &>/dev/null || {
+        log "Installing JetBrainsMono Nerd Font..."
+        brew tap homebrew/cask-fonts 2>/dev/null || true
+        brew install --cask font-jetbrains-mono-nerd-font
+    }
+
+    # Cask: Ghostty.
+    if [ ! -d "/Applications/Ghostty.app" ] && ! brew list --cask ghostty &>/dev/null; then
+        log "Installing Ghostty..."
+        brew install --cask ghostty
+    else
+        ok "Ghostty already installed"
+    fi
+}
+
 # =============================================================================
-# Node.js (via NodeSource)
+# Node.js (Linux only — macOS gets it via brew)
 # =============================================================================
 
 install_nodejs() {
@@ -81,7 +128,7 @@ install_nodejs() {
 }
 
 # =============================================================================
-# Binary tools -> ~/.local/bin
+# Linux binary tools -> ~/.local/bin
 # =============================================================================
 
 install_delta() {
@@ -229,7 +276,7 @@ install_zoxide() {
 }
 
 # =============================================================================
-# JetBrainsMono Nerd Font
+# JetBrainsMono Nerd Font (Linux only — macOS uses brew cask)
 # =============================================================================
 
 install_nerd_font() {
@@ -266,15 +313,10 @@ install_tpm() {
 }
 
 # =============================================================================
-# Ghostty
+# Ghostty (Linux — Ubuntu PPA; macOS handled by brew_packages)
 # =============================================================================
 
 install_ghostty() {
-    # PPAs require Ubuntu; skip on Debian and other distros
-    if ! grep -qi ubuntu /etc/os-release 2>/dev/null; then
-        warn "Skipping Ghostty install (Ubuntu-only PPA, detected non-Ubuntu system)"
-        return
-    fi
     if command -v ghostty &>/dev/null; then
         ok "Ghostty already installed"
         return
@@ -288,44 +330,81 @@ install_ghostty() {
     ok "Ghostty installed"
 }
 
-set_default_terminal() {
-    grep -qi ubuntu /etc/os-release 2>/dev/null || return
-    if [ "$(readlink /etc/alternatives/x-terminal-emulator)" = "/usr/bin/ghostty" ]; then
-        ok "x-terminal-emulator already set to ghostty"
-        return
-    fi
-    log "Setting ghostty as default x-terminal-emulator (Ctrl+Alt+T)..."
-    sudo update-alternatives --set x-terminal-emulator /usr/bin/ghostty
-    ok "Default terminal set to ghostty"
-}
-
 # =============================================================================
 # Stow packages
 # =============================================================================
 
 backup_if_not_symlink() {
-    local target="$1"
-    if [ -e "$target" ] && [ ! -L "$target" ]; then
+    # $1: target path. $2 (optional): the repo source path.
+    # Behavior:
+    #   * target doesn't exist or is a symlink → nothing to do.
+    #   * target resolves (via realpath, catching parent-dir symlinks)
+    #     to the same inode as src → nothing to do; stow has already
+    #     folded the parent directory.
+    #   * src given AND content matches → silently remove target so stow
+    #     can replace it with a symlink (no noisy .pre-dotfiles).
+    #   * otherwise → move target aside to ${target}.pre-dotfiles.
+    local target="$1" src="${2:-}"
+    [ -e "$target" ] && [ ! -L "$target" ] || return 0
+    # macOS' readlink lacks -f; coreutils' greadlink covers it. Fall back to
+    # python if neither is available.
+    local resolve
+    if command -v greadlink &>/dev/null; then
+        resolve="greadlink -f"
+    elif readlink -f / &>/dev/null; then
+        resolve="readlink -f"
+    else
+        resolve="python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))'"
+    fi
+    if [ -n "$src" ] && [ "$($resolve -- "$target" 2>/dev/null || $resolve "$target")" = "$($resolve -- "$src" 2>/dev/null || $resolve "$src")" ]; then
+        return 0
+    fi
+    if [ -n "$src" ] && [ -f "$target" ] && [ -f "$src" ] && cmp -s "$target" "$src"; then
+        rm "$target"
+    else
         warn "Backing up $target -> ${target}.pre-dotfiles"
         mv "$target" "${target}.pre-dotfiles"
     fi
 }
 
-stow_packages() {
-    local packages=(bash bat claude claude-indicator git ghostty nvim screenshot-watcher terminator tmux yazi)
+# Per-file backup for directories shared with the user's own files.
+# Only backs up files we're about to stow in — user's other files stay put.
+backup_pkg_files() {
+    local pkg_src="$1" target_dir="$2"
+    [ -d "$pkg_src" ] || return
+    local f
+    for f in "$pkg_src"/*; do
+        [ -e "$f" ] || continue
+        backup_if_not_symlink "$target_dir/$(basename "$f")" "$f"
+    done
+}
 
-    # Backup existing configs that would conflict
-    backup_if_not_symlink "$HOME/.bashrc.d"
+stow_packages() {
+    local packages=(bash bat claude git ghostty nvim tmux yazi)
+    if is_linux; then
+        # Linux-only packages: GNOME indicator, screenshot watcher (inotify),
+        # and the GTK terminator config.
+        packages+=(claude-indicator screenshot-watcher terminator)
+    fi
+
+    # Single files we own outright: back up the file itself.
+    backup_if_not_symlink "$HOME/.tmux.conf"                    "$DOTFILES_DIR/tmux/.tmux.conf"
+    backup_if_not_symlink "$HOME/.gitmux.conf"                  "$DOTFILES_DIR/tmux/.gitmux.conf"
+    backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh"  "$DOTFILES_DIR/tmux/.local/bin/tmux-ci-status.sh"
+    backup_if_not_symlink "$HOME/.claude/settings.json"         "$DOTFILES_DIR/claude/.claude/settings.json"
+    backup_if_not_symlink "$HOME/.claude/statusline-command.sh" "$DOTFILES_DIR/claude/.claude/statusline-command.sh"
+
+    # Directories the user may share with their own files: back up only the
+    # specific files we ship, leaving the rest of the directory intact.
+    backup_pkg_files "$DOTFILES_DIR/bash/.bashrc.d"          "$HOME/.bashrc.d"
+    backup_pkg_files "$DOTFILES_DIR/claude/.claude/hooks"    "$HOME/.claude/hooks"
+
+    # Directories we own outright: back up the whole directory.
     backup_if_not_symlink "$HOME/.config/nvim"
-    backup_if_not_symlink "$HOME/.tmux.conf"
-    backup_if_not_symlink "$HOME/.gitmux.conf"
-    backup_if_not_symlink "$HOME/.config/terminator"
     backup_if_not_symlink "$HOME/.config/bat"
     backup_if_not_symlink "$HOME/.config/ghostty"
     backup_if_not_symlink "$HOME/.config/yazi"
-    backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh"
-    backup_if_not_symlink "$HOME/.claude/hooks"
-    backup_if_not_symlink "$HOME/.claude/statusline-command.sh"
+    is_linux && backup_if_not_symlink "$HOME/.config/terminator"
 
     cd "$DOTFILES_DIR"
     for pkg in "${packages[@]}"; do
@@ -333,78 +412,122 @@ stow_packages() {
         stow --restow -t "$HOME" "$pkg"
     done
     ok "All packages stowed"
+
+    # Install yazi plugins from package.toml
+    if command -v ya &>/dev/null; then
+        log "Installing yazi plugins..."
+        ya pkg install
+        ok "Yazi plugins installed"
+    fi
 }
 
 # =============================================================================
-# Default terminal (ctrl+alt+t)
+# Patch shell rc (~/.bashrc on Linux, ~/.zshrc on macOS)
 # =============================================================================
 
-set_default_terminal() {
-    command -v ghostty &>/dev/null || { warn "ghostty not on PATH; skipping default-terminal setup"; return; }
-
-    local ghostty_path
-    ghostty_path=$(command -v ghostty)
-
-    if update-alternatives --query x-terminal-emulator 2>/dev/null | grep -q "^Value: $ghostty_path$"; then
-        ok "x-terminal-emulator already set to ghostty"
+patch_shell_rc() {
+    local rc marker="# Load dotfiles shell customizations"
+    if is_macos; then
+        rc="$HOME/.zshrc"
+        [ -f "$rc" ] || touch "$rc"
     else
-        log "Setting x-terminal-emulator to ghostty..."
-        sudo update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator "$ghostty_path" 50 >/dev/null
-        sudo update-alternatives --set x-terminal-emulator "$ghostty_path"
-        ok "x-terminal-emulator set to ghostty"
+        rc="$HOME/.bashrc"
     fi
-
-    if command -v gsettings &>/dev/null; then
-        gsettings set org.gnome.desktop.default-applications.terminal exec 'ghostty' 2>/dev/null || true
-    fi
-}
-
-# =============================================================================
-# Patch ~/.bashrc
-# =============================================================================
-
-patch_bashrc() {
-    local marker="# Load dotfiles shell customizations"
-    if grep -qF "$marker" "$HOME/.bashrc"; then
-        ok "~/.bashrc already patched"
+    if grep -qF "$marker" "$rc"; then
+        ok "$rc already patched"
         return
     fi
-    log "Patching ~/.bashrc..."
-    cp "$HOME/.bashrc" "$HOME/.bashrc.pre-dotfiles"
-    cat >>"$HOME/.bashrc" <<'EOF'
+    log "Patching $rc..."
+    cp "$rc" "${rc}.pre-dotfiles"
+    if is_macos; then
+        # zsh has its own `bind`, `set -o vi`, etc. Source via bash subshell?
+        # No — these scripts set env vars that need to live in the interactive
+        # shell. zsh can `source` .bash files; lines that use bash-only builtins
+        # (`bind`, certain `complete` flags) error softly and skip. Use `emulate
+        # -L sh` per file so most of the syntax parses. Wrap each source so a
+        # single bad line in one file doesn't abort the whole loop.
+        cat >>"$rc" <<'EOF'
+
+# Load dotfiles shell customizations
+for f in ~/.bashrc.d/*.bash; do
+    [ -r "$f" ] && { emulate -L sh; source "$f"; } 2>/dev/null
+done
+EOF
+    else
+        cat >>"$rc" <<'EOF'
 
 # Load dotfiles shell customizations
 for f in ~/.bashrc.d/*.bash; do [ -r "$f" ] && source "$f"; done
 EOF
-    ok "~/.bashrc patched (backup at ~/.bashrc.pre-dotfiles)"
+    fi
+    ok "$rc patched (backup at ${rc}.pre-dotfiles)"
+}
+
+create_notes_vault() {
+    # obsidian.nvim errors on startup if its workspace path is missing and does
+    # not create it itself. Layout matches nvim's obsidian.lua.
+    local vault="$HOME/notes"
+    mkdir -p "$vault/notes" "$vault/dailies" "$vault/templates"
+    ok "notes vault ready at $vault"
+}
+
+install_nvim_plugins() {
+    # Pre-install plugins headlessly so the first interactive launch is ready.
+    # Must run after the nvim config is stowed. Idempotent: `install` only
+    # fetches missing plugins, `restore` pins them to the committed lazy-lock.json.
+    local nvim_bin
+    if [ -x "$LOCAL_BIN/nvim" ]; then
+        nvim_bin="$LOCAL_BIN/nvim"
+    elif command -v nvim &>/dev/null; then
+        nvim_bin=$(command -v nvim)
+    else
+        return
+    fi
+    log "Installing Neovim plugins (headless)..."
+    # macOS lacks GNU timeout by default — use perl as a portable fallback.
+    if command -v timeout &>/dev/null; then
+        timeout 300 "$nvim_bin" --headless "+Lazy! install" "+Lazy! restore" +qa >/dev/null 2>&1 || true
+    else
+        perl -e 'alarm shift; exec @ARGV' 300 "$nvim_bin" --headless "+Lazy! install" "+Lazy! restore" +qa >/dev/null 2>&1 || true
+    fi
+    ok "Neovim plugins installed"
 }
 
 # =============================================================================
 # Main
 # =============================================================================
 
-log "Starting dotfiles bootstrap..."
+log "Starting dotfiles bootstrap on $OS_KIND..."
 mkdir -p "$LOCAL_BIN"
 
-setup_locale
-install_apt_packages
-install_nodejs
-install_delta
-install_fd
-install_fzf
-install_ghostty
-set_default_terminal
-install_gitmux
-install_lazydocker
-install_lazygit
-install_nerd_font
-install_neovim
+if is_linux; then
+    install_apt_packages
+    install_nodejs
+    install_delta
+    install_fd
+    install_fzf
+    install_ghostty
+    install_gitmux
+    install_lazydocker
+    install_lazygit
+    install_nerd_font
+    install_neovim
+    install_yazi
+    install_zoxide
+else
+    install_brew
+    install_brew_packages
+fi
+
 install_tpm
-install_yazi
-install_zoxide
 stow_packages
-patch_bashrc
-set_default_terminal
+patch_shell_rc
+create_notes_vault
+install_nvim_plugins
 
 echo ""
-ok "Done! Restart your shell or run: source ~/.bashrc"
+if is_macos; then
+    ok "Done! Restart your shell or run: source ~/.zshrc"
+else
+    ok "Done! Restart your shell or run: source ~/.bashrc"
+fi

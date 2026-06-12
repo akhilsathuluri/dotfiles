@@ -1,6 +1,9 @@
 # uv/uvx shell completions
-command -v uv &>/dev/null && eval "$(uv generate-shell-completion bash)"
-command -v uvx &>/dev/null && eval "$(uvx --generate-shell-completion bash)"
+_dot_shell="bash"
+[ -n "${ZSH_VERSION:-}" ] && _dot_shell="zsh"
+command -v uv  &>/dev/null && eval "$(uv  generate-shell-completion "$_dot_shell")"
+command -v uvx &>/dev/null && eval "$(uvx --generate-shell-completion "$_dot_shell")"
+unset _dot_shell
 
 # task (taskfile) completion
 [ -f "$HOME/.bash-completion/completions/task.bash" ] && source "$HOME/.bash-completion/completions/task.bash"

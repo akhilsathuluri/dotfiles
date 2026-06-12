@@ -12,3 +12,18 @@
 
 [merge]
     conflictstyle = zdiff3
+
+[diff]
+    algorithm = histogram
+    colorMoved = default
+    colorMovedWS = allow-indentation-change
+
+[pager]
+    blame = delta
+
+[blame]
+    coloring = highlightRecent
+    date = relative
+
+[push]
+    autoSetupRemote = true

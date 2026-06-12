@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 INPUT=$(cat)
-DIR=$(echo "$INPUT" | jq -r '.cwd // "unknown"' | xargs basename)
-SID=$(echo "$INPUT" | jq -r '.session_id // empty')
-[ -z "$SID" ] && exit 0
-mkdir -p /tmp/claude-sessions
-echo "question:$DIR" > "/tmp/claude-sessions/$SID"
-printf '\a'
+# Claude fires Notification for both real attention-needed events and a
+# periodic "Claude is waiting for your input" idle nudge (notification_type
+# = "idle_prompt"). Skip the idle nudges — they'd otherwise flip a happily
+# idle (done) session to question after ~60s.
+ntype=$(printf '%s' "$INPUT" | jq -r '.notification_type // ""')
+[ "$ntype" = "idle_prompt" ] && exit 0
+# shellcheck source=_write-state.sh
+. "$(dirname "$0")/_write-state.sh"
+write_claude_state question
