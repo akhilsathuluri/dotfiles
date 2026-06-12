@@ -18,11 +18,9 @@ Primary target: Ubuntu 24.04. Also supported: macOS (Apple Silicon and Intel).
 | `ghostty`            | Ghostty terminal config (block cursor, cursor trail shader)                  | `~/.config/ghostty/`                    |
 | `nvim`               | Neovim config (LazyVim, LSP, plugins)                                        | `~/.config/nvim/`                       |
 | `screenshot-watcher` | Auto-copy screenshots to clipboard (Linux only)                              | `~/.local/bin/`, `~/.config/autostart/` |
-| `terminator`         | Terminal emulator (alt+h/l tab nav, larger scrollback) — Linux only          | `~/.config/terminator/`                 |
 | `tmux`               | Tmux config, gitmux, CI status script                                        | `~/.tmux.conf`, `~/.gitmux.conf`        |
-| `yazi`               | Yazi file manager config with zoxide plugin                                  | `~/.config/yazi/`                       |
 
-`bootstrap.sh` auto-skips Linux-only packages (`claude-indicator`, `screenshot-watcher`, `terminator`) on macOS.
+`bootstrap.sh` auto-skips Linux-only packages (`claude-indicator`, `screenshot-watcher`) on macOS.
 
 ### System dependencies
 
@@ -44,7 +42,6 @@ Installed via `bootstrap.sh` (apt on Linux, Homebrew on macOS, plus binaries und
 - [ripgrep](https://github.com/BurntSushi/ripgrep) — fast recursive search
 - [tmux](https://github.com/tmux/tmux) — terminal multiplexer
 - [tree](https://gitlab.com/OldManProgrammer/unix-tree) — directory listing utility
-- [yazi](https://github.com/sxyazi/yazi) — terminal file manager
 - [zoxide](https://github.com/ajeetdsouza/zoxide) — smarter cd
 
 ## Setup on a new machine
@@ -179,8 +176,6 @@ dotfiles/
 ├── ghostty/.config/ghostty/
 │   ├── config
 │   └── shaders/                 # vendored cursor trail shaders
-├── yazi/.config/yazi/
-├── terminator/.config/terminator/config
 ├── bat/.config/bat/config
 ├── bootstrap.sh
 ├── test/bootstrap-fresh.sh    # docker smoke test (fresh Ubuntu 24.04)

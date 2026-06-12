@@ -40,7 +40,6 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `rg <pattern>`      | ripgrep — fast recursive search            |
 | `fd <pattern>`      | fast find files (respects .gitignore)      |
 | `fd -t d <pattern>` | find directories only                      |
-| `y [path]`          | yazi file manager (cd to last dir on quit) |
 | `vim`               | nvim (clean start, no session restore)     |
 | `vimr`              | nvim, restore saved session for cwd        |
 | `cheat`             | show this cheatsheet                       |
@@ -142,8 +141,6 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `<leader>/`       | live grep (search in project) |
 | `<leader>fr`      | recent files                  |
 | `<leader>fb`      | open buffers                  |
-| `<leader>-`       | open yazi at current file     |
-| `<leader>cw`      | open yazi at cwd              |
 | `<leader>e`       | toggle file explorer (snacks) |
 
 ### LSP & Code

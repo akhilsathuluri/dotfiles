@@ -24,7 +24,6 @@ LAZYDOCKER_VERSION="0.25.2"
 LAZYGIT_VERSION="0.61.1"
 NEOVIM_VERSION="0.12.2"
 NERD_FONT_VERSION="3.4.0"
-YAZI_VERSION="26.5.6"
 ZOXIDE_VERSION="0.9.9"
 
 log() { echo -e "\033[1;34m[dotfiles]\033[0m $*"; }
@@ -36,11 +35,10 @@ ok() { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 # =============================================================================
 
 install_apt_packages() {
-    # chafa: image previews for yazi
     # gir1.2-appindicator3-0.1 + python3-gi: GNOME top bar indicator for claude-indicator
     # imagemagick: convert/identify, used by snacks.image to render images in nvim
     # inotify-tools: screenshot-watcher (auto-copy screenshots to clipboard)
-    local pkgs=(bat build-essential chafa curl direnv fontconfig gir1.2-appindicator3-0.1 imagemagick inotify-tools jq python3-gi ripgrep software-properties-common stow terminator tmux tree unzip wl-clipboard wget)
+    local pkgs=(bat build-essential curl direnv fontconfig gir1.2-appindicator3-0.1 imagemagick inotify-tools jq python3-gi ripgrep software-properties-common stow tmux tree unzip wl-clipboard wget)
     local to_install=()
     for pkg in "${pkgs[@]}"; do
         dpkg -s "$pkg" &>/dev/null || to_install+=("$pkg")
@@ -78,7 +76,7 @@ install_brew() {
 install_brew_packages() {
     # Mirrors the Linux apt + binary-tool lists. Brew gives us up-to-date
     # versions and handles macOS-specific quirks (e.g. neovim from formula).
-    local pkgs=(bat chafa direnv fd fzf imagemagick jq lazydocker lazygit neovim node ripgrep stow tmux tree yazi zoxide)
+    local pkgs=(bat direnv fd fzf imagemagick jq lazydocker lazygit neovim node ripgrep stow tmux tree zoxide)
     local missing=()
     for pkg in "${pkgs[@]}"; do
         brew list --formula "$pkg" &>/dev/null || missing+=("$pkg")
@@ -241,24 +239,6 @@ install_neovim() {
     ok "neovim $NEOVIM_VERSION installed"
 }
 
-install_yazi() {
-    if [ -x "$LOCAL_BIN/yazi" ] && "$LOCAL_BIN/yazi" --version 2>/dev/null | grep -q "$YAZI_VERSION"; then
-        ok "yazi $YAZI_VERSION already installed"
-        return
-    fi
-    log "Installing yazi $YAZI_VERSION..."
-    local url="https://github.com/sxyazi/yazi/releases/download/v${YAZI_VERSION}/yazi-x86_64-unknown-linux-gnu.zip"
-    local tmp
-    tmp=$(mktemp -d)
-    curl -sSL "$url" -o "$tmp/yazi.zip"
-    unzip -o "$tmp/yazi.zip" -d "$tmp" >/dev/null
-    mv "$tmp/yazi-x86_64-unknown-linux-gnu/yazi" "$LOCAL_BIN/yazi"
-    mv "$tmp/yazi-x86_64-unknown-linux-gnu/ya" "$LOCAL_BIN/ya"
-    chmod +x "$LOCAL_BIN/yazi" "$LOCAL_BIN/ya"
-    rm -rf "$tmp"
-    ok "yazi $YAZI_VERSION installed"
-}
-
 install_zoxide() {
     if [ -x "$LOCAL_BIN/zoxide" ] && "$LOCAL_BIN/zoxide" --version 2>/dev/null | grep -q "$ZOXIDE_VERSION"; then
         ok "zoxide $ZOXIDE_VERSION already installed"
@@ -380,11 +360,10 @@ backup_pkg_files() {
 }
 
 stow_packages() {
-    local packages=(bash bat claude git ghostty nvim tmux yazi)
+    local packages=(bash bat claude git ghostty nvim tmux)
     if is_linux; then
-        # Linux-only packages: GNOME indicator, screenshot watcher (inotify),
-        # and the GTK terminator config.
-        packages+=(claude-indicator screenshot-watcher terminator)
+        # Linux-only packages: GNOME indicator + screenshot watcher (inotify).
+        packages+=(claude-indicator screenshot-watcher)
     fi
 
     # Single files we own outright: back up the file itself.
@@ -403,8 +382,6 @@ stow_packages() {
     backup_if_not_symlink "$HOME/.config/nvim"
     backup_if_not_symlink "$HOME/.config/bat"
     backup_if_not_symlink "$HOME/.config/ghostty"
-    backup_if_not_symlink "$HOME/.config/yazi"
-    is_linux && backup_if_not_symlink "$HOME/.config/terminator"
 
     cd "$DOTFILES_DIR"
     for pkg in "${packages[@]}"; do
@@ -412,13 +389,6 @@ stow_packages() {
         stow --restow -t "$HOME" "$pkg"
     done
     ok "All packages stowed"
-
-    # Install yazi plugins from package.toml
-    if command -v ya &>/dev/null; then
-        log "Installing yazi plugins..."
-        ya pkg install
-        ok "Yazi plugins installed"
-    fi
 }
 
 # =============================================================================
@@ -512,7 +482,6 @@ if is_linux; then
     install_lazygit
     install_nerd_font
     install_neovim
-    install_yazi
     install_zoxide
 else
     install_brew

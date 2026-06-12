@@ -28,7 +28,7 @@ export PATH=\$HOME/.local/bin:\$PATH
 echo
 echo \"--- binaries ---\"
 fail=0
-for b in fzf fd delta lazygit lazydocker yazi zoxide gitmux nvim ghostty; do
+for b in fzf fd delta lazygit lazydocker zoxide gitmux nvim ghostty; do
   if v=\$(\"\$b\" --version 2>/dev/null | head -1); then
     printf \"OK   %-12s %s\n\" \"\$b\" \"\$v\"
   else

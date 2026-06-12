@@ -14,11 +14,9 @@ Personal dotfiles managed with GNU Stow. Primary target: Ubuntu 24.04. Also supp
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
 - `nvim/` → `~/.config/nvim/` (LazyVim config)
 - `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (Linux only — auto-copy screenshots to clipboard)
-- `terminator/` → `~/.config/terminator/`
 - `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/tmux-ci-status.sh`
-- `yazi/` → `~/.config/yazi/` (yazi file manager config)
 
-Linux-only packages (`claude-indicator`, `screenshot-watcher`, `terminator`) are skipped automatically by `bootstrap.sh` on macOS.
+Linux-only packages (`claude-indicator`, `screenshot-watcher`) are skipped automatically by `bootstrap.sh` on macOS.
 
 ## Rules
 
