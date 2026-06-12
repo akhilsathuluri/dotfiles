@@ -35,7 +35,11 @@ if [ -n "${_FZF_CLIP_CMD:-}" ]; then
     "
 fi
 
-eval "$(fzf --bash)"
+if [ -n "${ZSH_VERSION:-}" ]; then
+    eval "$(fzf --zsh)"
+else
+    eval "$(fzf --bash)"
+fi
 
 # ff: fuzzy find → enter=open in nvim, ctrl-y=copy path
 ff() {

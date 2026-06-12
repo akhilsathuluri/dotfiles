@@ -1,12 +1,21 @@
 # Shell
 set -o vi
-# vi-insert keymap defaults Ctrl+L to self-insert; restore clear-screen
-bind -m vi-insert '"\C-l": clear-screen'
-bind -m vi-command -x '"\C-l": printf "\033[2J\033[H"'
+# vi-insert keymap defaults Ctrl+L to self-insert; restore clear-screen.
+# `bind` is bash-only; zsh has `bindkey` and a separate vicmd/viins logic, so
+# skip when sourced under zsh (the macOS default shell).
+if [ -n "${BASH_VERSION:-}" ]; then
+    bind -m vi-insert '"\C-l": clear-screen'
+    bind -m vi-command -x '"\C-l": printf "\033[2J\033[H"'
+fi
 export VISUAL=nvim
 export EDITOR=nvim
 export TERM="tmux-256color"
-export BROWSER="firefox"
+# `open` (macOS) opens URLs in the user's default browser; firefox elsewhere.
+if [ "$(uname)" = "Darwin" ]; then
+    export BROWSER="open"
+else
+    export BROWSER="firefox"
+fi
 
 # Git
 alias gsm='git switch main'
