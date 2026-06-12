@@ -396,26 +396,44 @@ stow_packages() {
 # =============================================================================
 
 patch_shell_rc() {
-    local rc marker="# Load dotfiles shell customizations"
+    local rc legacy="# Load dotfiles shell customizations"
+    local start="# >>> dotfiles >>>"
+    local end="# <<< dotfiles <<<"
     if is_macos; then
         rc="$HOME/.zshrc"
         [ -f "$rc" ] || touch "$rc"
     else
         rc="$HOME/.bashrc"
     fi
-    if grep -qF "$marker" "$rc"; then
-        ok "$rc already patched"
-        return
+
+    # First-time backup only.
+    [ -f "${rc}.pre-dotfiles" ] || cp "$rc" "${rc}.pre-dotfiles"
+
+    # Strip any existing patch so the file stays self-healing across upgrades.
+    # Handles both the current start/end markers and the legacy single-marker
+    # form (which was always appended last, so we drop from marker to EOF).
+    if grep -qF "$start" "$rc"; then
+        awk -v s="$start" -v e="$end" '
+            $0 == s { skip=1; next }
+            $0 == e { skip=0; next }
+            !skip
+        ' "$rc" > "$rc.tmp" && mv "$rc.tmp" "$rc"
+    elif grep -qF "$legacy" "$rc"; then
+        awk -v m="$legacy" '
+            $0 == m { found=1 }
+            !found
+        ' "$rc" > "$rc.tmp" && mv "$rc.tmp" "$rc"
     fi
+
     log "Patching $rc..."
-    cp "$rc" "${rc}.pre-dotfiles"
     # Same loop for bash and zsh. Each .bashrc.d/*.bash file is responsible for
     # guarding bash-only or zsh-only sections internally (via $BASH_VERSION /
     # $ZSH_VERSION) so a single source line works for both shells.
-    cat >>"$rc" <<'EOF'
+    cat >>"$rc" <<EOF
 
-# Load dotfiles shell customizations
-for f in ~/.bashrc.d/*.bash; do [ -r "$f" ] && source "$f"; done
+$start
+for f in ~/.bashrc.d/*.bash; do [ -r "\$f" ] && source "\$f"; done
+$end
 EOF
     ok "$rc patched (backup at ${rc}.pre-dotfiles)"
 }
