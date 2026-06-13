@@ -17,8 +17,15 @@ import signal
 import gi
 
 gi.require_version("Gtk", "3.0")
-gi.require_version("AppIndicator3", "0.1")
-from gi.repository import Gtk, AppIndicator3, GLib
+# Prefer the Ayatana fork (Debian 13, Ubuntu 22.04+); fall back to legacy
+# libappindicator on older systems. Both expose the same API.
+try:
+    gi.require_version("AyatanaAppIndicator3", "0.1")
+    from gi.repository import AyatanaAppIndicator3 as AppIndicator3
+except (ValueError, ImportError):
+    gi.require_version("AppIndicator3", "0.1")
+    from gi.repository import AppIndicator3
+from gi.repository import Gtk, GLib
 
 SESSIONS_DIR = "/tmp/claude-sessions"
 POLL_INTERVAL_MS = 1000

@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Personal dotfiles managed with GNU Stow. Primary target: Ubuntu 24.04. Also supported: macOS (Apple Silicon and Intel).
+Personal dotfiles managed with GNU Stow. Primary target: Ubuntu 24.04. Also supported: Debian 13 (trixie) and macOS (Apple Silicon and Intel). On Debian, Ghostty is skipped (PPA install is Ubuntu-only — install manually if needed).
 
 ## Stow packages
 

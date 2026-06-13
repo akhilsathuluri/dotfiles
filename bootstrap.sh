@@ -14,6 +14,7 @@ esac
 
 is_linux() { [ "$OS_KIND" = "linux" ]; }
 is_macos() { [ "$OS_KIND" = "macos" ]; }
+is_ubuntu() { [ -f /etc/os-release ] && grep -qE '^ID=ubuntu$' /etc/os-release; }
 
 # Pinned versions (Linux tarballs only — macOS uses Homebrew)
 DELTA_VERSION="0.19.2"
@@ -35,10 +36,13 @@ ok() { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 # =============================================================================
 
 install_apt_packages() {
-    # gir1.2-appindicator3-0.1 + python3-gi: GNOME top bar indicator for claude-indicator
+    # gir1.2-ayatanaappindicator3-0.1 + python3-gi: GNOME top bar indicator for claude-indicator
+    #   (Ayatana fork; available in both Ubuntu 24.04 universe and Debian 13 main.
+    #   claude-indicator's Python tries this first and falls back to AppIndicator3.)
     # imagemagick: convert/identify, used by snacks.image to render images in nvim
     # inotify-tools: screenshot-watcher (auto-copy screenshots to clipboard)
-    local pkgs=(bat build-essential curl direnv fontconfig gir1.2-appindicator3-0.1 imagemagick inotify-tools jq python3-gi ripgrep software-properties-common stow tmux tree unzip wl-clipboard wget)
+    # software-properties-common is installed on-demand by install_ghostty (Ubuntu-only).
+    local pkgs=(bat build-essential curl direnv fontconfig gir1.2-ayatanaappindicator3-0.1 imagemagick inotify-tools jq python3-gi ripgrep stow tmux tree unzip wl-clipboard wget)
     local to_install=()
     for pkg in "${pkgs[@]}"; do
         dpkg -s "$pkg" &>/dev/null || to_install+=("$pkg")
@@ -301,7 +305,13 @@ install_ghostty() {
         ok "Ghostty already installed"
         return
     fi
+    if ! is_ubuntu; then
+        warn "Skipping Ghostty: PPA install is Ubuntu-only — install manually if needed"
+        return
+    fi
     log "Installing Ghostty..."
+    # software-properties-common provides add-apt-repository (Ubuntu PPA tooling).
+    dpkg -s software-properties-common &>/dev/null || sudo apt-get install -y -qq software-properties-common
     if ! grep -rq mkasberg/ghostty-ubuntu /etc/apt/sources.list.d/ 2>/dev/null; then
         sudo add-apt-repository -y ppa:mkasberg/ghostty-ubuntu
         sudo apt-get update -qq
@@ -412,16 +422,22 @@ patch_shell_rc() {
     # Strip any existing patch so the file stays self-healing across upgrades.
     # Handles both the current start/end markers and the legacy single-marker
     # form (which was always appended last, so we drop from marker to EOF).
+    # Both branches also drop trailing blank lines so re-running bootstrap
+    # doesn't accumulate blanks before the next appended block.
     if grep -qF "$start" "$rc"; then
         awk -v s="$start" -v e="$end" '
             $0 == s { skip=1; next }
             $0 == e { skip=0; next }
-            !skip
+            skip    { next }
+            /^$/    { pending++; next }
+                    { while (pending--) print ""; pending=0; print }
         ' "$rc" > "$rc.tmp" && mv "$rc.tmp" "$rc"
     elif grep -qF "$legacy" "$rc"; then
         awk -v m="$legacy" '
             $0 == m { found=1 }
-            !found
+            found   { next }
+            /^$/    { pending++; next }
+                    { while (pending--) print ""; pending=0; print }
         ' "$rc" > "$rc.tmp" && mv "$rc.tmp" "$rc"
     fi
 
