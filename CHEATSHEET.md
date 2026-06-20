@@ -6,36 +6,38 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 
 ## Shell (Bash + Tools)
 
-| Key / Command       | Action                                   |
-| ------------------- | ---------------------------------------- |
-| `cd <partial>`      | zoxide smart jump (learns from usage)    |
-| `cdi <partial>`     | zoxide interactive (pick from matches)   |
-| `Ctrl+R`            | fzf fuzzy search shell history           |
-| `Ctrl+T`            | fzf insert file path (bat preview)       |
-| `Alt+C`             | fzf cd into directory (powered by fd)    |
-| `rfv [query]`       | live ripgrep + fzf, opens nvim at line   |
-| `gs` / `gd`         | git status / diff                        |
-| `gdl`               | diff of the last commit (HEAD~1..HEAD)   |
-| `gl` / `gp` / `gf`  | git log / push / fetch                   |
-| `glog`              | git log graph (oneline, decorated)       |
-| `gb`                | git branches sorted by recent use        |
-| `gdd`               | open diffview in nvim (unstaged changes) |
-| `gddm`              | diffview against main branch             |
-| `gmr`               | diffview for merge request (vs main)     |
-| `gw`                | live git diff in tmux split pane         |
-| `gwta`              | add worktree: <dir> <branch>             |
-| `gwts`              | fzf-switch worktree (cd into pick)       |
-| `gwtls`             | list worktrees                           |
-| `gwtrm`             | remove a worktree (not rm -rf)           |
-| `gwt`               | git worktree (raw passthrough)           |
-| `lazygit`           | terminal git UI                          |
-| `lazydocker`        | terminal docker UI                       |
-| `bat <file>`        | cat with syntax highlighting             |
-| `rg <pattern>`      | ripgrep — fast recursive search          |
-| `fd <pattern>`      | fast find files (respects .gitignore)    |
-| `fd -t d <pattern>` | find directories only                    |
-| `vim`               | nvim (clean start, no session restore)   |
-| `vimr`              | nvim, restore saved session for cwd      |
+| Key / Command       | Action                                    |
+| ------------------- | ----------------------------------------- |
+| `cd <partial>`      | zoxide smart jump (learns from usage)     |
+| `cdi <partial>`     | zoxide interactive (pick from matches)    |
+| `Ctrl+R`            | fzf fuzzy search shell history            |
+| `Ctrl+T`            | fzf insert file path (bat preview)        |
+| `Alt+C`             | fzf cd into directory (powered by fd)     |
+| `rfv [query]`       | live ripgrep + fzf, opens nvim at line    |
+| `gs` / `gd`         | git status / diff                         |
+| `gdl`               | diff of the last commit (HEAD~1..HEAD)    |
+| `gl` / `gp` / `gf`  | git log / push / fetch                    |
+| `glog`              | git log graph (oneline, decorated)        |
+| `gb`                | git branches sorted by recent use         |
+| `gdd`               | open diffview in nvim (unstaged changes)  |
+| `gddm`              | diffview against main branch              |
+| `gmr`               | diffview for merge request (vs main)      |
+| `gw`                | live git diff in tmux split pane          |
+| `hd` / `hs`         | hunk: review working tree / latest commit |
+| `hdw`               | hunk diff, auto-reload on file change     |
+| `gwta`              | add worktree: <dir> <branch>              |
+| `gwts`              | fzf-switch worktree (cd into pick)        |
+| `gwtls`             | list worktrees                            |
+| `gwtrm`             | remove a worktree (not rm -rf)            |
+| `gwt`               | git worktree (raw passthrough)            |
+| `lazygit`           | terminal git UI                           |
+| `lazydocker`        | terminal docker UI                        |
+| `bat <file>`        | cat with syntax highlighting              |
+| `rg <pattern>`      | ripgrep — fast recursive search           |
+| `fd <pattern>`      | fast find files (respects .gitignore)     |
+| `fd -t d <pattern>` | find directories only                     |
+| `vim`               | nvim (clean start, no session restore)    |
+| `vimr`              | nvim, restore saved session for cwd       |
 
 ---
 
@@ -46,6 +48,19 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `Ctrl+/` | toggle preview pane (in `Ctrl+T` and `rfv`)                                |
 | `Ctrl+Y` | copy to clipboard and exit: file contents in `Ctrl+T`, command in `Ctrl+R` |
 | `Enter`  | accept selection (in `rfv`: opens nvim at file + line)                     |
+
+---
+
+### hunk (diff viewer)
+
+`hunk pager` is git's pager, so `git diff` / `git show` / `gd` / `gdl` open in
+hunk. delta still colors `git add -p` staging and `git blame`.
+
+| Key / Command | Action                                 |
+| ------------- | -------------------------------------- |
+| `hd` / `hs`   | native review of working tree / commit |
+| `hdw`         | hunk diff, auto-reload on file change  |
+| `t`           | theme picker inside hunk (persists)    |
 
 ---
 

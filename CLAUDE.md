@@ -11,6 +11,7 @@ Personal dotfiles managed with GNU Stow on Ubuntu 24.04.
 - `claude/` → `~/.claude/hooks/`, `~/.claude/settings.json`, `~/.claude/statusline-command.sh` (machine-specific prefs go in `~/.claude/settings.local.json`, not tracked)
 - `git/` → `~/.config/git/config` (delta pager, merge settings)
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
+- `hunk/` → `~/.config/hunk/` (hunk diff viewer config, Solarized Light theme)
 - `nvim/` → `~/.config/nvim/` (LazyVim config)
 - `terminator/` → `~/.config/terminator/`
 - `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/tmux-ci-status.sh`

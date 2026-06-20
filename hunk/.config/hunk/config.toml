@@ -1,0 +1,20 @@
+mode = "split"         # side-by-side, matching the delta side-by-side setup
+theme = "custom"       # use the [custom_theme] below; press `t` in hunk to override + persist
+line_numbers = true
+
+# Solarized Light — hunk has no built-in Solarized theme, so inherit a light base
+# and override accent/panel/syntax. The add/removed diff backgrounds come from the
+# base (hunk doesn't expose those keys).
+[custom_theme]
+base = "github-light-default"  # light base -> light background + diff colors
+label = "Solarized Light"
+accent = "#268bd2"             # blue
+panel = "#eee8d5"              # base2
+noteBorder = "#6c71c4"         # violet
+
+[custom_theme.syntax]
+keyword = "#859900"            # green
+string = "#2aa198"             # cyan
+comment = "#93a1a1"            # base1
+operator = "#657b83"           # base00
+variable = "#268bd2"           # blue

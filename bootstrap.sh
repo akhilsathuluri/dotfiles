@@ -10,6 +10,7 @@ DELTA_VERSION="0.19.2"
 FD_VERSION="10.4.2"
 FZF_VERSION="0.72.0"
 GITMUX_VERSION="0.11.5"
+HUNK_VERSION="0.16.0"
 LAZYDOCKER_VERSION="0.25.2"
 LAZYGIT_VERSION="0.61.1"
 NEOVIM_VERSION="0.12.2"
@@ -127,6 +128,16 @@ install_gitmux() {
     echo "$GITMUX_VERSION" >"$LOCAL_BIN/.gitmux-version"
     rm -rf "$tmp"
     ok "gitmux $GITMUX_VERSION installed"
+}
+
+install_hunk() {
+    if [ -x "$LOCAL_BIN/hunk" ] && "$LOCAL_BIN/hunk" --version 2>/dev/null | grep -q "$HUNK_VERSION"; then
+        ok "hunk $HUNK_VERSION already installed"
+        return
+    fi
+    log "Installing hunk $HUNK_VERSION..."
+    npm install -g --prefix "$HOME/.local" "hunkdiff@$HUNK_VERSION"
+    ok "hunk $HUNK_VERSION installed"
 }
 
 install_lazydocker() {
@@ -307,7 +318,7 @@ backup_pkg_files() {
 }
 
 stow_packages() {
-    local packages=(bash bat claude git ghostty nvim terminator tmux yazi)
+    local packages=(bash bat claude git ghostty hunk nvim terminator tmux yazi)
 
     # Single files we own outright: back up the file itself.
     backup_if_not_symlink "$HOME/.tmux.conf"                    "$DOTFILES_DIR/tmux/.tmux.conf"
@@ -326,6 +337,7 @@ stow_packages() {
     backup_if_not_symlink "$HOME/.config/terminator"
     backup_if_not_symlink "$HOME/.config/bat"
     backup_if_not_symlink "$HOME/.config/ghostty"
+    backup_if_not_symlink "$HOME/.config/hunk"
     backup_if_not_symlink "$HOME/.config/yazi"
 
     cd "$DOTFILES_DIR"
@@ -397,6 +409,7 @@ install_fd
 install_fzf
 install_ghostty
 install_gitmux
+install_hunk
 install_lazydocker
 install_lazygit
 install_nerd_font

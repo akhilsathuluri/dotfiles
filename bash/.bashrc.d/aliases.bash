@@ -24,6 +24,11 @@ alias gmr='nvim -c "DiffviewOpen origin/main...HEAD"'
 alias gmrd='git diff origin/main...HEAD'
 alias gw='while clear; do git diff --stat --color && echo "---" && git diff --color | head -60; sleep 2; done'
 
+# hunk — interactive changeset reviewer (git pager is also hunk; these are its native views)
+alias hd='hunk diff'          # review working-tree changes (incl. untracked)
+alias hs='hunk show'          # review the latest commit
+alias hdw='hunk diff --watch' # auto-reload as files change
+
 # Worktree family (mirrors oh-my-zsh git plugin naming: gwt/gwta/gwtls/gwtmv/gwtrm)
 alias gwt='git worktree'
 alias gwtls='git worktree list'
