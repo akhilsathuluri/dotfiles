@@ -22,7 +22,7 @@ return {
       daily_notes = {
         folder = "dailies",
         date_format = "%Y-%m-%d",
-        template = nil,
+        template = "daily.md",
       },
       templates = {
         folder = "templates",
