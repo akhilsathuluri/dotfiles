@@ -66,7 +66,9 @@ alias docker-rm-all='docker rm $(docker ps -a -q)'
 
 # Files
 alias ll='ls -lrth'
-alias bat='bat --paging=never --style=plain'
+# --pager less -RFX: -X keeps paged output in tmux scrollback (no alt-screen),
+# so mouse-drag selection still copies; -F prints inline when it fits one screen.
+alias bat='bat --style=plain --pager="less -RFX"'
 
 # Editor
 alias vim='nvim'

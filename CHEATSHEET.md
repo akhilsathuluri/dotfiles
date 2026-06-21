@@ -28,7 +28,7 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `gwt`               | git worktree (raw passthrough)            |
 | `lazygit`           | terminal git UI                           |
 | `lazydocker`        | terminal docker UI                        |
-| `bat <file>`        | cat with syntax highlighting              |
+| `bat <file>`        | cat with syntax highlighting (paged)      |
 | `rg <pattern>`      | ripgrep — fast recursive search           |
 | `fd <pattern>`      | fast find files (respects .gitignore)     |
 | `fd -t d <pattern>` | find directories only                     |
