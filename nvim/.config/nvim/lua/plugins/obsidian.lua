@@ -15,9 +15,9 @@ return {
       -- leave it off. Image rendering (snacks.image) is independent of this.
       ui = { enable = false },
       workspaces = {
-        { name = "notes", path = "~/notes" },
+        { name = "personal", path = "~/vaults/personal" },
       },
-      notes_subdir = "notes",
+      notes_subdir = "inbox",
       new_notes_location = "notes_subdir",
       daily_notes = {
         folder = "dailies",
