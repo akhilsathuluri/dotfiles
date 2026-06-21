@@ -14,17 +14,13 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 | `Ctrl+T`            | fzf insert file path (bat preview)        |
 | `Alt+C`             | fzf cd into directory (powered by fd)     |
 | `rfv [query]`       | live ripgrep + fzf, opens nvim at line    |
-| `gs` / `gd`         | git status / diff                         |
-| `gdl`               | diff of the last commit (HEAD~1..HEAD)    |
+| `gs`                | git status                                |
+| `gd` / `gds`        | hunk: review working tree / latest commit |
+| `gdw`               | hunk working-tree review, auto-reload     |
 | `gl` / `gp` / `gf`  | git log / push / fetch                    |
-| `glog`              | git log graph (oneline, decorated)        |
 | `gb`                | git branches sorted by recent use         |
-| `gdd`               | open diffview in nvim (unstaged changes)  |
-| `gddm`              | diffview against main branch              |
-| `gmr`               | diffview for merge request (vs main)      |
+| `gdm`               | hunk: review merge request (vs main)      |
 | `gw`                | live git diff in tmux split pane          |
-| `hd` / `hs`         | hunk: review working tree / latest commit |
-| `hdw`               | hunk diff, auto-reload on file change     |
 | `gwta`              | add worktree: <dir> <branch>              |
 | `gwts`              | fzf-switch worktree (cd into pick)        |
 | `gwtls`             | list worktrees                            |
@@ -53,14 +49,16 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 
 ### hunk (diff viewer)
 
-`hunk pager` is git's pager, so `git diff` / `git show` / `gd` / `gdl` open in
-hunk. delta still colors `git add -p` staging and `git blame`.
+`hunk pager` is git's pager, so any raw `git diff` / `git show` opens in hunk.
+The `gd` / `gds` / `gdw` / `gdm` aliases launch hunk's native interactive
+reviewer directly. delta still colors `git add -p` staging and `git blame`.
 
-| Key / Command | Action                                 |
-| ------------- | -------------------------------------- |
-| `hd` / `hs`   | native review of working tree / commit |
-| `hdw`         | hunk diff, auto-reload on file change  |
-| `t`           | theme picker inside hunk (persists)    |
+| Key / Command | Action                                        |
+| ------------- | --------------------------------------------- |
+| `gd` / `gds`  | native review of working tree / latest commit |
+| `gdw`         | working-tree review, auto-reload on change    |
+| `gdm`         | review merge request (branch vs main)         |
+| `t`           | theme picker inside hunk (persists)           |
 
 ---
 
@@ -254,7 +252,7 @@ Images render inline in the buffer (image.nvim) and paste from the clipboard
 | Quick file edit                 | `cd proj` → `vim .` → `<leader><space>` → type filename |
 | Jump to code by content         | `rfv parseConfig` → Enter (opens nvim at the line)      |
 | Search & replace across project | `<leader>sr` in nvim (grug-far)                         |
-| Review branch changes           | `gddm` or `<leader>gg` then navigate                    |
+| Review branch changes           | `gdm` or `<leader>gg` then navigate                     |
 | Run command in split            | `prefix \|` → run command → `prefix z` to zoom          |
 | Copy terminal output            | `Alt+y` → navigate → `v` → select → `y`                 |
 | Jump to recent directory        | `cd <partial-name>` (zoxide remembers)                  |

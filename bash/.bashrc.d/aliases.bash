@@ -7,27 +7,19 @@ export EDITOR=nvim
 export TERM="tmux-256color"
 export BROWSER="firefox"
 
-# Git
-alias gd='git diff'
-alias gdl='git diff HEAD~1 HEAD'
+# Git — diffs/reviews open hunk's interactive TUI (git pager is also hunk)
+alias gd='hunk diff'          # review working-tree changes (incl. untracked)
+alias gds='hunk show'         # review the latest commit
+alias gdw='hunk diff --watch' # working-tree review, auto-reload on change
 alias gf='git fetch'
 # alias gl='git pull'
 alias gl='git log'
-alias glog='git log --oneline --decorate --graph'
 alias gp='git push'
 alias gs='git status'
 # alias gst='git status'
 alias gb='git branch --sort=committerdate --format="%(refname:short) %(committerdate:relative)" | tail -20 | awk -F" " "{name=\$1; \$1=\"\"; printf \"%-50s (%s)\\n\", name, substr(\$0,2)}" && echo "" && echo "* $(git branch --show-current)"'
-alias gdd='nvim -c "DiffviewOpen"'
-alias gddm='nvim -c "DiffviewOpen main"'
-alias gmr='nvim -c "DiffviewOpen origin/main...HEAD"'
-alias gmrd='git diff origin/main...HEAD'
+alias gdm='hunk diff origin/main...HEAD'
 alias gw='while clear; do git diff --stat --color && echo "---" && git diff --color | head -60; sleep 2; done'
-
-# hunk — interactive changeset reviewer (git pager is also hunk; these are its native views)
-alias hd='hunk diff'          # review working-tree changes (incl. untracked)
-alias hs='hunk show'          # review the latest commit
-alias hdw='hunk diff --watch' # auto-reload as files change
 
 # Worktree family (mirrors oh-my-zsh git plugin naming: gwt/gwta/gwtls/gwtmv/gwtrm)
 alias gwt='git worktree'
