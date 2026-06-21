@@ -49,9 +49,9 @@ Commands and keys to internalize for this setup. Sorted by frequency of use.
 
 ### hunk (diff viewer)
 
-`hunk pager` is git's pager, so any raw `git diff` / `git show` opens in hunk.
+delta is git's pager, so raw `git diff` / `git show` / `git log` open in delta.
 The `gd` / `gds` / `gdw` / `gdm` aliases launch hunk's native interactive
-reviewer directly. delta still colors `git add -p` staging and `git blame`.
+reviewer directly. delta also colors `git add -p` staging and `git blame`.
 
 | Key / Command | Action                                        |
 | ------------- | --------------------------------------------- |

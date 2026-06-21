@@ -11,7 +11,7 @@ Personal development environment managed with [GNU Stow](https://www.gnu.org/sof
 | `bash`       | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode              | `~/.bashrc.d/`                   |
 | `bat`        | Syntax highlighter theme                                                     | `~/.config/bat/`                 |
 | `claude`     | Claude Code hooks, statusline, and settings.json (hooks/statusLine wiring)   | `~/.claude/hooks/`, `~/.claude/` |
-| `git`        | Git tool settings (hunk pager, delta for staging/blame, merge)               | `~/.config/git/config`           |
+| `git`        | Git tool settings (delta pager, staging/blame, merge)                        | `~/.config/git/config`           |
 | `ghostty`    | Ghostty terminal config (Solarized Light, block cursor, cursor trail shader) | `~/.config/ghostty/`             |
 | `hunk`       | hunk diff viewer config (Solarized Light theme, side-by-side)                | `~/.config/hunk/`                |
 | `nvim`       | Neovim config (LazyVim, LSP, plugins)                                        | `~/.config/nvim/`                |
@@ -31,7 +31,7 @@ Installed via `bootstrap.sh` (apt + `~/.local/bin`):
 - [Ghostty](https://ghostty.org/) — terminal emulator
 - [gitmux](https://github.com/arl/gitmux) — git status in tmux
 - [GNU Stow](https://www.gnu.org/software/stow/) — symlink manager
-- [hunk](https://github.com/modem-dev/hunk) — interactive diff viewer / git pager
+- [hunk](https://github.com/modem-dev/hunk) — interactive diff viewer (via `gd`/`gds` aliases)
 - [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) — terminal/editor font
 - [jq](https://github.com/jqlang/jq) — JSON processor
 - [lazydocker](https://github.com/jesseduffield/lazydocker) — terminal Docker UI
@@ -150,7 +150,7 @@ dotfiles/
 │   │   └── on-stop.sh           # 🟢 Claude finished
 │   ├── settings.json            # hooks + statusLine wiring (portable, uses $HOME)
 │   └── statusline-command.sh
-├── git/.config/git/config         # hunk pager, delta staging/blame, merge settings
+├── git/.config/git/config         # delta pager, staging/blame, merge settings
 ├── nvim/.config/nvim/
 │   ├── init.lua
 │   └── lua/{config,plugins}/

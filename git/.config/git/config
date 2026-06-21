@@ -1,5 +1,5 @@
 [core]
-    pager = "hunk pager"
+    pager = delta
 
 [interactive]
     diffFilter = delta --color-only
