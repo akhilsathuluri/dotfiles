@@ -208,7 +208,7 @@ Sessions are scoped per cwd and saved on quit. Use `vimr` to restore buffers and
 | ----------- | --------------------------------- |
 | `<leader>p` | send last yank to right tmux pane |
 
-### Notes (Obsidian vault in `~/notes`)
+### Notes (Obsidian vault in `~/vaults/personal`)
 
 Markdown vault with `[[wiki-links]]`, daily notes and tags (obsidian.nvim).
 Images render inline in the buffer (image.nvim) and paste from the clipboard

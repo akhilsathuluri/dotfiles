@@ -1,4 +1,4 @@
--- Obsidian-style markdown notes: a ~/notes vault with [[wiki-links]],
+-- Obsidian-style markdown notes: a ~/vaults/personal vault with [[wiki-links]],
 -- backlinks, tags, daily notes and templates. Inline image rendering is
 -- handled by image.nvim (see image.lua); clipboard paste by img-clip.
 return {
