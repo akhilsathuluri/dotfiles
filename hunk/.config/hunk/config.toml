@@ -1,0 +1,3 @@
+mode = "split"             # side-by-side, matching the delta side-by-side setup
+theme = "solarized-light"  # built-in Solarized Light (also tints diff add/remove correctly)
+line_numbers = true

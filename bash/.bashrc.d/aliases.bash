@@ -17,28 +17,26 @@ else
     export BROWSER="firefox"
 fi
 
-# Git
+# Git — gd/gds/gdw/gdm open hunk's interactive TUI; git's own pager is delta
 alias gsm='git switch main'
 alias gsw='git switch'
 alias gpm='git pull origin main'
 alias ga='git add .'
-alias gd='git diff'
+alias gd='hunk diff'          # review working-tree changes (incl. untracked)
+alias gds='hunk show'         # review the latest commit
+alias gdw='hunk diff --watch' # working-tree review, auto-reload on change
 alias gdl='git diff HEAD~1 HEAD'
 alias gm='git commit -m'
 alias gf='git fetch --prune'
 # alias gl='git pull'
 alias gl='git log'
-alias glog='git log --oneline --decorate --graph'
 alias gp='git push'
 alias gpub='git push origin $(git branch --show-current)'
 alias gplb='git pull origin $(git branch --show-current)'
 alias gs='git status'
 # alias gst='git status'
 alias gb='git branch --sort=committerdate --format="%(refname:short) %(committerdate:relative)" | tail -20 | awk -F" " "{name=\$1; \$1=\"\"; printf \"%-50s (%s)\\n\", name, substr(\$0,2)}" && echo "" && echo "* $(git branch --show-current)"'
-alias gdd='nvim -c "DiffviewOpen"'
-alias gddm='nvim -c "DiffviewOpen main"'
-alias gmr='nvim -c "DiffviewOpen origin/main...HEAD"'
-alias gmrd='git diff origin/main...HEAD'
+alias gdm='hunk diff origin/main...HEAD'
 alias gw='while clear; do git diff --stat --color && echo "---" && git diff --color | head -60; sleep 2; done'
 
 # Worktree family (mirrors oh-my-zsh git plugin naming: gwt/gwta/gwtls/gwtmv/gwtrm)
@@ -88,7 +86,9 @@ alias docker-rm-all='docker rm $(docker ps -a -q)'
 
 # Files
 alias ll='ls -lrth'
-alias bat='bat --paging=never --style=plain'
+# --pager less -RFX: -X keeps paged output in tmux scrollback (no alt-screen),
+# so mouse-drag selection still copies; -F prints inline when it fits one screen.
+alias bat='bat --style=plain --pager="less -RFX"'
 
 # Editor
 alias vim='nvim'

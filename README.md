@@ -14,8 +14,9 @@ Primary target: Ubuntu 24.04. Also supported: macOS (Apple Silicon and Intel).
 | `bat`                | Syntax highlighter theme                                                     | `~/.config/bat/`                        |
 | `claude`             | Claude Code hooks, statusline, and settings.json (hooks/statusLine wiring)   | `~/.claude/hooks/`, `~/.claude/`        |
 | `claude-indicator`   | GNOME top bar indicator for Claude Code notifications (Linux only)           | `~/.local/bin/`, `~/.config/autostart/` |
-| `git`                | Git tool settings (delta pager, merge). Toggle: `stow -D git`                | `~/.config/git/config`                  |
+| `git`                | Git tool settings (delta pager, staging/blame, merge). Toggle: `stow -D git` | `~/.config/git/config`                  |
 | `ghostty`            | Ghostty terminal config (block cursor, cursor trail shader)                  | `~/.config/ghostty/`                    |
+| `hunk`               | hunk diff viewer config (Solarized Light theme, side-by-side)                | `~/.config/hunk/`                       |
 | `nvim`               | Neovim config (LazyVim, LSP, plugins)                                        | `~/.config/nvim/`                       |
 | `screenshot-watcher` | Auto-copy screenshots to clipboard (Linux only)                              | `~/.local/bin/`, `~/.config/autostart/` |
 | `tmux`               | Tmux config, gitmux, CI status script                                        | `~/.tmux.conf`, `~/.gitmux.conf`        |
@@ -34,6 +35,7 @@ Installed via `bootstrap.sh` (apt on Linux, Homebrew on macOS, plus binaries und
 - [Ghostty](https://ghostty.org/) — terminal emulator
 - [gitmux](https://github.com/arl/gitmux) — git status in tmux
 - [GNU Stow](https://www.gnu.org/software/stow/) — symlink manager
+- [hunk](https://github.com/modem-dev/hunk) — interactive diff viewer (via `gd`/`gds` aliases)
 - [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) — terminal/editor font
 - [jq](https://github.com/jqlang/jq) — JSON processor
 - [lazydocker](https://github.com/jesseduffield/lazydocker) — terminal Docker UI
@@ -160,7 +162,7 @@ dotfiles/
 │   ├── settings.json            # hooks + statusLine wiring (portable, uses $HOME)
 │   └── statusline-command.sh
 ├── claude-indicator/            # Linux-only: GNOME top-bar indicator
-├── git/.config/git/config         # delta pager, merge settings
+├── git/.config/git/config         # delta pager, staging/blame, merge settings
 ├── nvim/.config/nvim/
 │   ├── init.lua
 │   └── lua/{config,plugins}/
@@ -177,6 +179,7 @@ dotfiles/
 │   ├── config
 │   └── shaders/                 # vendored cursor trail shaders
 ├── bat/.config/bat/config
+├── hunk/.config/hunk/config.toml
 ├── bootstrap.sh
 ├── test/bootstrap-fresh.sh    # docker smoke test (fresh Ubuntu 24.04)
 ├── CHEATSHEET.md

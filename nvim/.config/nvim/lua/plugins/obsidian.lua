@@ -1,4 +1,4 @@
--- Obsidian-style markdown notes: a ~/notes vault with [[wiki-links]],
+-- Obsidian-style markdown notes: a ~/vaults/personal vault with [[wiki-links]],
 -- backlinks, tags, daily notes and templates. Inline image rendering is
 -- handled by image.nvim (see image.lua); clipboard paste by img-clip.
 return {
@@ -15,14 +15,14 @@ return {
       -- leave it off. Image rendering (snacks.image) is independent of this.
       ui = { enable = false },
       workspaces = {
-        { name = "notes", path = "~/notes" },
+        { name = "personal", path = "~/vaults/personal" },
       },
-      notes_subdir = "notes",
+      notes_subdir = "inbox",
       new_notes_location = "notes_subdir",
       daily_notes = {
         folder = "dailies",
         date_format = "%Y-%m-%d",
-        template = nil,
+        template = "daily.md",
       },
       templates = {
         folder = "templates",

@@ -60,5 +60,11 @@
     "type": "command",
     "command": "bash $HOME/.claude/statusline-command.sh"
   },
-  "tui": "fullscreen"
+  "tui": "fullscreen",
+  "enabledPlugins": {
+    "gopls-lsp@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true
+  },
+  "effortLevel": "xhigh",
+  "skipAutoPermissionPrompt": true
 }

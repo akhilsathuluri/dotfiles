@@ -12,6 +12,7 @@ Personal dotfiles managed with GNU Stow. Primary target: Ubuntu 24.04. Also supp
 - `claude-indicator/` → `~/.local/bin/claude-indicator`, `~/.config/autostart/` (Linux only — GNOME top-bar indicator for Claude Code notifications)
 - `git/` → `~/.config/git/config` (delta pager, merge settings)
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
+- `hunk/` → `~/.config/hunk/` (hunk diff viewer config, Solarized Light theme)
 - `nvim/` → `~/.config/nvim/` (LazyVim config)
 - `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (Linux only — auto-copy screenshots to clipboard)
 - `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/tmux-ci-status.sh`
