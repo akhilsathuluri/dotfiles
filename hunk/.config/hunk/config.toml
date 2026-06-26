@@ -1,3 +1,4 @@
 mode = "split"             # side-by-side, matching the delta side-by-side setup
-theme = "solarized-light"  # built-in Solarized Light (also tints diff add/remove correctly)
+theme = "ayu-dark"         # built-in Ayu Dark
 line_numbers = true
+wrap_lines = true          # wrap long diff lines instead of truncating

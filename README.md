@@ -16,7 +16,7 @@ Primary target: Ubuntu 24.04. Also supported: macOS (Apple Silicon and Intel).
 | `claude-indicator`   | GNOME top bar indicator for Claude Code notifications (Linux only)           | `~/.local/bin/`, `~/.config/autostart/` |
 | `git`                | Git tool settings (delta pager, staging/blame, merge). Toggle: `stow -D git` | `~/.config/git/config`                  |
 | `ghostty`            | Ghostty terminal config (block cursor, cursor trail shader)                  | `~/.config/ghostty/`                    |
-| `hunk`               | hunk diff viewer config (Solarized Light theme, side-by-side)                | `~/.config/hunk/`                       |
+| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side, wrap)                 | `~/.config/hunk/`                       |
 | `nvim`               | Neovim config (LazyVim, LSP, plugins)                                        | `~/.config/nvim/`                       |
 | `screenshot-watcher` | Auto-copy screenshots to clipboard (Linux only)                              | `~/.local/bin/`, `~/.config/autostart/` |
 | `tmux`               | Tmux config, gitmux, CI status script                                        | `~/.tmux.conf`, `~/.gitmux.conf`        |
