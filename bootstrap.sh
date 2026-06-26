@@ -205,6 +205,19 @@ install_hunk() {
     ok "hunk $HUNK_VERSION installed"
 }
 
+# Recreate Claude's hunk-review skill from the installed hunk on every run.
+sync_hunk_skill() {
+    [ -x "$LOCAL_BIN/hunk" ] || return
+    local skill dest
+    skill="$("$LOCAL_BIN/hunk" skill path 2>/dev/null)" || return
+    [ -f "$skill" ] || return
+    dest="$HOME/.claude/skills/hunk-review"
+    rm -rf "$dest"
+    mkdir -p "$(dirname "$dest")"
+    cp -r "$(dirname "$skill")" "$dest"
+    ok "hunk-review skill synced to $dest"
+}
+
 install_lazydocker() {
     if [ -x "$LOCAL_BIN/lazydocker" ] && "$LOCAL_BIN/lazydocker" --version 2>/dev/null | grep -q "$LAZYDOCKER_VERSION"; then
         ok "lazydocker $LAZYDOCKER_VERSION already installed"
@@ -469,8 +482,8 @@ EOF
 create_notes_vault() {
     # obsidian.nvim errors on startup if its workspace path is missing and does
     # not create it itself. Layout matches nvim's obsidian.lua.
-    local vault="$HOME/notes"
-    mkdir -p "$vault/notes" "$vault/dailies" "$vault/templates"
+    local vault="$HOME/vaults/personal"
+    mkdir -p "$vault/inbox" "$vault/dailies" "$vault/templates" "$vault/assets"
     ok "notes vault ready at $vault"
 }
 
@@ -523,6 +536,7 @@ else
     install_hunk
 fi
 
+sync_hunk_skill
 install_tpm
 stow_packages
 patch_shell_rc
