@@ -15,5 +15,20 @@ return {
       end,
       desc = "Grep (resume last)",
     },
+    -- Root the explorer at the launch cwd, not the per-buffer LazyVim.root().
+    {
+      "<leader>e",
+      function()
+        Snacks.explorer({ cwd = vim.fn.getcwd() })
+      end,
+      desc = "Explorer (cwd)",
+    },
+    {
+      "<leader>fe",
+      function()
+        Snacks.explorer({ cwd = vim.fn.getcwd() })
+      end,
+      desc = "Explorer (cwd)",
+    },
   },
 }

@@ -23,7 +23,7 @@ vim.api.nvim_create_autocmd("User", {
   pattern = "VeryLazy",
   once = true,
   callback = function()
-    Snacks.explorer({ cwd = LazyVim.root() })
+    Snacks.explorer({ cwd = vim.fn.getcwd() })
     vim.defer_fn(function()
       vim.cmd("wincmd l")
     end, 100)
