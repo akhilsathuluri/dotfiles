@@ -47,10 +47,11 @@ gtk-titlebar-style = tabs
 gtk-wide-tabs = false
 gtk-custom-css = ~/.config/ghostty/style.css
 
-# macOS: treat Option as Alt so tmux/shell receive Alt+key escape sequences
+# macOS: treat left Option as Alt so tmux/shell receive Alt+key escape sequences
 # (Alt+; session picker, Alt+1..9 windows, Alt+j/k, Alt+m, Alt+y, Alt+C fzf).
-# Tradeoff: loses macOS special-char entry (Option+8 for •, Option+G for ©, etc.).
-macos-option-as-alt = true
+# Right Option is left alone, so macOS special-char entry still works there
+# (right-Option+8 for •, right-Option+G for ©, etc.).
+macos-option-as-alt = left
 
 # Tab navigation — ghostty tabs use ctrl+shift+arrows (default)
 keybind = alt+h=previous_tab
@@ -59,5 +60,4 @@ keybind = alt+l=next_tab
 
 # Explicitly bind new tab to ghostty default (plain shell, no tmux)
 keybind = ctrl+shift+t=new_tab
-macos-option-as-alt = left
 
