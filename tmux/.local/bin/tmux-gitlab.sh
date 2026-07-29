@@ -30,19 +30,20 @@ open_url() { # xdg-open on Linux, open on macOS
     else open "$1" >/dev/null 2>&1 & fi
 }
 
-# Solarized Dark styles (match .tmux.conf).
-C_ISSUE='#[fg=#268bd2]' # blue
-C_MR='#[fg=#6c71c4]'    # violet
+# Terminal-palette styles (match .tmux.conf): the bar is green, so a green fg
+# would be invisible - only attention-worthy states get a chip, success stays plain.
+C_ISSUE='#[fg=blue]'
+C_MR='#[fg=magenta]'
 C_RESET='#[default]'
 
-ci_color() { # pipeline status -> fg style
+ci_color() { # pipeline status -> style
     case "$1" in
-        success) printf '#[fg=#859900]' ;;                                                       # green
-        running | preparing) printf '#[fg=#268bd2]' ;;                                           # blue
-        failed) printf '#[fg=#dc322f]' ;;                                                        # red
-        pending | created | waiting_for_resource | scheduled | manual) printf '#[fg=#b58900]' ;; # yellow
-        canceled | skipped) printf '#[fg=#586e75]' ;;                                            # base01 (muted)
-        *) printf '#[fg=#839496]' ;;                                                             # base0 (fg)
+        success) printf '#[default]' ;;
+        running | preparing) printf '#[fg=black bg=blue bold]' ;;
+        failed) printf '#[fg=black bg=red bold]' ;;
+        pending | created | waiting_for_resource | scheduled | manual) printf '#[fg=black bg=yellow bold]' ;;
+        canceled | skipped) printf '#[default]' ;;
+        *) printf '#[default]' ;;
     esac
 }
 
