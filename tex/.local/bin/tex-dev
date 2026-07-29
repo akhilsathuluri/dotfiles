@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# tex-dev [file...] -- 2x2 tmux layout:  nvim | texpage  /  claude | build(make watch)
+# Viewer is texpage (stable kitty-image preview); tdf is flaky in tmux, run it by hand if wanted.
+set -euo pipefail
+[ -n "${TMUX:-}" ] || { echo "run inside tmux"; exit 1; }
+pdf="root.pdf"
+
+# Build the 2x2 grid from plain shells first, so a tool that exits can't kill a split target.
+ed="$(tmux display -p '#{pane_id}')"
+right="$(tmux split-window -h -l 50% -P -F '#{pane_id}' -c '#{pane_current_path}')"
+br="$(tmux split-window -v -t "$right" -l 35% -P -F '#{pane_id}' -c '#{pane_current_path}')"
+bl="$(tmux split-window -v -t "$ed" -l 35% -P -F '#{pane_id}' -c '#{pane_current_path}')"
+
+viewer="until [ -f '$pdf' ]; do sleep 0.5; done; "
+viewer+="command -v texpage >/dev/null && exec texpage 1 '$pdf' || "
+viewer+="echo 'texpage not found - check the dotfiles tex stow package'"
+tmux send-keys -t "$right" "$viewer" C-m
+tmux send-keys -t "$br" 'make watch' C-m
+tmux send-keys -t "$bl" 'claude' C-m
+
+tmux select-pane -t "$ed"
+exec nvim "$@"

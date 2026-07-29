@@ -4,8 +4,13 @@
 
 set -u
 
-# tmux sanitizes tabs in -F output to "_" outside a UTF-8 locale.
-export LC_ALL=C.UTF-8
+# tmux sanitizes tabs in -F output to "_" outside a UTF-8 locale. Linux always
+# has C.UTF-8 and macOS never does, so pick whichever this box actually ships.
+if locale -a 2>/dev/null | grep -qix 'C\.UTF-8'; then
+    export LC_ALL=C.UTF-8
+else
+    export LC_ALL=en_US.UTF-8
+fi
 session=${1:-}
 [ -z "$session" ] && exit 0
 
@@ -85,7 +90,9 @@ if [ -n "$path" ] && [ -d "$path" ]; then
     if [ -n "$common" ]; then
         [ "${common#/}" = "$common" ] && common="$path/$common"
         common=${common%/.git}
-        repo=$(basename "$(readlink -f "$common" 2>/dev/null || echo "$common")")
+        # BSD readlink has no -f; brew's coreutils ships greadlink.
+        repo=$(basename "$(readlink -f "$common" 2>/dev/null ||
+            greadlink -f "$common" 2>/dev/null || echo "$common")")
         branch=$(git -C "$path" symbolic-ref --short HEAD 2>/dev/null ||
             git -C "$path" rev-parse --short HEAD 2>/dev/null)
         echo "repo:    $repo"

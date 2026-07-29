@@ -76,17 +76,19 @@ tasks:
       - bash test/reset.sh
 
   portability:
-    desc: Report Linux-only primitives and where they live (a map, not a gate)
+    desc: Report GNU/Linux-only primitives and where they live (a map, not a gate)
     silent: true
     cmds:
-      # Deliberately not in `check`: these are load-bearing on Ubuntu. The report
-      # is the inventory another platform would have to answer for. shellcheck
-      # does not know BSD from GNU, so nothing else covers this.
+      # Deliberately not in `check`: most of these now sit in a guarded branch
+      # whose other arm is the BSD path, so a hit is not a defect - it is the
+      # inventory to re-read when touching a platform-varying call site.
+      # shellcheck does not know BSD from GNU, so nothing else covers this.
       - |
-        printf 'Linux-only primitives in tracked files:\n\n'
+        printf 'GNU/Linux-only primitives in tracked files:\n'
+        printf '(a hit is a call site to check, not a bug - most have a BSD arm alongside)\n\n'
         for p in 'apt-get' 'dpkg -s' 'add-apt-repository' 'notify-send' 'systemctl' 'loginctl' \
           'xdg-open' 'wl-copy' 'wl-paste' 'parec' 'pactl' 'flock' 'stat -c' 'readlink -f' \
-          'sed -i ' 'date -d ' '%3N' '/proc/'; do
+          'sed -i ' 'date -d ' '%3N' '/proc/' 'inotifywait' 'md5sum' 'nproc' 'C.UTF-8' 'setsid'; do
           hits=$(git ls-files -z | xargs -0 grep -lIF -- "$p" 2>/dev/null \
             | grep -vE '^(Taskfile\.yml$|.*\.md$)' | sort | tr '\n' ' ')
           [ -n "$hits" ] && printf '  %-20s %s\n' "$p" "$hits"

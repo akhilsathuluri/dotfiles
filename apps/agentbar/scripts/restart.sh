@@ -18,6 +18,6 @@ if [ -z "$pane" ]; then
 fi
 
 theme=$(tmux show-option -gqv @agentbar-theme)
-theme=${theme:-solarized-light}
+theme=${theme:-solarized-dark}
 tmux respawn-pane -k -t "$pane" "$BIN run --theme $theme"
 "$HOME/.local/bin/dotfiles-trace" log sidebar restart session="$session" pane="$pane" 2>/dev/null || true

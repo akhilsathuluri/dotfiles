@@ -4,6 +4,7 @@ package tmux
 import (
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -21,11 +22,21 @@ func (Exec) Run(args ...string) (string, error) {
 	cmd := exec.Command("tmux", args...)
 	// tmux replaces tabs in -F output with "_" outside a UTF-8 locale, which
 	// would shred every field this package splits on.
-	cmd.Env = append(os.Environ(), "LC_ALL=C.UTF-8")
+	cmd.Env = append(os.Environ(), "LC_ALL="+utf8Locale())
 	out, err := cmd.Output()
 	// Trim only newlines: a TrimSpace would eat trailing tabs of the
 	// last output line, i.e. trailing empty format fields.
 	return strings.TrimRight(string(out), "\n"), err
+}
+
+// utf8Locale names a UTF-8 locale this platform actually has: Linux always
+// ships C.UTF-8, macOS never does but always ships en_US.UTF-8. Naming a
+// missing locale falls back to POSIX, which is what mangles the tabs.
+func utf8Locale() string {
+	if runtime.GOOS == "darwin" {
+		return "en_US.UTF-8"
+	}
+	return "C.UTF-8"
 }
 
 // PaneOption reads a pane-scoped user option; empty string if unset.

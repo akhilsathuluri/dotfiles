@@ -13,7 +13,7 @@ session=${1:?usage: open.sh <session>}
 width=$(tmux show-option -gqv @agentbar-width)
 width=${width:-30}
 theme=$(tmux show-option -gqv @agentbar-theme)
-theme=${theme:-solarized-light}
+theme=${theme:-solarized-dark}
 
 panes=$(tmux list-panes -s -t "$session" -F '#{pane_id} #{pane_current_command}' 2>/dev/null) || exit 0
 # Adopt any pane already running the sidebar (ours or a resurrect orphan).

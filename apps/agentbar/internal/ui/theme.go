@@ -20,7 +20,7 @@ type Theme struct {
 	Done     lipgloss.Color // green - ready to review
 }
 
-// SolarizedLight is the default flavor.
+// SolarizedLight is the light Solarized flavor.
 func SolarizedLight() Theme {
 	return Theme{
 		Fg:       "#657b83",
@@ -35,7 +35,7 @@ func SolarizedLight() Theme {
 	}
 }
 
-// SolarizedDark shares Solarized's accents; only the base tones invert.
+// SolarizedDark is the default flavor; it shares Solarized's accents and only inverts the base tones.
 func SolarizedDark() Theme {
 	return Theme{
 		Fg:       "#839496",
@@ -83,14 +83,14 @@ func CatppuccinMocha() Theme {
 // ThemeByName resolves the @agentbar-theme option value; unknown falls back to the default.
 func ThemeByName(name string) Theme {
 	switch name {
-	case "solarized-dark":
-		return SolarizedDark()
+	case "solarized-light":
+		return SolarizedLight()
 	case "catppuccin-latte":
 		return CatppuccinLatte()
 	case "catppuccin-mocha":
 		return CatppuccinMocha()
 	default:
-		return SolarizedLight()
+		return SolarizedDark()
 	}
 }
 

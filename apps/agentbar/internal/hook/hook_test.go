@@ -1,6 +1,8 @@
 package hook
 
 import (
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -184,6 +186,41 @@ func TestApplyClearAllUnsetsEverything(t *testing.T) {
 	for _, name := range allOptions {
 		if !strings.Contains(got, "-pqu -t %1 "+name) {
 			t.Errorf("ClearAll must unset %s: %s", name, got)
+		}
+	}
+}
+
+func TestOsaQuoteEscapes(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{`api:1`, `"api:1"`},
+		{`say "hi"`, `"say \"hi\""`},
+		{`back\slash`, `"back\\slash"`},
+	}
+	for _, c := range cases {
+		if got := osaQuote(c.in); got != c.want {
+			t.Errorf("osaQuote(%q) = %s, want %s", c.in, got, c.want)
+		}
+	}
+}
+
+func TestNotifyCmdPerPlatform(t *testing.T) {
+	cmd := notifyCmd("Claude · asking", `api:1 "x"`)
+	switch runtime.GOOS {
+	case "darwin":
+		if filepath.Base(cmd.Path) != "osascript" {
+			t.Fatalf("macOS must notify via osascript, got %s", cmd.Path)
+		}
+		joined := strings.Join(cmd.Args, " ")
+		// The body's quotes must be escaped, or osascript fails to parse the script.
+		if !strings.Contains(joined, `\"x\"`) {
+			t.Errorf("body quotes must be escaped for AppleScript: %s", joined)
+		}
+		if !strings.Contains(joined, "with title") {
+			t.Errorf("missing title clause: %s", joined)
+		}
+	default:
+		if filepath.Base(cmd.Path) != "notify-send" {
+			t.Fatalf("Linux must notify via notify-send, got %s", cmd.Path)
 		}
 	}
 }

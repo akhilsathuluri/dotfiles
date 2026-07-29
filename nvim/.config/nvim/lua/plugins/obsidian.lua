@@ -93,9 +93,9 @@ return {
     },
   },
 
-  -- Paste images from the clipboard straight into a note (Wayland-aware via
-  -- wl-paste). Saves the file under `assets/` next to the note and inserts the
-  -- markdown link at the cursor.
+  -- Paste images from the clipboard straight into a note; img-clip picks the
+  -- backend itself (wl-paste, xclip, pbpaste). Saves the file under `assets/`
+  -- next to the note and inserts the markdown link at the cursor.
   {
     "HakonHarnes/img-clip.nvim",
     event = "VeryLazy",

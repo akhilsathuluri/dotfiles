@@ -58,5 +58,5 @@ Tools that follow the flavor **without** being driven by the switcher:
 **Activation on a fresh pull:** `cd ~/dotfiles && stow theme bash`, open a new shell, `bat cache --build` (or run
 `bootstrap.sh`), then `theme <flavor>`.
 
-**Needs live verification** (not checkable headless - launch and eyeball): nvim colorscheme per flavor · hunk render
-for solarized-dark / catppuccin.
+**Needs live verification** (not checkable headless - launch and eyeball): nvim colorscheme per flavor · hunk render for
+solarized-dark / catppuccin.

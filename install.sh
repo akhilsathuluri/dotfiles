@@ -76,15 +76,18 @@ ok() { echo -e "\033[1;32m[dotfiles]\033[0m $*"; }
 
 install_apt_packages() {
     is_linux || return 0
+    # chafa: terminal image rendering for tex/texpage
     # gir1.2-ayatanaappindicator3-0.1 + python3-gi: GNOME top-bar claude-indicator
     #   (Ayatana fork; in both Ubuntu 24.04 universe and Debian 13 main)
     # imagemagick: convert/identify, used by image.nvim to render images in nvim
-    # inotify-tools: screenshot-watcher (auto-copy screenshots to clipboard)
+    # inotify-tools: screenshot-watcher, and the tex preview watchers
+    # poppler-utils: pdftoppm/pdftotext for tex/texpage and tex/texpeek
     local pkgs=(
-        bat bison build-essential curl direnv fontconfig
+        bat bison build-essential chafa curl direnv fontconfig
         gir1.2-ayatanaappindicator3-0.1 imagemagick inotify-tools jq
-        libevent-dev libncurses-dev pkg-config python3-gi ripgrep
-        software-properties-common stow tree unzip wget wl-clipboard xclip
+        libevent-dev libfontconfig-dev libncurses-dev pkg-config poppler-utils
+        python3-gi ripgrep software-properties-common stow tree unzip wget
+        wl-clipboard xclip
     )
     local to_install=()
     for pkg in "${pkgs[@]}"; do
@@ -157,13 +160,14 @@ brew_install() {
 }
 
 # The macOS counterpart of install_apt_packages plus every pinned Linux tool
-# that brew ships. Names differ from the Linux binaries in three places:
-# git-delta provides `delta`, go-task provides `task`, fd-find is `fd`.
+# that brew ships. Names differ from the Linux binaries in two places:
+# git-delta provides `delta`, go-task provides `task`. fswatch stands in for
+# inotify-tools and poppler for poppler-utils (both used by the tex previews).
 install_brew_packages() {
     brew_install \
-        bat coreutils direnv fd fzf git-cliff git-delta gitleaks gitmux go go-task \
-        imagemagick jq lazydocker lazygit neovim node ripgrep shellcheck shfmt stow \
-        tmux tree wget zoxide
+        bat chafa coreutils direnv fd fswatch fzf git-cliff git-delta gitleaks \
+        gitmux go go-task imagemagick jq lazydocker lazygit neovim node poppler \
+        ripgrep shellcheck shfmt stow tmux tree wget zoxide
 
     # Casks: the Nerd Font and Ghostty (the Linux side gets these from a tarball
     # and a PPA). Font Book picks the font up; there is no fc-cache to run.

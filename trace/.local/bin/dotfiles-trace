@@ -21,6 +21,35 @@
 LOG="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/trace.log"
 CAP=1048576 # 1 MiB, then rotate to trace.log.1 (~2 MiB max on disk)
 
+# The only place a userland difference is decided. GNU date takes --version and
+# has %3N and -d; BSD (macOS) has neither, so those paths go through perl, which
+# ships with macOS. Everything below calls the helpers, never date/stat directly.
+if date --version >/dev/null 2>&1; then GNU_DATE=1; else GNU_DATE=0; fi
+
+file_size() { stat -c%s "$1" 2>/dev/null || stat -f%z "$1" 2>/dev/null || echo 0; }
+
+now_ts() {
+    if [ "$GNU_DATE" = 1 ]; then
+        date '+%Y-%m-%dT%H:%M:%S.%3N'
+    else
+        perl -MTime::HiRes=time -e '
+            my $t = time; my @l = localtime($t);
+            printf("%04d-%02d-%02dT%02d:%02d:%02d.%03d\n",
+                   $l[5]+1900, $l[4]+1, $l[3], $l[2], $l[1], $l[0], ($t-int($t))*1000);
+        ' 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S.000'
+    fi
+}
+
+# Format an epoch second as a log timestamp. BSD has no sub-second source here,
+# so it pads .000 - fine, this only ever builds a comparison cutoff.
+epoch_ts() {
+    if [ "$GNU_DATE" = 1 ]; then
+        date -d "@$1" '+%Y-%m-%dT%H:%M:%S.%3N' 2>/dev/null
+    else
+        date -r "$1" '+%Y-%m-%dT%H:%M:%S.000' 2>/dev/null
+    fi
+}
+
 # logfmt-escape one value: strip control chars (keeps one record per line),
 # cap at 200 chars, quote iff empty or containing space/=/"/backslash.
 esc() {
@@ -40,17 +69,26 @@ esc() {
 }
 
 # Rotate only when over the cap, guarded by flock so shell and Go writers
-# (same lock path) never double-rotate and clobber history.
+# (same lock path) never double-rotate and clobber history. macOS has no
+# flock(1), but perl's flock is the same flock(2) the Go writer uses, so the
+# two still interlock there.
 rotate_if_needed() {
-    local sz
-    sz=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
-    [ "$sz" -ge "$CAP" ] || return 0
-    exec 9>"$LOG.lock" 2>/dev/null || return 0
-    if flock -n 9 2>/dev/null; then
-        sz=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
-        [ "$sz" -ge "$CAP" ] && mv -f "$LOG" "$LOG.1" 2>/dev/null
+    [ "$(file_size "$LOG")" -ge "$CAP" ] || return 0
+    if command -v flock >/dev/null 2>&1; then
+        exec 9>"$LOG.lock" 2>/dev/null || return 0
+        if flock -n 9 2>/dev/null; then
+            [ "$(file_size "$LOG")" -ge "$CAP" ] && mv -f "$LOG" "$LOG.1" 2>/dev/null
+        fi
+        exec 9>&- 2>/dev/null
+    else
+        perl -e '
+            use Fcntl qw(:flock);
+            my ($log, $cap) = @ARGV;
+            open(my $fh, ">>", "$log.lock") or exit 0;
+            flock($fh, LOCK_EX | LOCK_NB) or exit 0;
+            rename($log, "$log.1") if -s $log && -s $log >= $cap;
+        ' "$LOG" "$CAP" 2>/dev/null
     fi
-    exec 9>&- 2>/dev/null
     return 0
 }
 
@@ -60,7 +98,7 @@ cmd_log() {
     [ $# -ge 2 ] && shift 2 || shift $#
     mkdir -p "$(dirname "$LOG")" 2>/dev/null
     local ts line kv key val
-    ts=$(date '+%Y-%m-%dT%H:%M:%S.%3N' 2>/dev/null)
+    ts=$(now_ts 2>/dev/null)
     line="ts=$ts src=$(esc "$src") evt=$(esc "$evt") pid=$$"
     for kv in "$@"; do
         key=${kv%%=*}
@@ -80,22 +118,26 @@ cmd_tail() {
     esac
 }
 
-# Resolve a --since value to a log timestamp. Compact ages need rewriting:
-# `date -d 5m` reads as 05:00 in military timezone M, not "5 minutes ago" (and
-# `30s` is invalid). Anything else goes to date as-is.
+# Resolve a --since value to a log timestamp. Ages are done as epoch arithmetic
+# rather than handed to date: `date -d 5m` reads as 05:00 in military timezone M,
+# not "5 minutes ago" (and `30s` is invalid), and BSD date has no -d at all.
+# Absolute forms ("09:00", "yesterday") still need GNU date's parser.
 since_ts() {
-    local v=$1 n
+    local v=$1 n secs
     local age_re='^([0-9]+)[[:space:]]*(s|sec|secs|second|seconds|m|min|mins|minute|minutes'
     age_re+='|h|hr|hrs|hour|hours|d|day|days)$'
     if [[ $v =~ $age_re ]]; then
         n=${BASH_REMATCH[1]}
         case ${BASH_REMATCH[2]} in
-            s*) v="$n seconds ago" ;;
-            m*) v="$n minutes ago" ;;
-            h*) v="$n hours ago" ;;
-            d*) v="$n days ago" ;;
+            s*) secs=$n ;;
+            m*) secs=$((n * 60)) ;;
+            h*) secs=$((n * 3600)) ;;
+            d*) secs=$((n * 86400)) ;;
         esac
+        epoch_ts "$(($(date +%s) - secs))"
+        return
     fi
+    [ "$GNU_DATE" = 1 ] || return 0
     date -d "$v" '+%Y-%m-%dT%H:%M:%S.%3N' 2>/dev/null
 }
 
@@ -124,6 +166,7 @@ cmd_show() {
         cutoff=$(since_ts "$since")
         [ -n "$cutoff" ] || {
             echo "dotfiles-trace: unrecognized --since '$since' (try 30s, 5m, 2h, 1d, or a date)" >&2
+            [ "$GNU_DATE" = 1 ] || echo "dotfiles-trace: on BSD date only ages are supported, not '$since'" >&2
             exit 2
         }
     fi

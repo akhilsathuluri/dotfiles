@@ -55,8 +55,8 @@ ff() {
         --preview 'bat --color=always {}' \
         --header 'enter: open in nvim  |  ctrl-y: copy path' \
         --expect=ctrl-y)
-    key=$(head -1 <<< "$out")
-    file=$(tail -1 <<< "$out")
+    key=$(head -1 <<<"$out")
+    file=$(tail -1 <<<"$out")
     [ -z "$file" ] && return
     if [ "$key" = "ctrl-y" ]; then
         echo "$file"

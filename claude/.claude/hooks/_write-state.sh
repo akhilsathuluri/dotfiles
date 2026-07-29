@@ -27,7 +27,9 @@ write_claude_state() {
         if [ -d "$d" ] && common=$(git -C "$d" rev-parse --git-common-dir 2>/dev/null); then
             [ "${common#/}" = "$common" ] && common="$d/$common"
             common=${common%/.git}
-            basename "$(readlink -f "$common" 2>/dev/null || echo "$common")"
+            # BSD readlink has no -f; brew's coreutils ships greadlink.
+            basename "$(readlink -f "$common" 2>/dev/null ||
+                greadlink -f "$common" 2>/dev/null || echo "$common")"
         else
             basename "$d"
         fi
@@ -54,5 +56,5 @@ write_claude_state() {
         '{state:$state, sid:$sid, pid:$pid, cwd:$cwd, project:$project,
           tmux_session:$tmux_session, tmux_window:$tmux_window,
           tmux_pane:$tmux_pane, ts:$ts}' \
-        > "/tmp/claude-sessions/$sid"
+        >"/tmp/claude-sessions/$sid"
 }

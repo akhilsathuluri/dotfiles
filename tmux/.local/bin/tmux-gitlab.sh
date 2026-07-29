@@ -18,6 +18,18 @@
 TTL=30 # seconds a cache entry stays fresh
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tmux-gitlab"
 
+# GNU/BSD differences, resolved once. These run on every status redraw, so each
+# is a plain builtin test with no subshell beyond the tool itself.
+hash16() { # short, stable cache key
+    if command -v md5sum >/dev/null 2>&1; then md5sum | cut -c1-16; else md5 -q | cut -c1-16; fi
+}
+mtime_of() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0; }
+open_url() { # xdg-open on Linux, open on macOS
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$1" >/dev/null 2>&1 &
+    else open "$1" >/dev/null 2>&1 & fi
+}
+
 # Solarized Light styles (match .tmux.conf).
 C_ISSUE='#[fg=#268bd2]' # blue
 C_MR='#[fg=#6c71c4]'    # violet
@@ -37,7 +49,7 @@ ci_color() { # pipeline status -> fg style
 ci_word() { case "$1" in success) printf 'passed' ;; *) printf '%s' "$1" ;; esac }
 
 # Cache file for a repo+branch pair.
-cache_file() { printf '%s/%s' "$CACHE_DIR" "$(printf '%s' "$1::$2" | md5sum | cut -c1-16)"; }
+cache_file() { printf '%s/%s' "$CACHE_DIR" "$(printf '%s' "$1::$2" | hash16)"; }
 
 # Echo "<toplevel>\t<branch>" for a GitLab checkout, or return 1 (not a repo,
 # detached HEAD, or a non-GitLab remote -- stay silent in all three cases).
@@ -71,7 +83,7 @@ cmd_render() {
     # next redraw (~5s) doesn't spawn another refresh while this one is running.
     local now mtime
     now=$(date +%s)
-    mtime=$([ -f "$cache" ] && stat -c %Y "$cache" 2>/dev/null || echo 0)
+    mtime=$([ -f "$cache" ] && mtime_of "$cache" || echo 0)
     if [ $((now - mtime)) -ge "$TTL" ]; then
         [ -f "$cache" ] && touch "$cache"
         setsid -f "$0" refresh "$path" >/dev/null 2>&1 || ("$0" refresh "$path" >/dev/null 2>&1 &)
@@ -97,9 +109,15 @@ cmd_refresh() {
     cache=$(cache_file "$top" "$branch")
     mkdir -p "$CACHE_DIR"
 
-    # One refresh per repo+branch at a time.
-    exec 9>"${cache}.lock"
-    flock -n 9 || return 0
+    # One refresh per repo+branch at a time. macOS has no flock(1); mkdir is
+    # atomic everywhere, and a stale dir is bounded by the TTL touch above.
+    if command -v flock >/dev/null 2>&1; then
+        exec 9>"${cache}.lock"
+        flock -n 9 || return 0
+    else
+        mkdir "${cache}.lock.d" 2>/dev/null || return 0
+        trap 'rmdir "${cache}.lock.d" 2>/dev/null' EXIT
+    fi
     cd "$path" || return 0
 
     # Merge request for this branch.
@@ -175,7 +193,7 @@ cmd_open() {
         tmux set-buffer -w -- "$url" # OSC 52 -> local clipboard
         tmux display-message "Copied: $url"
     else
-        xdg-open "$url" >/dev/null 2>&1 &
+        open_url "$url"
         tmux display-message "Opening: $url"
     fi
 }

@@ -36,8 +36,8 @@ see "Platform support" in README.md for the per-layer detail.
   resurrect guard, yank, `tmux-reset.sh` the `prefix + R` UI reset - reload + default geometry, nothing killed)
 - `trace/` → `~/.local/bin/dotfiles-trace` (shared always-on trace log for the tmux/agent stack; see "Debugging" below)
 
-Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) are skipped automatically by `bootstrap.sh`
-on macOS.
+Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) are skipped automatically by `bootstrap.sh` on
+macOS.
 
 ## Apps (built from source)
 
@@ -72,8 +72,8 @@ The platform is decided in exactly one place - the `case "$(uname -s)"` at the t
 release assets; macOS takes Homebrew (`install_brew_packages`), so each Linux-only `install_*` opens with
 `is_linux || return 0` and `all_tools` / `gate_tools` branch once at the top.
 
-**On Linux tmux is pinned and built from source.** Ubuntu 24.04 ships 3.4, which the sidebar's e2e suite fails on.
-macOS gets brew's tmux, which is new enough.
+**On Linux tmux is pinned and built from source.** Ubuntu 24.04 ships 3.4, which the sidebar's e2e suite fails on. macOS
+gets brew's tmux, which is new enough.
 
 ## Release furniture
 
@@ -150,7 +150,8 @@ here - this repo is public.
   belong in the system `.bashrc` / `.zshrc`
 - **Prefer `~/.local/bin`** for tool installations over system-wide installs
 - **Keep it simple**: no unnecessary abstractions, no over-engineering
-- **Cross-platform**: guard OS-specific code with `is_linux` / `is_macos` helpers in `bootstrap.sh`; in shell config, branch on `$OSTYPE` (`linux-gnu*` vs `darwin*`)
+- **Cross-platform**: guard OS-specific code with `is_linux` / `is_macos` helpers in `bootstrap.sh`; in shell config,
+  branch on `$OSTYPE` (`linux-gnu*` vs `darwin*`)
 
 ## Conventions
 

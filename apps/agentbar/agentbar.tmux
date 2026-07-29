@@ -5,7 +5,7 @@
 #   @agentbar-key     toggle key after prefix       (default: e)
 #   @agentbar-width   sidebar width in columns      (default: 30)
 #   @agentbar-theme   solarized-light|solarized-dark|catppuccin-latte|catppuccin-mocha
-#                          (default: solarized-light)
+#                          (default: solarized-dark)
 #   @agentbar-focus   'on' to focus the sidebar when opening
 #   @agentbar-autostart 'off' to skip opening the sidebar at server start
 #                          (default: on - every session gets one, so do new ones)

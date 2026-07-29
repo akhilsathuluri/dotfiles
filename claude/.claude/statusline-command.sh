@@ -9,10 +9,10 @@ rl_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
 # Compute time until rate limit reset
 rl_time=""
 if [ -n "$rl_reset" ] && [ "$rl_reset" != "null" ]; then
-    secs_left=$(( rl_reset - $(date +%s) ))
+    secs_left=$((rl_reset - $(date +%s)))
     if [ "$secs_left" -gt 0 ]; then
-        hrs=$(( secs_left / 3600 ))
-        mins=$(( (secs_left % 3600) / 60 ))
+        hrs=$((secs_left / 3600))
+        mins=$(((secs_left % 3600) / 60))
         [ "$hrs" -gt 0 ] && rl_time="${hrs}h${mins}m" || rl_time="${mins}m"
     fi
 fi

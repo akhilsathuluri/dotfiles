@@ -30,7 +30,7 @@ commands:
   hook                          Claude Code hook entry: stdin JSON -> pane options
   doctor                        audit Claude panes vs the hook trace for state desync
 
-themes: solarized-light (default), solarized-dark, catppuccin-latte, catppuccin-mocha
+themes: solarized-dark (default), solarized-light, catppuccin-latte, catppuccin-mocha
 `
 
 func main() {
@@ -159,7 +159,7 @@ func themeFlag(args []string) ui.Theme {
 			return ui.ThemeByName(args[i+1])
 		}
 	}
-	return ui.SolarizedLight()
+	return ui.SolarizedDark()
 }
 
 func runMockup(args []string) {

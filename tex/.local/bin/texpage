@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# texpage [page] [pdf] -- live image of one page (chafa), refreshes on rebuild
+set -uo pipefail
+page="${1:-1}"; pdf="${2:-root.pdf}"; tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+render(){
+  clear
+  pdftoppm -png -f "$page" -l "$page" -r 110 "$pdf" "$tmp/p" 2>/dev/null &&
+    chafa -f kitty --size="$(tput cols)x$(($(tput lines)-1))" "$tmp"/p*.png 2>/dev/null
+  printf '[page %s %s]\n' "$page" "$(date +%T)"
+}
+# Block until $pdf is rewritten: inotifywait (Linux), fswatch (macOS), else poll mtime.
+mtime(){ stat -c%Y "$1" 2>/dev/null || stat -f%m "$1" 2>/dev/null || echo 0; }
+wait_change(){
+  if command -v inotifywait >/dev/null 2>&1; then inotifywait -qq -e close_write "$1" 2>/dev/null
+  elif command -v fswatch >/dev/null 2>&1; then fswatch -1 "$1" >/dev/null 2>&1
+  else local m0; m0="$(mtime "$1")"; while [ "$(mtime "$1")" = "$m0" ]; do sleep 1; done
+  fi
+}
+render; while wait_change "$pdf"; do render; done

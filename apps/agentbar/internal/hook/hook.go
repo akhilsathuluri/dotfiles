@@ -17,6 +17,7 @@ package hook
 
 import (
 	"os/exec"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -203,13 +204,31 @@ func ShouldNotify(prev string, ef Effect, notifyOpt string) bool {
 	return notifyOpt == "on" && ef.State.NeedsAttention() && string(ef.State) != prev
 }
 
-// Notify fires a desktop notification for an agent that needs the user, via
-// notify-send. Fire-and-forget: it never waits on or fails the hook, so a box
-// without notify-send (or without a desktop session) just stays silent.
+// Notify fires a desktop notification for an agent that needs the user:
+// notify-send on Linux, osascript on macOS. Fire-and-forget: it never waits on
+// or fails the hook, so a box without either (or without a desktop session)
+// just stays silent.
 func Notify(r tmux.Runner, pane string, state model.AgentState) {
 	where, _ := r.Run("display-message", "-p", "-t", pane, "#{session_name}:#{window_index}")
 	if where == "" {
 		where = "an agent needs your input"
 	}
-	_ = exec.Command("notify-send", "-a", "Claude Code", "Claude · "+state.Label(), where).Start()
+	_ = notifyCmd("Claude · "+state.Label(), where).Start()
+}
+
+// notifyCmd builds the platform's notification command. Split out so the
+// quoting of the AppleScript literal is testable without a desktop.
+func notifyCmd(title, body string) *exec.Cmd {
+	if runtime.GOOS == "darwin" {
+		script := "display notification " + osaQuote(body) + " with title " + osaQuote(title)
+		return exec.Command("osascript", "-e", script)
+	}
+	return exec.Command("notify-send", "-a", "Claude Code", title, body)
+}
+
+// osaQuote renders an AppleScript string literal: only \ and " need escaping.
+func osaQuote(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return `"` + s + `"`
 }

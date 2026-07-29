@@ -29,6 +29,6 @@
     autoSetupRemote = true
 
 # The `theme` switcher writes delta's per-flavor colors here; it overrides the
-# solarized-light defaults above. Missing file (no switch yet) = silently ignored.
+# dark defaults above. Missing file (no switch yet) = silently ignored.
 [include]
     path = ~/.config/theme/delta.gitconfig

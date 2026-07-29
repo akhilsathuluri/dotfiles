@@ -13,17 +13,24 @@
 # The restore side needs "~claude" in @resurrect-processes to relaunch it.
 set -euo pipefail
 
-# tmux sanitizes tabs in -F output to "_" outside a UTF-8 locale.
-export LC_ALL=C.UTF-8
+# tmux sanitizes tabs in -F output to "_" outside a UTF-8 locale. macOS has no
+# C.UTF-8, so fall back to the one locale it always ships.
+if locale -a 2>/dev/null | grep -qix 'C.UTF-8'; then
+    export LC_ALL=C.UTF-8
+else
+    export LC_ALL=en_US.UTF-8
+fi
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 state_file=${1:?usage: resurrect-save.sh <state-file>}
 
 theme=$(tmux show-option -gqv @agentbar-theme)
-theme=${theme:-solarized-light}
+theme=${theme:-solarized-dark}
 cmd="$PLUGIN_DIR/bin/agentbar run --theme $theme"
 
-sed -i -E "s|\tagentbar\t:.*$|\tagentbar\t:$cmd|" "$state_file"
+# GNU sed -i takes no argument, BSD sed -i requires one; -i.bak works on both.
+sed -i.bak -E "s|\tagentbar\t:.*$|\tagentbar\t:$cmd|" "$state_file"
+rm -f "$state_file.bak"
 
 # Live map: session/window/pane index -> Claude session id. Tab-delimited to
 # match the state file; built via a variable so no literal tab lives in source.

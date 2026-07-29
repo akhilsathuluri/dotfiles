@@ -28,8 +28,13 @@
 
 set -euo pipefail
 
-# tmux sanitizes tabs in -F output to "_" outside a UTF-8 locale.
-export LC_ALL=C.UTF-8
+# tmux sanitizes tabs in -F output to "_" outside a UTF-8 locale. Linux always
+# has C.UTF-8 and macOS never does, so pick whichever this box actually ships.
+if locale -a 2>/dev/null | grep -qix 'C\.UTF-8'; then
+    export LC_ALL=C.UTF-8
+else
+    export LC_ALL=en_US.UTF-8
+fi
 
 order_file="${XDG_STATE_HOME:-$HOME/.local/state}/tmux/session-order"
 mkdir -p "$(dirname "$order_file")"

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# texpeek [pdf] [first] [last] -- live text preview, refreshes on rebuild
+set -uo pipefail
+pdf="${1:-root.pdf}"; first="${2:-}"; last="${3:-}"
+rng=(); [ -n "$first" ] && rng+=(-f "$first"); [ -n "$last" ] && rng+=(-l "$last")
+render(){
+  clear
+  printf '\033[7m %s pp %s-%s %s \033[0m\n\n' "$pdf" "${first:-1}" "${last:-end}" "$(date +%T)"
+  pdftotext "${rng[@]}" "$pdf" - 2>/dev/null
+}
+# Block until $pdf is rewritten: inotifywait (Linux), fswatch (macOS), else poll mtime.
+mtime(){ stat -c%Y "$1" 2>/dev/null || stat -f%m "$1" 2>/dev/null || echo 0; }
+wait_change(){
+  if command -v inotifywait >/dev/null 2>&1; then inotifywait -qq -e close_write "$1" 2>/dev/null
+  elif command -v fswatch >/dev/null 2>&1; then fswatch -1 "$1" >/dev/null 2>&1
+  else local m0; m0="$(mtime "$1")"; while [ "$(mtime "$1")" = "$m0" ]; do sleep 1; done
+  fi
+}
+render; while wait_change "$pdf"; do render; done

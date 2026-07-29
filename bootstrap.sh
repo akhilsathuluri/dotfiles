@@ -11,6 +11,22 @@ DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Stow packages
 # =============================================================================
 
+# Canonical path of $1. BSD readlink has no -f, and returning empty there would
+# make backup_if_not_symlink compare "" to "" and skip a real backup, so this
+# always falls through to a cd -P walk rather than failing quietly.
+realpath_of() {
+    readlink -f -- "$1" 2>/dev/null && return 0
+    greadlink -f -- "$1" 2>/dev/null && return 0
+    local d b
+    d=$(dirname -- "$1")
+    b=$(basename -- "$1")
+    if d=$(cd -P -- "$d" 2>/dev/null && pwd); then
+        printf '%s/%s\n' "${d%/}" "$b"
+    else
+        printf '%s\n' "$1"
+    fi
+}
+
 backup_if_not_symlink() {
     # $1: target path. $2 (optional): the repo source path.
     # Behavior:
@@ -23,7 +39,7 @@ backup_if_not_symlink() {
     #   * otherwise → move target aside to ${target}.pre-dotfiles.
     local target="$1" src="${2:-}"
     [ -e "$target" ] && [ ! -L "$target" ] || return 0
-    if [ -n "$src" ] && [ "$(readlink -f -- "$target")" = "$(readlink -f -- "$src")" ]; then
+    if [ -n "$src" ] && [ "$(realpath_of "$target")" = "$(realpath_of "$src")" ]; then
         return 0
     fi
     if [ -n "$src" ] && [ -f "$target" ] && [ -f "$src" ] && cmp -s "$target" "$src"; then
@@ -57,8 +73,11 @@ stow_packages() {
     # Single files we own outright: back up the file itself.
     backup_if_not_symlink "$HOME/.tmux.conf" "$DOTFILES_DIR/tmux/.tmux.conf"
     backup_if_not_symlink "$HOME/.gitmux.conf" "$DOTFILES_DIR/tmux/.gitmux.conf"
-    backup_if_not_symlink "$HOME/.local/bin/tmux-ci-status.sh" "$DOTFILES_DIR/tmux/.local/bin/tmux-ci-status.sh"
     backup_if_not_symlink "$HOME/.local/bin/tmux-gitlab.sh" "$DOTFILES_DIR/tmux/.local/bin/tmux-gitlab.sh"
+    backup_if_not_symlink "$HOME/.local/bin/tmux-rename-session.sh" \
+        "$DOTFILES_DIR/tmux/.local/bin/tmux-rename-session.sh"
+    backup_if_not_symlink "$HOME/.local/bin/tmux-session-name.sh" \
+        "$DOTFILES_DIR/tmux/.local/bin/tmux-session-name.sh"
     backup_if_not_symlink "$HOME/.claude/settings.json" "$DOTFILES_DIR/claude/.claude/settings.json"
     backup_if_not_symlink "$HOME/.claude/statusline-command.sh" "$DOTFILES_DIR/claude/.claude/statusline-command.sh"
 
