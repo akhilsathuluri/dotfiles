@@ -302,8 +302,8 @@ current_pos=$(printf '%s\n' "$lines" | awk -F'\t' -v c="$current" '$1 == c { pri
 
 self=$(realpath "$0")
 
-fzf_colors='bg+:#268bd2,fg+:#fdf6e3,gutter:-1,pointer:-1,hl:#268bd2'
-fzf_colors+=',hl+:#fdf6e3,border:#93a1a1,info:#93a1a1,prompt:#586e75'
+fzf_colors='bg+:#268bd2,fg+:#002b36,gutter:-1,pointer:-1,hl:#268bd2'
+fzf_colors+=',hl+:#002b36,border:#586e75,info:#586e75,prompt:#93a1a1'
 
 # --sync + start:pos ensures the initial cursor position fires exactly once,
 # at startup. Using load:pos here would re-fire on every reload, snapping

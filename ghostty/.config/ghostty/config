@@ -1,6 +1,6 @@
-# Theme (default). The `theme` switcher overrides it via this optional include,
-# so switching never edits this tracked file. Missing file = stays on the default.
-theme = iTerm2 Solarized Dark
+# Theme -- no `theme =` here, so Ghostty uses its own built-in default (dark).
+# The `theme` switcher overrides it via this optional include, which never edits
+# this tracked file. Missing file (no switch yet) = stays on Ghostty's default.
 config-file = ?~/.config/theme/ghostty.conf
 window-theme = ghostty
 

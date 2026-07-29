@@ -30,7 +30,7 @@ open_url() { # xdg-open on Linux, open on macOS
     else open "$1" >/dev/null 2>&1 & fi
 }
 
-# Solarized Light styles (match .tmux.conf).
+# Solarized Dark styles (match .tmux.conf).
 C_ISSUE='#[fg=#268bd2]' # blue
 C_MR='#[fg=#6c71c4]'    # violet
 C_RESET='#[default]'
@@ -41,8 +41,8 @@ ci_color() { # pipeline status -> fg style
         running | preparing) printf '#[fg=#268bd2]' ;;                                           # blue
         failed) printf '#[fg=#dc322f]' ;;                                                        # red
         pending | created | waiting_for_resource | scheduled | manual) printf '#[fg=#b58900]' ;; # yellow
-        canceled | skipped) printf '#[fg=#586e75]' ;;                                            # base01
-        *) printf '#[fg=#657b83]' ;;                                                             # base00
+        canceled | skipped) printf '#[fg=#586e75]' ;;                                            # base01 (muted)
+        *) printf '#[fg=#839496]' ;;                                                             # base0 (fg)
     esac
 }
 
