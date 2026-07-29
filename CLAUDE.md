@@ -11,11 +11,11 @@ see "Platform support" in README.md for the per-layer detail.
 
 - `bash/` → `~/.bashrc.d/` (shell customizations)
 - `bat/` → `~/.config/bat/`
-- `claude/` → `~/.claude/hooks/`, `~/.claude/settings.json`, `~/.claude/statusline-command.sh`, `~/.claude/skills/`
-  (settings.json wires **two** agent-state consumers on every Claude lifecycle event: the agentbar hook, which stamps
-  `@agent_*` pane options for the tmux sidebar, and the local `hooks/` scripts, which write `/tmp/claude-sessions/` for
-  the GNOME `claude-indicator`. Claude Code does NOT load a user-level `~/.claude/settings.local.json` - anything that
-  must take effect goes in `settings.json`)
+- `claude/` → `~/.claude/hooks/`, `~/.claude/settings.json`, `~/.claude/skills/` (settings.json wires **two**
+  agent-state consumers on every Claude lifecycle event: the agentbar hook, which stamps `@agent_*` pane options for the
+  tmux sidebar, and the local `hooks/` scripts, which write `/tmp/claude-sessions/` for the GNOME `claude-indicator`.
+  Claude Code does NOT load a user-level `~/.claude/settings.local.json` - anything that must take effect goes in
+  `settings.json`)
 - `claude-indicator/` → `~/.local/bin/claude-indicator`, `~/.config/autostart/` (Linux only - GNOME top-bar indicator,
   fed by the `claude/.claude/hooks/` state files)
 - `clip/` → `~/.local/bin/clip` (copy stdin to the clipboard; picks wl-copy, xclip or pbcopy. Every copy path - tmux
