@@ -8,6 +8,36 @@ DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DOTFILES_DIR/install.sh"
 
 # =============================================================================
+# Canonical ~/dotfiles path
+# =============================================================================
+
+# The ~ in the messages below is for the reader, not a path to expand.
+# shellcheck disable=SC2088
+link_dotfiles_dir() {
+    # agentbar's tmux entry line and the Claude hooks in settings.json address the
+    # repo as ~/dotfiles, and neither a tmux config nor a JSON hook can resolve a
+    # path at load time. Rather than hardcode one checkout location, make
+    # ~/dotfiles a symlink to wherever this repo actually is, so the repo stays
+    # movable and those two files need no per-machine edit.
+    local link="$HOME/dotfiles"
+    [ "$DOTFILES_DIR" = "$link" ] && return 0
+    if [ -L "$link" ]; then
+        [ "$(realpath_of "$link")" = "$(realpath_of "$DOTFILES_DIR")" ] && {
+            ok "~/dotfiles already points here"
+            return 0
+        }
+        ln -sfn "$DOTFILES_DIR" "$link"
+        ok "~/dotfiles re-pointed at $DOTFILES_DIR"
+    elif [ -e "$link" ]; then
+        warn "~/dotfiles exists and is not a symlink - leaving it alone."
+        warn "agentbar and the Claude hooks look there; move it or clone the repo to ~/dotfiles."
+    else
+        ln -s "$DOTFILES_DIR" "$link"
+        ok "~/dotfiles -> $DOTFILES_DIR"
+    fi
+}
+
+# =============================================================================
 # Stow packages
 # =============================================================================
 
@@ -317,6 +347,7 @@ if [ $# -gt 0 ]; then
 fi
 
 log "Starting dotfiles bootstrap on $OS_KIND..."
+link_dotfiles_dir
 all_tools
 
 stow_packages

@@ -12,7 +12,13 @@
 
 set -uo pipefail
 
-AGENTBAR="$HOME/dotfiles/apps/agentbar"
+# Repo root: this script is stowed as <repo>/<pkg>/.local/bin/<name>, so walk up
+# three levels from its real path. Falls back to ~/dotfiles (the canonical symlink
+# bootstrap.sh creates) if that fails.
+_self=$(readlink -f "$0" 2>/dev/null || greadlink -f "$0" 2>/dev/null || echo "$0")
+_root=$(cd "$(dirname "$_self")/../../.." 2>/dev/null && pwd) || _root="$HOME/dotfiles"
+[ -d "$_root/apps" ] || [ -d "$_root/design" ] || _root="$HOME/dotfiles"
+AGENTBAR="$_root/apps/agentbar"
 # Tests point this at a private socket, which also skips the live-server steps.
 SOCKET="${RESET_SOCKET:-}"
 

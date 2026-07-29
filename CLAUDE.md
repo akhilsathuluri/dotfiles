@@ -72,6 +72,14 @@ The platform is decided in exactly one place - the `case "$(uname -s)"` at the t
 release assets; macOS takes Homebrew (`install_brew_packages`), so each Linux-only `install_*` opens with
 `is_linux || return 0` and `all_tools` / `gate_tools` branch once at the top.
 
+**`~/dotfiles` must resolve to this repo.** The agentbar `run-shell` line in `tmux/.tmux.conf` and the Claude hook
+commands in `claude/.claude/settings.json` address it by that path, and neither a tmux config nor a JSON hook can
+resolve a path at load time. The repo does not have to live there - `bootstrap.sh`'s `link_dotfiles_dir` symlinks
+`~/dotfiles` at whatever checkout it is run from. Shell scripts under a stow package resolve the root themselves (three
+levels up from the script's real path: see `theme`, `tmux-reset.sh`), so prefer that in anything new and keep
+`~/dotfiles` for the two files that cannot. Symptom when it is wrong: no sidebar, `prefix + e` unbound, `theme` silently
+applying empty colors - all failing quietly, because each call site is guarded.
+
 **On Linux tmux is pinned and built from source.** Ubuntu 24.04 ships 3.4, which the sidebar's e2e suite fails on. macOS
 gets brew's tmux, which is new enough.
 
