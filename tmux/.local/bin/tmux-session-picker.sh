@@ -247,14 +247,13 @@ state_rank() {
     esac
 }
 
-# Glyphs + colours match the sidebar's five-state language (Solarized Light):
-# ◔ blocked=red, ? asking=amber, ⠹ working=cyan, ✓ done=green. Needs fzf --ansi.
+# The sidebar's five-state glyphs in ANSI colours, so they follow the terminal palette. Needs fzf --ansi.
 icon_for() {
     case $1 in
-        permission) printf '\033[38;2;220;50;47m◔\033[0m' ;;
-        question) printf '\033[38;2;181;137;0m?\033[0m' ;;
-        working) printf '\033[38;2;42;161;152m⠹\033[0m' ;;
-        done) printf '\033[38;2;133;153;0m✓\033[0m' ;;
+        permission) printf '\033[31m◔\033[0m' ;;
+        question) printf '\033[33m?\033[0m' ;;
+        working) printf '\033[36m⠹\033[0m' ;;
+        done) printf '\033[32m✓\033[0m' ;;
         *) printf ' ' ;;
     esac
 }
@@ -302,8 +301,9 @@ current_pos=$(printf '%s\n' "$lines" | awk -F'\t' -v c="$current" '$1 == c { pri
 
 self=$(realpath "$0")
 
-fzf_colors='bg+:#268bd2,fg+:#002b36,gutter:-1,pointer:-1,hl:#268bd2'
-fzf_colors+=',hl+:#002b36,border:#586e75,info:#586e75,prompt:#93a1a1'
+# ANSI slots, never hex: follows the terminal palette, and a stale FZF_DEFAULT_OPTS in the server env can't pin it.
+fzf_colors='fg:-1,bg:-1,fg+:bright-white,bg+:black,gutter:-1,pointer:-1'
+fzf_colors+=',hl:blue,hl+:bright-white,border:blue,info:blue,header:blue'
 
 # --sync + start:pos ensures the initial cursor position fires exactly once,
 # at startup. Using load:pos here would re-fire on every reload, snapping
