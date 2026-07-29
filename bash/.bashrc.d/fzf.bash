@@ -7,31 +7,38 @@ if command -v fd &>/dev/null; then
     export FZF_ALT_C_COMMAND='fd --type d --hidden --exclude .git'
 fi
 
-# Sensible default look + preview toggle (no hardcoded palette so terminal
-# theme drives colors -- dark or light).
-export FZF_DEFAULT_OPTS='--height=80% --layout=reverse --border --bind ctrl-/:toggle-preview'
+# Default bat theme for preview subprocesses (bat config isn't always picked up there).
+# theme.bash loads after this and overrides BAT_THEME with the selected flavor.
+export BAT_THEME="${BAT_THEME:-Solarized (dark)}"
 
-# Pick the right clipboard command for this OS so the same FZF_*_OPTS work on Linux/macOS.
-if command -v pbcopy &>/dev/null; then
-    _FZF_CLIP_CMD='pbcopy'
-elif command -v wl-copy &>/dev/null; then
-    _FZF_CLIP_CMD='wl-copy'
-elif command -v xclip &>/dev/null; then
-    _FZF_CLIP_CMD='xclip -selection clipboard'
-fi
+# Global look + preview toggle. The color block defaults to Solarized Dark; the
+# `theme` switcher overrides it via ~/.config/theme/fzf.sh so new shells follow the flavor.
+_fzf_color='--color=dark --color=fg:#839496,bg:#002b36,hl:#268bd2'
+_fzf_color+=' --color=fg+:#93a1a1,bg+:#073642,hl+:#268bd2'
+_fzf_color+=' --color=info:#586e75,prompt:#268bd2,pointer:#268bd2'
+_fzf_color+=' --color=marker:#859900,spinner:#2aa198,header:#586e75'
+_fzf_color+=' --color=border:#0c3a46,gutter:#002b36'
+# shellcheck source=/dev/null  # written by the `theme` switcher, absent until first run
+[ -f ~/.config/theme/fzf.sh ] && . ~/.config/theme/fzf.sh
+export FZF_DEFAULT_OPTS="
+  --height=80% --layout=reverse --border
+  --bind ctrl-/:toggle-preview
+  $_fzf_color
+"
+unset _fzf_color
 
 # Ctrl-T: file picker with bat preview; Ctrl-Y copies file contents to the clipboard
-if command -v bat &>/dev/null && [ -n "${_FZF_CLIP_CMD:-}" ]; then
+if command -v bat &>/dev/null && command -v clip &>/dev/null; then
     export FZF_CTRL_T_OPTS="
       --preview 'bat --color=always --style=numbers --line-range=:200 {}'
-      --bind 'ctrl-y:execute-silent($_FZF_CLIP_CMD < {})+abort'
+      --bind 'ctrl-y:execute-silent(clip < {})+abort'
     "
 fi
 
 # Ctrl-R: history search; Ctrl-Y copies the command (fields 2..) without running it
-if [ -n "${_FZF_CLIP_CMD:-}" ]; then
+if command -v clip &>/dev/null; then
     export FZF_CTRL_R_OPTS="
-      --bind 'ctrl-y:execute-silent(echo -n {2..} | $_FZF_CLIP_CMD)+abort'
+      --bind 'ctrl-y:execute-silent(echo -n {2..} | clip)+abort'
     "
 fi
 

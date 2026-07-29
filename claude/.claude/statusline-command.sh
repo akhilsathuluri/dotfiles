@@ -27,9 +27,12 @@ if [ -n "$rl_pct" ]; then
     parts+=("$rl_str")
 fi
 
-output="$(IFS='|'; echo "${parts[*]}" | sed 's/|/ · /g')"
+output="$(
+    IFS='|'
+    echo "${parts[*]}" | sed 's/|/ · /g'
+)"
 printf "%s" "$output"
 
-# Write to per-pane temp file so tmux status bar can display the correct session
+# Per-pane temp file so the tmux status bar can show this pane's session.
 pane="${TMUX_PANE:-default}"
-[ -n "$output" ] && echo "$output" > "/tmp/claude-status-${pane}"
+[ -n "$output" ] && echo "$output" >"/tmp/claude-status-${pane}"

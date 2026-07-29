@@ -1,0 +1,5 @@
+# LazyVim rewrites these; formatting them just creates churn.
+nvim/.config/nvim/lazyvim.json
+nvim/.config/nvim/lazy-lock.json
+# Vendored upstream themes.
+bat/.config/bat/themes/

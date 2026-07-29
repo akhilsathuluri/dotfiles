@@ -1,6 +1,20 @@
 # dotfiles
 
-Personal development environment managed with [GNU Stow](https://www.gnu.org/software/stow/).
+Development environment for Ubuntu 24.04 - shell, tmux, Neovim, terminal, and CLI tooling - managed with
+[GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh machine from a single `bootstrap.sh`.
+
+> **Built for [Ghostty](https://ghostty.org/).** The tmux, theme switcher, and shaders assume it. `bootstrap.sh`
+> installs it; use it as your terminal. Other terminals work but aren't themed.
+
+## Contents
+
+- [What's included](#whats-included)
+- [Platform support](#platform-support)
+- [Setup on a new machine](#setup-on-a-new-machine)
+- [Usage](#usage)
+- [Managing configs](#managing-configs)
+- [Notes](#notes)
+- [License](#license)
 
 Primary target: Ubuntu 24.04. Also supported: macOS (Apple Silicon and Intel).
 
@@ -8,43 +22,91 @@ Primary target: Ubuntu 24.04. Also supported: macOS (Apple Silicon and Intel).
 
 ### Configs (stow packages)
 
-| Package              | Description                                                                  | Target                                  |
-| -------------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
-| `bash`               | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode              | `~/.bashrc.d/`                          |
-| `bat`                | Syntax highlighter theme                                                     | `~/.config/bat/`                        |
-| `claude`             | Claude Code hooks, statusline, and settings.json (hooks/statusLine wiring)   | `~/.claude/hooks/`, `~/.claude/`        |
-| `claude-indicator`   | GNOME top bar indicator for Claude Code notifications (Linux only)           | `~/.local/bin/`, `~/.config/autostart/` |
-| `git`                | Git tool settings (delta pager, staging/blame, merge). Toggle: `stow -D git` | `~/.config/git/config`                  |
-| `ghostty`            | Ghostty terminal config (block cursor, cursor trail shader)                  | `~/.config/ghostty/`                    |
-| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side, wrap)                 | `~/.config/hunk/`                       |
-| `nvim`               | Neovim config (LazyVim, LSP, plugins)                                        | `~/.config/nvim/`                       |
-| `screenshot-watcher` | Auto-copy screenshots to clipboard (Linux only)                              | `~/.local/bin/`, `~/.config/autostart/` |
-| `tmux`               | Tmux config, gitmux, CI status script                                        | `~/.tmux.conf`, `~/.gitmux.conf`        |
+| Package              | Description                                                                                                                | Target                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `bash`               | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode                                                            | `~/.bashrc.d/`                          |
+| `bat`                | Syntax highlighter theme                                                                                                   | `~/.config/bat/`                        |
+| `claude`             | Claude Code settings.json (agentbar + local hooks, statusLine, permissions), statusline script, skills (`vault-manager`)   | `~/.claude/`                            |
+| `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                                                         | `~/.local/bin/`, `~/.config/autostart/` |
+| `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)                                       | `~/.local/bin/clip`                     |
+| `dictate`            | Toggle-key local speech-to-text (faster-whisper) into tmux (Linux only)                                                    | `~/.local/bin/`                         |
+| `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)                                                | `~/.config/ghostty/`                    |
+| `git`                | Git tool settings (delta pager, staging/blame, merge)                                                                      | `~/.config/git/config`                  |
+| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                                     | `~/.config/hunk/`                       |
+| `nvim`               | Neovim config (LazyVim, LSP, plugins)                                                                                      | `~/.config/nvim/`                       |
+| `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                                        | `~/.local/bin/`, `~/.config/autostart/` |
+| `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                                              | `~/.local/bin/`                         |
+| `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)                                   | `~/.local/bin/theme`                    |
+| `tmux`               | Tmux config, gitmux, GitLab/CI status scripts, `prefix + R` UI reset                                                       | `~/.tmux.conf`, `~/.gitmux.conf`        |
+| `trace`              | Shared always-on trace log for the tmux/agent stack                                                                        | `~/.local/bin/dotfiles-trace`           |
 
-`bootstrap.sh` auto-skips Linux-only packages (`claude-indicator`, `screenshot-watcher`) on macOS.
+`bootstrap.sh` auto-skips the Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) on macOS.
+
+### Apps (built from source)
+
+Binaries built from source under `apps/` (not stow packages). Each has a `Makefile` with a `make build` target;
+`bootstrap.sh` installs the toolchain and builds them.
+
+| App        | Description                                                          | Language |
+| ---------- | -------------------------------------------------------------------- | -------- |
+| `agentbar` | tmux sidebar showing every Claude Code agent's state across sessions | Go       |
+
+The sidebar loads from here via a `run-shell` line in `tmux/.tmux.conf`. `prefix + R` picks up changes: it reloads the
+config, rebuilds the binary if the source moved, and restarts that session's sidebar.
 
 ### System dependencies
 
-Installed via `bootstrap.sh` (apt on Linux, Homebrew on macOS, plus binaries under `~/.local/bin`):
+Installed by `install.sh` (apt + `~/.local/bin` on Linux, Homebrew on macOS), which `bootstrap.sh` calls and CI reuses
+so both install the same pinned versions:
 
-- [bat](https://github.com/sharkdp/bat) — cat with syntax highlighting
-- [delta](https://github.com/dandavison/delta) — git diff pager with syntax highlighting
-- [direnv](https://direnv.net/) — per-directory environment variables
-- [fd](https://github.com/sharkdp/fd) — fast find (powers fzf file search)
-- [fzf](https://github.com/junegunn/fzf) — fuzzy finder
-- [Ghostty](https://ghostty.org/) — terminal emulator
-- [gitmux](https://github.com/arl/gitmux) — git status in tmux
-- [GNU Stow](https://www.gnu.org/software/stow/) — symlink manager
-- [hunk](https://github.com/modem-dev/hunk) — interactive diff viewer (via `gd`/`gds` aliases)
-- [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) — terminal/editor font
-- [jq](https://github.com/jqlang/jq) — JSON processor
-- [lazydocker](https://github.com/jesseduffield/lazydocker) — terminal Docker UI
-- [lazygit](https://github.com/jesseduffield/lazygit) — terminal git UI
-- [Neovim](https://neovim.io/) — editor
-- [ripgrep](https://github.com/BurntSushi/ripgrep) — fast recursive search
-- [tmux](https://github.com/tmux/tmux) — terminal multiplexer
-- [tree](https://gitlab.com/OldManProgrammer/unix-tree) — directory listing utility
-- [zoxide](https://github.com/ajeetdsouza/zoxide) — smarter cd
+- [bat](https://github.com/sharkdp/bat) - cat with syntax highlighting
+- [delta](https://github.com/dandavison/delta) - git diff pager with syntax highlighting
+- [direnv](https://direnv.net/) - per-directory environment variables
+- [fd](https://github.com/sharkdp/fd) - fast find (powers fzf file search)
+- [fzf](https://github.com/junegunn/fzf) - fuzzy finder
+- [Ghostty](https://ghostty.org/) - terminal emulator
+- [git-cliff](https://git-cliff.org/) - changelog and release notes from conventional commits
+- [gitleaks](https://github.com/gitleaks/gitleaks) - secret scanning over the tree and history
+- [gitmux](https://github.com/arl/gitmux) - git status in tmux
+- [GNU Stow](https://www.gnu.org/software/stow/) - symlink manager
+- [Go](https://go.dev/) - toolchain for building `apps/` (agentbar)
+- [hunk](https://github.com/modem-dev/hunk) - interactive diff viewer (via `gd`/`gds` aliases)
+- [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) - terminal/editor font
+- [jq](https://github.com/jqlang/jq) - JSON processor
+- [lazydocker](https://github.com/jesseduffield/lazydocker) - terminal Docker UI
+- [lazygit](https://github.com/jesseduffield/lazygit) - terminal git UI
+- [Neovim](https://neovim.io/) - editor
+- [ripgrep](https://github.com/BurntSushi/ripgrep) - fast recursive search
+- [ruff](https://docs.astral.sh/ruff/) - Python linter (gates the `dictate` script)
+- [shellcheck](https://www.shellcheck.net/) - shell linter (gates every script here)
+- [shfmt](https://github.com/mvdan/sh) - finds shell files by shebang for the lint gate
+- [Task](https://taskfile.dev/) - task runner for this repo's `Taskfile.yml`
+- [tmux](https://github.com/tmux/tmux) - terminal multiplexer (pinned, built from source on Linux: 24.04 ships 3.4)
+- [tree](https://gitlab.com/OldManProgrammer/unix-tree) - directory listing utility
+- [zoxide](https://github.com/ajeetdsouza/zoxide) - smarter cd
+
+## Platform support
+
+**Ubuntu 24.04 is the primary platform** - it is what this repo is developed and used on. **Debian 13 (trixie)** and
+**macOS (Apple Silicon and Intel)** are also supported. Anything else is refused up front by `install.sh` rather than
+failing half way through.
+
+The platform is decided in exactly one place: the `case "$(uname -s)"` at the top of `install.sh`. Linux takes pinned
+release assets and `apt`; macOS takes Homebrew, which resolves arm64 vs x86_64 itself.
+
+| Layer                                   | Linux                        | macOS                                                             |
+| --------------------------------------- | ---------------------------- | ------------------------------------------------------------------ |
+| Configs (nvim, bat, git, hunk, ghostty) | portable                     | portable - no change                                              |
+| Clipboard                               | wl-copy / xclip via `clip`   | `pbcopy` via `clip` - same call sites                             |
+| Shell config (`bash/.bashrc.d/`)        | sourced from `~/.bashrc`     | sourced from `~/.zshrc`; each file guards its bash-only sections  |
+| System packages                         | `apt`, pinned release assets | Homebrew - versions are whatever brew ships, not the pins here    |
+| `agentbar`                              | Go, built from source        | same Go build; the e2e suite is Linux-only                        |
+| `trace`                                 | GNU `date`/`stat`/`flock`    | BSD fallbacks in `dotfiles-trace`                                 |
+| `dictate`                               | parec/pactl                  | not stowed - different audio stack, unscriptable mic permission   |
+| `claude-indicator`, `screenshot-watcher`| GNOME / inotify              | not stowed                                                        |
+| Ghostty                                 | Ubuntu PPA (skipped on Debian) | brew cask                                                       |
+
+`task portability` prints every Linux-only primitive and the files holding it.
 
 ## Setup on a new machine
 
@@ -73,8 +135,28 @@ source ~/.bashrc
 source ~/.zshrc
 ```
 
-Neovim plugins will auto-install on first launch via lazy.nvim.
-Run `prefix + I` in tmux to install tmux plugins.
+Neovim plugins will auto-install on first launch via lazy.nvim. Run `prefix + I` in tmux to install tmux plugins.
+
+### 4. Switch to Ghostty
+
+Bootstrap installed it - open Ghostty and use it going forward; the configs are tuned for it. (`bootstrap.sh` itself
+runs from any terminal.)
+
+## Usage
+
+Day-to-day keybindings and commands - shell aliases, tmux, Neovim (LazyVim), hunk, Ghostty - live in
+**[CHEATSHEET.md](CHEATSHEET.md)** (also viewable in the terminal via the `cheat` alias). Re-skin the whole terminal
+stack with `theme <flavor>` (`solarized-light` · `solarized-dark` · `catppuccin-latte` · `catppuccin-mocha`); see
+[`design/theme-switcher.md`](design/theme-switcher.md).
+
+## Development
+
+`task` lists everything this repo can do. `task check` is the gate CI runs on every push - shellcheck, ruff, prettier,
+gitleaks and the agentbar test suite - and `task check-ci` reruns that suite in a container mirroring the runner (older
+tmux, no `LANG`, `CI` set). Commits follow [Conventional Commits](https://www.conventionalcommits.org/), and releases
+are cut by pushing an annotated `v*` tag: `.github/workflows/release.yml` re-runs the gate, runs the container
+fresh-install test, and publishes a GitHub Release with notes generated from the commit history. See
+[CHANGELOG.md](CHANGELOG.md) and the "Releasing" section of [CLAUDE.md](CLAUDE.md).
 
 ## Managing configs
 
@@ -96,7 +178,7 @@ cd ~/dotfiles && stow newpkg
 Create a new `.bash` file in the bash package:
 
 ```bash
-# Edit directly in dotfiles — symlink means it takes effect immediately
+# Edit directly in dotfiles - symlink means it takes effect immediately
 vim ~/dotfiles/bash/.bashrc.d/my-feature.bash
 ```
 
@@ -110,24 +192,10 @@ vim ~/.bashrc.d/local.bash
 
 ### Machine-specific Claude Code settings
 
-The dotfiles ship a minimal `~/.claude/settings.json` (hooks + statusline only).
-Machine-specific preferences — `theme`, `voiceEnabled`, `effortLevel`,
-`enabledPlugins`, `skipAutoPermissionPrompt`, etc. — belong in
-`~/.claude/settings.local.json`, which Claude Code merges on top of the shipped
-file and which stays out of the dotfiles repo.
-
-If you already have a `~/.claude/settings.json` with preferences when you run
-`bootstrap.sh`, it gets backed up to `~/.claude/settings.json.pre-dotfiles`.
-Migrate the keys you want to keep:
-
-```bash
-jq '{autoCompactEnabled, theme, voiceEnabled, effortLevel, enabledPlugins, skipAutoPermissionPrompt}' \
-  ~/.claude/settings.json.pre-dotfiles > ~/.claude/settings.local.json
-```
-
-### Edit a config
-
-Edit files directly in `~/dotfiles/` — the symlinks mean changes take effect immediately.
+The committed `~/.claude/settings.json` is the full baseline - hooks, `statusLine`, `permissions`, plugins, and prefs.
+Claude Code has no user-level `settings.local.json` (only a project's is read), and the file is a stowed symlink, so
+runtime `/config` edits write into this repo: commit what you want to keep, or `git checkout` to discard. An existing
+file is backed up to `*.pre-dotfiles` on first bootstrap.
 
 ### Stow commands
 
@@ -137,61 +205,22 @@ stow -D <package>    # Unlink a package
 stow -R <package>    # Re-link (unlink + link)
 ```
 
-## Directory structure
-
-```
-dotfiles/
-├── bash/.bashrc.d/
-│   ├── 00-path.bash          # PATH (loads first)
-│   ├── aliases.bash           # shell options, git/docker aliases
-│   ├── direnv.bash
-│   ├── fzf.bash               # fzf + fd + bat preview, `rfv` live-grep
-│   ├── python.bash            # pyright-init function
-│   ├── ssh-agent.bash
-│   ├── tmux-session-name.bash # auto-rename tmux session per cwd
-│   ├── tools.bash
-│   └── zoxide.bash
-├── claude/.claude/
-│   ├── hooks/
-│   │   ├── _write-state.sh      # shared state writer
-│   │   ├── on-notification.sh   # Claude needs your reply
-│   │   ├── on-pre-tool-use.sh
-│   │   ├── on-prompt-submit.sh  # clears session indicator
-│   │   ├── on-session-end.sh
-│   │   └── on-stop.sh           # Claude finished
-│   ├── settings.json            # hooks + statusLine wiring (portable, uses $HOME)
-│   └── statusline-command.sh
-├── claude-indicator/            # Linux-only: GNOME top-bar indicator
-├── git/.config/git/config         # delta pager, staging/blame, merge settings
-├── nvim/.config/nvim/
-│   ├── init.lua
-│   └── lua/{config,plugins}/
-├── screenshot-watcher/          # Linux-only: auto-copy screenshots to clipboard
-├── tmux/
-│   ├── .tmux.conf
-│   ├── .gitmux.conf
-│   └── .local/bin/
-│       ├── tmux-ci-status.sh
-│       ├── tmux-session-picker.sh
-│       ├── tmux-session-preview.sh
-│       └── tmux-yank.sh
-├── ghostty/.config/ghostty/
-│   ├── config
-│   └── shaders/                 # vendored cursor trail shaders
-├── bat/.config/bat/config
-├── hunk/.config/hunk/config.toml
-├── bootstrap.sh
-├── test/bootstrap-fresh.sh    # docker smoke test (fresh Ubuntu 24.04)
-├── CHEATSHEET.md
-└── README.md
-```
-
 ## Notes
 
-- **System `.bashrc`/`.zshrc` is never overwritten.** All customizations live in `~/.bashrc.d/*.bash` and are sourced from the system shell rc. The bootstrap script appends the sourcing loop with a backup.
-- **No personal info in repo.** Work-specific aliases go in `~/.bashrc.d/local.bash` (not tracked).
-- **Neovim plugins**: Managed by lazy.nvim. `lazy-lock.json` pins plugin versions — commit it to keep installs reproducible.
-- **Python venvs**: direnv auto-activates `.venv` per project directory.
-- **Idempotent**: `bootstrap.sh` is safe to re-run — it skips what's already installed.
-- **Smoke test**: `test/bootstrap-fresh.sh` runs the bootstrap in a clean Ubuntu 24.04 Docker container and verifies binaries, symlinks, and idempotency. Run before bumping pinned versions or touching bootstrap.
-- **macOS**: bootstrap installs via Homebrew, skips Linux-only stow packages, and patches `~/.zshrc` to source `~/.bashrc.d/*.bash` via Bash so the shell config remains shared.
+- **System `.bashrc` / `.zshrc` is never overwritten** - customizations live in `~/.bashrc.d/*.bash`, sourced by a loop
+  `bootstrap.sh` appends between markers (with a backup). macOS patches `~/.zshrc`; Linux patches `~/.bashrc`.
+- **Private/work aliases** go in `~/.bashrc.d/local.bash` (not tracked).
+- **Notes vaults**: `bootstrap.sh` seeds two plain-markdown PARA vault skeletons (`~/vaults/personal`, `~/vaults/work`)
+  from `vault-template/`, each with an agent layer - the global `vault-manager` skill adds and maintains notes, and a
+  deterministic `.claude/vault-check.sh` integrity gate runs in the git pre-commit hook (which also blocks secrets). It
+  prints optional git-remote wiring steps for any not yet synced; each vault's contents live in its own private repo,
+  never here.
+- **Neovim plugins**: `lazy-lock.json` pins versions - commit it to keep installs reproducible.
+- **Python venvs**: direnv auto-activates `.venv` per directory.
+- **Idempotent**: `bootstrap.sh` is safe to re-run (skips what's installed).
+- **Smoke test**: `task fresh` runs bootstrap in a clean Ubuntu 24.04 container (checks binaries, symlinks,
+  idempotency); run before touching `bootstrap.sh`. The release workflow runs it too, so no release ships without it.
+
+## License
+
+[MIT](LICENSE).

@@ -1,0 +1,208 @@
+# Routine tasks for this repo. `task` with no arguments lists them.
+# Projects under apps/ keep their own build files; the agentbar:* tasks delegate.
+version: "3"
+
+vars:
+  AGENTBAR: apps/agentbar
+  # Tracked shell files, found by shebang: covers extensionless ones, skips dictate.
+  SHELL_FILES:
+    sh: git ls-files -z | xargs -0 shfmt -f | sort | tr '\n' ' '
+  # Python by shebang too - dictate runs via `uv run --script`.
+  PY_FILES:
+    sh: git ls-files -z | xargs -0 awk 'FNR==1 && /^#!.*(python|uv run)/ {print FILENAME}' | tr '\n' ' '
+  GO_FILES:
+    sh: git ls-files '*.go' | tr '\n' ' '
+  PRETTIER_FILES:
+    sh: git ls-files '*.md' '*.yml' '*.yaml' '*.json' | tr '\n' ' '
+  # Pinned so the gate behaves the same in CI and here.
+  PRETTIER: prettier@3.9.6
+  # Read from bootstrap.sh so the two never drift.
+  STOW_PACKAGES:
+    sh: sed -n 's/^ *local packages=(\(.*\))$/\1/p' bootstrap.sh
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  check:
+    desc: The release gate - lint, python, formatting, secrets, tests
+    cmds:
+      - task: lint
+      - task: width
+      - task: py
+      - task: fmt-check
+      - task: secrets
+      - task: clipboard
+      - task: reset
+      - task: test
+
+  lint:
+    desc: shellcheck every tracked shell file (errors and warnings)
+    cmds:
+      - shellcheck -S warning {{.SHELL_FILES}}
+
+  width:
+    desc: No shell or Go line over 120 columns (prettier and ruff cover the rest)
+    cmds:
+      - awk 'length>120 {print FILENAME":"FNR" ("length" cols)"; n++} END {exit n>0}' {{.SHELL_FILES}} {{.GO_FILES}}
+
+  py:
+    desc: Lint the Python scripts (rules and 120-column limit in ruff.toml)
+    cmds:
+      - ruff check {{.PY_FILES}}
+
+  secrets:
+    desc: Scan for credentials (gitleaks) and private IPs in tracked files
+    cmds:
+      - gitleaks dir . --no-banner --redact
+      - gitleaks git . --no-banner --redact
+      # Four octets: the old audit grep used 10\.\d+\.\d+, which fires on version
+      # pins like 10.4.2. Tracked files only - local.bash is gitignored by design.
+      - >-
+        git ls-files -z | xargs -0 grep -nEI
+        '\b(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3})\b'
+        && { echo "private IP in a tracked file (see above)" >&2; exit 1; } || true
+
+  clipboard:
+    desc: Guard the copy path - every tmux trigger must reach clipboard and primary
+    cmds:
+      - bash test/clipboard.sh
+
+  reset:
+    desc: Guard the UI reset - sidebar width/place and an even column split
+    cmds:
+      - bash test/reset.sh
+
+  portability:
+    desc: Report Linux-only primitives and where they live (a map, not a gate)
+    silent: true
+    cmds:
+      # Deliberately not in `check`: these are load-bearing on Ubuntu. The report
+      # is the inventory another platform would have to answer for. shellcheck
+      # does not know BSD from GNU, so nothing else covers this.
+      - |
+        printf 'Linux-only primitives in tracked files:\n\n'
+        for p in 'apt-get' 'dpkg -s' 'add-apt-repository' 'notify-send' 'systemctl' 'loginctl' \
+          'xdg-open' 'wl-copy' 'wl-paste' 'parec' 'pactl' 'flock' 'stat -c' 'readlink -f' \
+          'sed -i ' 'date -d ' '%3N' '/proc/'; do
+          hits=$(git ls-files -z | xargs -0 grep -lIF -- "$p" 2>/dev/null \
+            | grep -vE '^(Taskfile\.yml$|.*\.md$)' | sort | tr '\n' ' ')
+          [ -n "$hits" ] && printf '  %-20s %s\n' "$p" "$hits"
+        done
+        printf '\nSee "Platform support" in README.md.\n'
+
+  fmt-check:
+    desc: Check prettier formatting (markdown, yaml, json) - 120 columns
+    cmds:
+      - npx --yes {{.PRETTIER}} --check {{.PRETTIER_FILES}}
+
+  fmt:
+    desc: Format markdown, yaml and json in place
+    cmds:
+      - npx --yes {{.PRETTIER}} --write {{.PRETTIER_FILES}}
+
+  test:
+    desc: Run the agentbar test suite
+    cmds:
+      - task: agentbar:test
+
+  build:
+    desc: Build everything under apps/
+    cmds:
+      - task: agentbar:build
+
+  stow:
+    desc: Restow every package (safe to re-run)
+    cmds:
+      - stow --restow {{.STOW_PACKAGES}}
+
+  check-ci:
+    desc: Run the agentbar suite in a container that mirrors the CI runner (needs docker)
+    cmds:
+      - docker build -q -f test/ci-mirror.Dockerfile -t dotfiles-ci-mirror . >/dev/null
+      # CI=true and no LANG: what a runner has and this machine does not.
+      - >-
+        docker run --rm -e CI=true -v "$PWD:/src:ro" dotfiles-ci-mirror bash -c 'cp -r /src /work && cd
+        /work/{{.AGENTBAR}} && go test ./... -count=1'
+
+  fresh:
+    desc: Full bootstrap in a clean Ubuntu container, twice (needs docker, ~10 min)
+    cmds:
+      - test/bootstrap-fresh.sh
+
+  changelog:
+    desc: Regenerate CHANGELOG.md for a version, e.g. task changelog V=v0.2.0
+    preconditions:
+      - sh: test -n "{{.V}}"
+        msg: "usage: task changelog V=v0.2.0"
+      # 0.1.0 is hand-written; generating it again would add a second section.
+      - sh: '! grep -q "^## \[$(echo {{.V}} | sed s/^v//)\]" CHANGELOG.md'
+        msg: "CHANGELOG.md already has a {{.V}} section - edit it by hand instead"
+    cmds:
+      # --prepend, not -o: regenerating would drop the hand-written 0.1.0 entry.
+      - git cliff --unreleased --tag {{.V}} --prepend CHANGELOG.md
+      - echo "CHANGELOG.md updated for {{.V}} - review it, then commit and tag."
+
+  release-notes:
+    desc: Preview the notes the next release would publish
+    cmds:
+      - git cliff --unreleased
+
+  trace:
+    desc: Follow the shared trace log (tmux, agentbar, dictate, hooks)
+    cmds:
+      - dotfiles-trace tail -f
+
+  tmux-reload:
+    desc: Re-source ~/.tmux.conf in the running server (all sessions at once)
+    cmds:
+      - tmux source-file ~/.tmux.conf
+      - echo "tmux reloaded. Sidebars are long-lived - prefix+R refreshes the current session's."
+
+  # Same work as prefix+R, so it can be scripted or run from outside tmux. The
+  # tmux- prefix marks the tasks that act on the live server; `task reset` is the
+  # gate that guards this one.
+  tmux-reset:
+    desc: Reset the UI in the running server (reload, sidebar refresh, default geometry)
+    cmds:
+      - bash tmux/.local/bin/tmux-reset.sh
+
+  agentbar:build:
+    desc: Build the agentbar binary
+    dir: "{{.AGENTBAR}}"
+    cmds:
+      - make build
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - bin/agentbar
+
+  agentbar:test:
+    desc: agentbar unit and e2e tests (e2e needs tmux)
+    dir: "{{.AGENTBAR}}"
+    cmds:
+      - make test
+
+  agentbar:unit:
+    desc: agentbar unit tests only (skips e2e)
+    dir: "{{.AGENTBAR}}"
+    cmds:
+      - make unit
+
+  agentbar:mockup:
+    desc: Preview the sidebar with fake data (needs a TTY)
+    deps: [agentbar:build]
+    dir: "{{.AGENTBAR}}"
+    cmds:
+      - bin/agentbar mockup
+
+  agentbar:doctor:
+    desc: Audit live Claude panes against the hook trace for state desync
+    deps: [agentbar:build]
+    dir: "{{.AGENTBAR}}"
+    cmds:
+      - bin/agentbar doctor

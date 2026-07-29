@@ -1,4 +1,7 @@
-# Theme — use Ghostty's built-in default (dark)
+# Theme (default). The `theme` switcher overrides it via this optional include,
+# so switching never edits this tracked file. Missing file = stays on the default.
+theme = iTerm2 Solarized Dark
+config-file = ?~/.config/theme/ghostty.conf
 window-theme = ghostty
 
 # Font — use the system default monospace
@@ -41,9 +44,9 @@ gtk-titlebar-style = tabs
 gtk-wide-tabs = false
 gtk-custom-css = ~/.config/ghostty/style.css
 
-# Tab navigation — ghostty tabs use ctrl+shift+arrows (default)
-keybind = alt+h=previous_tab
-keybind = alt+l=next_tab
+# Tab navigation -- alt+h/l freed for tmux session switching (see .tmux.conf)
+keybind = alt+h=unbind
+keybind = alt+l=unbind
 
 
 # Explicitly bind new tab to ghostty default (plain shell, no tmux)

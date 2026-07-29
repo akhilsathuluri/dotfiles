@@ -2,10 +2,21 @@ return {
   "sindrets/diffview.nvim",
   cmd = { "DiffviewOpen", "DiffviewFileHistory", "DiffviewClose" },
   config = function()
-    vim.api.nvim_set_hl(0, "DiffAdd",    { bg = "#1a2e1a" })
-    vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#2e1a1a" })
-    vim.api.nvim_set_hl(0, "DiffChange", { bg = "#2a2a1a" })
-    vim.api.nvim_set_hl(0, "DiffText",   { bg = "#1e3a1e" })
+    -- VS Code-like diff tints, tuned per Solarized background. On other flavors let
+    -- the colorscheme provide its own diff highlights.
+    if vim.g.colors_name == "solarized" then
+      if vim.o.background == "light" then
+        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#dde8cc" }) -- added: subtle green
+        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#f0ddd8", fg = "#b58900" }) -- removed: subtle red
+        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#e8e2cc" }) -- changed: faint yellow
+        vim.api.nvim_set_hl(0, "DiffText", { bg = "#ccdec0" }) -- changed text: stronger green
+      else
+        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#1a2e1a" }) -- added: subtle green
+        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#2e1a1a" }) -- removed: subtle red
+        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#2a2a1a" }) -- changed: faint yellow
+        vim.api.nvim_set_hl(0, "DiffText", { bg = "#1e3a1e" }) -- changed text: stronger green
+      end
+    end
     require("diffview").setup({
       diff_binaries = false,
       view = {
