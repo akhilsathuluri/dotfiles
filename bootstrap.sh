@@ -109,6 +109,7 @@ stow_packages() {
     backup_if_not_symlink "$HOME/.local/bin/tmux-session-name.sh" \
         "$DOTFILES_DIR/tmux/.local/bin/tmux-session-name.sh"
     backup_if_not_symlink "$HOME/.claude/settings.json" "$DOTFILES_DIR/claude/.claude/settings.json"
+    backup_if_not_symlink "$HOME/.claude/statusline-command.sh" "$DOTFILES_DIR/claude/.claude/statusline-command.sh"
 
     # Directories the user may share with their own files: back up only the
     # specific files we ship, leaving the rest of the directory intact.

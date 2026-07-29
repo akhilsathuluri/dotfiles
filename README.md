@@ -20,23 +20,23 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 
 ### Configs (stow packages)
 
-| Package              | Description                                                                               | Target                                  |
-| -------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------- |
-| `bash`               | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode                           | `~/.bashrc.d/`                          |
-| `bat`                | Syntax highlighter theme                                                                  | `~/.config/bat/`                        |
-| `claude`             | Claude Code settings.json (agentbar + local hooks, permissions), skills (`vault-manager`) | `~/.claude/`                            |
-| `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                        | `~/.local/bin/`, `~/.config/autostart/` |
-| `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)      | `~/.local/bin/clip`                     |
-| `dictate`            | Toggle-key local speech-to-text (faster-whisper) into tmux (Linux only)                   | `~/.local/bin/`                         |
-| `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)               | `~/.config/ghostty/`                    |
-| `git`                | Git tool settings (delta pager, staging/blame, merge)                                     | `~/.config/git/config`                  |
-| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                    | `~/.config/hunk/`                       |
-| `nvim`               | Neovim config (LazyVim, LSP, plugins)                                                     | `~/.config/nvim/`                       |
-| `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                       | `~/.local/bin/`, `~/.config/autostart/` |
-| `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                             | `~/.local/bin/`                         |
-| `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)  | `~/.local/bin/theme`                    |
-| `tmux`               | Tmux config, gitmux, GitLab status script, `prefix + R` UI reset                          | `~/.tmux.conf`, `~/.gitmux.conf`        |
-| `trace`              | Shared always-on trace log for the tmux/agent stack                                       | `~/.local/bin/dotfiles-trace`           |
+| Package              | Description                                                                                            | Target                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------- |
+| `bash`               | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode                                        | `~/.bashrc.d/`                          |
+| `bat`                | Syntax highlighter theme                                                                               | `~/.config/bat/`                        |
+| `claude`             | Claude Code settings.json (agentbar + local hooks, statusLine, permissions), statusline script, skills | `~/.claude/`                            |
+| `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                                     | `~/.local/bin/`, `~/.config/autostart/` |
+| `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)                   | `~/.local/bin/clip`                     |
+| `dictate`            | Toggle-key local speech-to-text (faster-whisper) into tmux (Linux only)                                | `~/.local/bin/`                         |
+| `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)                            | `~/.config/ghostty/`                    |
+| `git`                | Git tool settings (delta pager, staging/blame, merge)                                                  | `~/.config/git/config`                  |
+| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                 | `~/.config/hunk/`                       |
+| `nvim`               | Neovim config (LazyVim, LSP, plugins)                                                                  | `~/.config/nvim/`                       |
+| `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                    | `~/.local/bin/`, `~/.config/autostart/` |
+| `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                          | `~/.local/bin/`                         |
+| `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)               | `~/.local/bin/theme`                    |
+| `tmux`               | Tmux config, gitmux, GitLab status script, `prefix + R` UI reset                                       | `~/.tmux.conf`, `~/.gitmux.conf`        |
+| `trace`              | Shared always-on trace log for the tmux/agent stack                                                    | `~/.local/bin/dotfiles-trace`           |
 
 `bootstrap.sh` auto-skips the Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) on macOS.
 
@@ -190,10 +190,10 @@ vim ~/.bashrc.d/local.bash
 
 ### Machine-specific Claude Code settings
 
-The committed `~/.claude/settings.json` is the full baseline - hooks, `permissions`, plugins, and prefs. Claude Code has
-no user-level `settings.local.json` (only a project's is read), and the file is a stowed symlink, so runtime `/config`
-edits write into this repo: commit what you want to keep, or `git checkout` to discard. An existing file is backed up to
-`*.pre-dotfiles` on first bootstrap.
+The committed `~/.claude/settings.json` is the full baseline - hooks, `statusLine`, `permissions`, plugins, and prefs.
+Claude Code has no user-level `settings.local.json` (only a project's is read), and the file is a stowed symlink, so
+runtime `/config` edits write into this repo: commit what you want to keep, or `git checkout` to discard. An existing
+file is backed up to `*.pre-dotfiles` on first bootstrap.
 
 ### Stow commands
 

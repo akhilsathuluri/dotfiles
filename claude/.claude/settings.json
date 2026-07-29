@@ -158,6 +158,10 @@
       }
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "bash $HOME/.claude/statusline-command.sh"
+  },
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
@@ -173,8 +177,9 @@
     }
   },
   "effortLevel": "xhigh",
-  "skipAutoPermissionPrompt": true,
+  "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "dark",
-  "tui": "fullscreen"
+  "skipAutoPermissionPrompt": true,
+  "model": "claude-fable-5[1m]"
 }
