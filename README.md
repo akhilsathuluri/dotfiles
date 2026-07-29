@@ -35,7 +35,7 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 | `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                                      | `~/.local/bin/`, `~/.config/autostart/` |
 | `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                                            | `~/.local/bin/`                         |
 | `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)                                 | `~/.local/bin/theme`                    |
-| `tmux`               | Tmux config, gitmux, GitLab status script, `prefix + R` UI reset                                                     | `~/.tmux.conf`, `~/.gitmux.conf`        |
+| `tmux`               | Tmux config, gitmux, GitLab status script, `prefix + R` UI reset                                                         | `~/.tmux.conf`, `~/.gitmux.conf`        |
 | `trace`              | Shared always-on trace log for the tmux/agent stack                                                                      | `~/.local/bin/dotfiles-trace`           |
 
 `bootstrap.sh` auto-skips the Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) on macOS.

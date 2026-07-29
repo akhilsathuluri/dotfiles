@@ -1,6 +1,6 @@
--- The `theme` switcher writes the active flavor to ~/.config/theme/nvim.lua
--- ({ colorscheme, background }); default to Solarized Dark when it's absent.
-local flavor = { colorscheme = "solarized", background = "dark" }
+-- VS Code Dark is the default. The `theme` switcher can override it by writing
+-- ~/.config/theme/nvim.lua ({ colorscheme, background }); absent = stay on vscode.
+local flavor = { colorscheme = "vscode", background = "dark" }
 do
   local ok, t = pcall(dofile, vim.fn.expand("~/.config/theme/nvim.lua"))
   if ok and type(t) == "table" and t.colorscheme then
@@ -10,9 +10,26 @@ end
 vim.o.background = flavor.background
 
 return {
-  -- Solarized (one scheme for light + dark, driven by vim.o.background).
+  -- VS Code Dark+ (the default).
   {
     "Mofiqul/vscode.nvim",
+    lazy = false,
+    priority = 1000,
+    config = function()
+      require("vscode").setup({
+        style = "dark",
+        transparent = false,
+        italic_comments = true,
+      })
+      if flavor.colorscheme == "vscode" then
+        require("vscode").load()
+      end
+    end,
+  },
+
+  -- Solarized (one scheme for light + dark, driven by vim.o.background).
+  {
+    "maxmx03/solarized.nvim",
     lazy = false,
     priority = 1000,
     opts = {
