@@ -177,7 +177,8 @@
     }
   },
   "effortLevel": "xhigh",
-  "tui": "fullscreen",
+  "skipAutoPermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
-  "skipAutoPermissionPrompt": true
+  "theme": "dark",
+  "tui": "fullscreen"
 }

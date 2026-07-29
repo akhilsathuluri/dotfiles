@@ -18,6 +18,12 @@ custom-shader-animation = always
 # Hide mouse cursor while typing
 mouse-hide-while-typing = true
 
+# Disable click-to-move-cursor at the prompt. Ghostty 1.3+ emits cursor motion
+# when you click in the zsh prompt (OSC 133 cl=line), but this misbehaves inside
+# tmux -- the cursor snaps to the start of the line and selection/copy breaks.
+# See tmux#4931 / ghostty#11433.
+cursor-click-to-move = false
+
 # Selecting text auto-copies to clipboard (suppress toast)
 copy-on-select = clipboard
 app-notifications = no-clipboard-copy
@@ -44,6 +50,12 @@ gtk-titlebar-style = tabs
 gtk-wide-tabs = false
 gtk-custom-css = ~/.config/ghostty/style.css
 
+# macOS: treat left Option as Alt so tmux/shell receive Alt+key escape sequences
+# (Alt+; session picker, Alt+1..9 windows, Alt+j/k, Alt+m, Alt+y, Alt+C fzf).
+# Right Option is left alone, so macOS special-char entry still works there
+# (right-Option+8 for •, right-Option+G for ©, etc.).
+macos-option-as-alt = left
+
 # Tab navigation -- alt+h/l freed for tmux session switching (see .tmux.conf)
 keybind = alt+h=unbind
 keybind = alt+l=unbind
@@ -51,3 +63,4 @@ keybind = alt+l=unbind
 
 # Explicitly bind new tab to ghostty default (plain shell, no tmux)
 keybind = ctrl+shift+t=new_tab
+
