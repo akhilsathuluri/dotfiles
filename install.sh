@@ -138,7 +138,11 @@ install_brew() {
         return
     fi
     log "Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    # NONINTERACTIVE skips the installer's "Press RETURN to continue" gate and its
+    # other prompts, so an unattended bootstrap can't hang or abort on them. The
+    # installer only auto-detects this when stdin isn't a TTY, but bootstrap is
+    # normally run from an interactive shell, where it would otherwise wait for a key.
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     # Put brew on PATH for the rest of this run (shellenv prints the exports).
     if [ -x /opt/homebrew/bin/brew ]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
