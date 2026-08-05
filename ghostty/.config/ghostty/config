@@ -45,6 +45,10 @@ window-padding-color = extend
 # Distribute extra space as padding instead of leaving a gap
 window-padding-balance = true
 
+# SSH: install Ghostty's terminfo on the remote on first connect (needs `tic` there,
+# cached after), falling back to TERM=xterm-256color - else remote tmux/nvim refuse to start.
+shell-integration-features = cursor,no-sudo,title,ssh-env,ssh-terminfo,path
+
 # Merge titlebar and tab bar into one compact row
 gtk-titlebar-style = tabs
 gtk-wide-tabs = false

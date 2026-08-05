@@ -213,6 +213,11 @@ stow -R <package>    # Re-link (unlink + link)
   deterministic `.claude/vault-check.sh` integrity gate runs in the git pre-commit hook (which also blocks secrets). It
   prints optional git-remote wiring steps for any not yet synced; each vault's contents live in its own private repo,
   never here.
+- **SSH into a remote**: Ghostty's `ssh-terminfo` installs its terminfo entry on the host on first connect, so remote
+  `tmux`/`nvim` don't fail with `missing or unsuitable terminal: xterm-ghostty`; `ssh-env` downgrades `TERM` to
+  `xterm-256color` if that fails. The host needs `tic` (`ncurses-bin`). `ghostty +ssh-cache` lists the hosts already
+  done, and a host seeded before this landed can be fixed by hand with
+  `infocmp -x xterm-ghostty | ssh HOST -- tic -x -`.
 - **Neovim plugins**: `lazy-lock.json` pins versions - commit it to keep installs reproducible.
 - **Python venvs**: direnv auto-activates `.venv` per directory.
 - **Idempotent**: `bootstrap.sh` is safe to re-run (skips what's installed).
