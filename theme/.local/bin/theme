@@ -5,10 +5,13 @@
 #   theme                 print the current flavor
 #   theme --list          list the supported flavors
 #   theme <flavor>        switch everything to <flavor>
+#   theme none            clear the state - every tool back to its tracked default
 #
-# Flavors: solarized-dark (default) · solarized-light · catppuccin-latte · catppuccin-mocha
-# v1 drives the sidebar (@agentbar-theme) and ghostty (built-in themes); the tmux
-# frame, fzf and the port-dependent tools land in later increments.
+# Flavors: solarized-dark · solarized-light · catppuccin-latte · catppuccin-mocha
+#
+# Nothing applies a flavor for you, bootstrap included: an unswitched machine stays on
+# the defaults baked into the tracked configs - ghostty's own dark background, tmux's
+# green status bar, nvim's vscode - and `theme none` returns to exactly that.
 set -euo pipefail
 
 # Repo root: this script is stowed as <repo>/<pkg>/.local/bin/<name>, so walk up
@@ -21,7 +24,6 @@ PALETTE="${THEME_PALETTE:-$_root/design/palette.toml}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/theme"
 
 FLAVORS="solarized-dark solarized-light catppuccin-latte catppuccin-mocha"
-DEFAULT_FLAVOR="solarized-dark"
 
 # ghostty's built-in theme name per flavor (from `ghostty +list-themes`).
 ghostty_name() {
@@ -51,10 +53,27 @@ apply_sidebar() {
 
 # Ghostty applies a built-in theme by name. Write it to a non-repo file that the main
 # config includes (config-file = ?~/.config/theme/ghostty.conf), so switching never edits
-# the tracked config. SIGUSR2 reloads a running instance (Linux).
+# the tracked config.
 apply_ghostty() {
     printf 'theme = %s\n' "$(ghostty_name "$1")" >"$STATE_DIR/ghostty.conf"
-    pkill -USR2 -x ghostty 2>/dev/null || true
+    reload_ghostty
+}
+
+# Make a running Ghostty re-read that include. SIGUSR2 is the Linux path; on macOS an
+# unhandled SIGUSR2 would kill the terminal, so drive the same reload_config action
+# through Ghostty's scripting interface (Ghostty.sdef) rather than gamble on a handler.
+# Both branches require Ghostty to be running already - `tell application` would launch
+# it - and the action needs a surface to target, hence `on terminal 1`.
+reload_ghostty() {
+    pgrep -x ghostty >/dev/null 2>&1 || return 0
+    case "$(uname -s)" in
+        Darwin)
+            osascript -e \
+                'tell application "Ghostty" to perform action "reload_config" on terminal 1' \
+                >/dev/null 2>&1 || true
+            ;;
+        *) pkill -USR2 -x ghostty 2>/dev/null || true ;;
+    esac
 }
 
 # The tmux frame hardcodes colors that overpaint ghostty inside tmux; regenerate the
@@ -176,20 +195,50 @@ return { colorscheme = "$scheme", background = "$bg" }
 EOF
 }
 
+# theme none - drop the generated state so every tool falls back to the default in its
+# tracked config: ghostty's own dark background, tmux's green status bar, nvim's vscode,
+# the fzf block in fzf.bash, the sidebar's built-in solarized-dark. Deleting the files is
+# enough for anything that reads them at startup; ghostty and the tmux server already
+# hold the old colors in memory, so both get a nudge.
+clear_theme() {
+    rm -f "$STATE_DIR/current" "$STATE_DIR/ghostty.conf" "$STATE_DIR/tmux.conf" \
+        "$STATE_DIR/fzf.sh" "$STATE_DIR/env.sh" "$STATE_DIR/delta.gitconfig" \
+        "$STATE_DIR/nvim.lua"
+    reload_ghostty
+    if command -v tmux >/dev/null; then
+        tmux set -gu @agentbar-theme 2>/dev/null || true
+        # Unsetting the frame options lands on tmux's defaults, not this repo's, so
+        # re-source the tracked config instead: it repaints the status bar and skips the
+        # overlay include, which is now missing.
+        tmux source-file "$HOME/.tmux.conf" 2>/dev/null || true
+    fi
+    local msg="→ none. Ghostty + tmux revert now; new shells drop THEME/BAT_THEME and the fzf colors;"
+    msg="$msg next git diff / nvim launch reverts delta / nvim."
+    echo "$msg Restart sidebars with prefix+e twice."
+}
+
 main() {
     case "${1:-}" in
         --list | -l)
             echo "$FLAVORS" | tr ' ' '\n'
             return 0
             ;;
+        none | off)
+            clear_theme
+            return 0
+            ;;
         "")
-            if [ -f "$STATE_DIR/current" ]; then cat "$STATE_DIR/current"; else echo "$DEFAULT_FLAVOR (default)"; fi
+            if [ -f "$STATE_DIR/current" ]; then
+                cat "$STATE_DIR/current"
+            else
+                echo "none (tools on their tracked defaults)"
+            fi
             return 0
             ;;
     esac
     local flavor="$1"
     if ! valid "$flavor"; then
-        echo "theme: unknown flavor '$flavor' (try: theme --list)" >&2
+        echo "theme: unknown flavor '$flavor' (try: theme --list, or 'theme none')" >&2
         return 2
     fi
     mkdir -p "$STATE_DIR"

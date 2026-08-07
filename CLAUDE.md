@@ -32,7 +32,9 @@ see "Platform support" in README.md for the per-layer detail.
   to the clipboard)
 - `tex/` → `~/.local/bin/` (`tex-dev`, `texpeek`, `texpage` - LaTeX build/preview helpers)
 - `theme/` → `~/.local/bin/theme` (theme switcher; re-skins the terminal stack across the four flavors from
-  `design/palette.toml`, writing per-tool files into `~/.config/theme/`. Default flavor here is `solarized-dark`)
+  `design/palette.toml`, writing per-tool files into `~/.config/theme/`. **Opt-in per machine** - nothing applies a
+  flavor for you, so an unswitched machine keeps the defaults in the tracked configs (ghostty's own dark bg, tmux's
+  green status bar, nvim's `vscode`); `theme none` clears the state and returns there)
 - `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/` scripts (`tmux-gitlab.sh` GitLab status, session picker,
   resurrect guard, yank, `tmux-reset.sh` the `prefix + R` UI reset - reload + default geometry, nothing killed)
 - `trace/` → `~/.local/bin/dotfiles-trace` (shared always-on trace log for the tmux/agent stack; see "Debugging" below)

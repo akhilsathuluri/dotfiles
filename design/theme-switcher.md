@@ -9,11 +9,19 @@ _How one command re-skins the whole terminal stack from [`palette.toml`](./palet
 theme                      # print the current flavor
 theme --list               # list the four flavors
 theme <flavor>             # re-skin the whole stack
+theme none                 # clear the state - back to the tracked defaults
 ```
 
-Flavors: `solarized-dark` (default) · `solarized-light` · `catppuccin-latte` · `catppuccin-mocha`. The choice
-**persists** (via `~/.config/theme/`) and applies to new shells, new windows, and the running tmux/ghostty. It is
-**explicit** - the switcher never picks a theme from the OS appearance or the time of day.
+Flavors: `solarized-dark` · `solarized-light` · `catppuccin-latte` · `catppuccin-mocha`. The choice **persists** (via
+`~/.config/theme/`) and applies to new shells, new windows, and the running tmux/ghostty. It is **explicit** - the
+switcher never picks a theme from the OS appearance or the time of day, and nothing (`bootstrap.sh` included) applies
+one for you.
+
+**The unswitched baseline.** With no flavor applied, every tool falls back to the default in its own tracked config -
+ghostty's built-in dark (`#282c34`), tmux's green status bar, nvim's `vscode`, the fzf `--color` block in `fzf.bash`,
+the sidebar's built-in solarized-dark. That is a coherent look in its own right, not a broken one, and `theme none`
+returns to it: it deletes everything under `~/.config/theme/`, unsets `@agentbar-theme`, reloads ghostty and re-sources
+`~/.tmux.conf`.
 
 ## Two kinds of tools
 
@@ -33,7 +41,7 @@ tracked config.
 | Tool           | Themed by       | What the switcher writes                                          | Reload                            |
 | -------------- | --------------- | ----------------------------------------------------------------- | --------------------------------- |
 | agent sidebar  | option (id)     | `tmux set -g @agentbar-theme <flavor>`                            | restart (`prefix + e` ×2)         |
-| ghostty        | named           | `theme = <Name>` → `ghostty.conf` (a `config-file` include)       | `pkill -USR2 -x ghostty`          |
+| ghostty        | named           | `theme = <Name>` → `ghostty.conf` (a `config-file` include)       | SIGUSR2 · macOS: `reload_config`  |
 | tmux frame     | hex → generated | `tmux.conf` (status/window/pane + dictate/submit/push/diff chips) | `tmux source-file` (immediate)    |
 | fzf            | hex → export    | `fzf.sh` (`_fzf_color` `--color` block, sourced by fzf.bash)      | new shells                        |
 | bat / `$THEME` | named           | `env.sh` (`export THEME`, `export BAT_THEME`)                     | new shells                        |
@@ -57,6 +65,11 @@ Tools that follow the flavor **without** being driven by the switcher:
 
 **Activation on a fresh pull:** `cd ~/dotfiles && stow theme bash`, open a new shell, `bat cache --build` (or run
 `bootstrap.sh`), then `theme <flavor>`.
+
+**Ghostty reload is per-platform.** Linux takes `pkill -USR2 -x ghostty`. macOS has no such handler to rely on - an
+unhandled SIGUSR2 kills the terminal - so the switcher drives the same `reload_config` action through Ghostty's
+scripting interface (`osascript … perform action "reload_config" on terminal 1`, declared in `Ghostty.sdef`). Both are
+skipped unless Ghostty is already running, since `tell application` would otherwise launch it.
 
 **Needs live verification** (not checkable headless - launch and eyeball): nvim colorscheme per flavor · hunk render for
 solarized-dark / catppuccin.

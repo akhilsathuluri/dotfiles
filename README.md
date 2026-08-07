@@ -144,8 +144,10 @@ runs from any terminal.)
 
 Day-to-day keybindings and commands - shell aliases, tmux, Neovim (LazyVim), hunk, Ghostty - live in
 **[CHEATSHEET.md](CHEATSHEET.md)** (also viewable in the terminal via the `cheat` alias). Re-skin the whole terminal
-stack with `theme <flavor>` (`solarized-dark` (default) · `solarized-light` · `catppuccin-latte` · `catppuccin-mocha`);
-see [`design/theme-switcher.md`](design/theme-switcher.md).
+stack with `theme <flavor>` (`solarized-dark` · `solarized-light` · `catppuccin-latte` · `catppuccin-mocha`), and
+`theme none` to go back. It is opt-in per machine - bootstrap applies no flavor, so an unswitched machine keeps the
+defaults in the tracked configs (ghostty's own dark, tmux's green status bar, nvim's `vscode`). See
+[`design/theme-switcher.md`](design/theme-switcher.md).
 
 ## Development
 
