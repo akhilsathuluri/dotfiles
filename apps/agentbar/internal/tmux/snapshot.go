@@ -16,9 +16,10 @@ import (
 // loop in Snapshot indexes fields by position in this format.
 const snapFormat = "#{session_name}\t#{session_attached}\t#{window_index}\t#{window_active}\t" +
 	"#{pane_id}\t#{pane_active}\t#{pane_current_command}\t#{pane_current_path}\t" +
-	"#{@agent_present}\t#{@agent_state}\t#{@agent_since}\t#{@agent_seen}\t#{@agent_subagents}"
+	"#{@agent_present}\t#{@agent_state}\t#{@agent_since}\t#{@agent_seen}\t#{@agent_subagents}\t" +
+	"#{@agent_workdir}"
 
-const snapFields = 13
+const snapFields = 14
 
 // agentCommands guards against zombies: a pane whose Claude died without
 // SessionEnd keeps its options, but its foreground command changes.
@@ -28,13 +29,20 @@ var agentCommands = map[string]bool{"claude": true, "node": true}
 // CurrentSession names the session the sidebar pane lives in, anchored
 // to our own pane: a bare display-message resolves against the attached
 // client, which may be looking at a different session.
+//
+// A TMUX_PANE naming a pane this server doesn't have resolves to the empty
+// string (exit 0, no error), so fall back to the client. That happens whenever
+// the server inherited a stale TMUX_PANE - it is fixed at server start, and
+// tmux does not re-stamp it for a run-shell child - which would otherwise leave
+// every caller thinking there is no current session.
 func CurrentSession(r Runner) string {
-	args := []string{"display-message", "-p"}
-	if pane := os.Getenv("TMUX_PANE"); pane != "" {
-		args = append(args, "-t", pane)
+	pane := os.Getenv("TMUX_PANE")
+	if pane != "" {
+		if out, _ := r.Run("display-message", "-p", "-t", pane, "#S"); out != "" {
+			return out
+		}
 	}
-	args = append(args, "#S")
-	out, _ := r.Run(args...)
+	out, _ := r.Run("display-message", "-p", "#S")
 	return out
 }
 
@@ -83,11 +91,19 @@ func Snapshot(r Runner, bc *BranchCache, currentSession string) model.Snapshot {
 			_, _ = r.Run("set-option", "-pq", "-t", f[4], "@agent_seen", "1")
 			seen = true
 		}
+		// The branch of the worktree the agent WRITES in, not the one its pane
+		// sits in: a session started in one checkout edits another all day, and
+		// the pane's cwd never follows, so this line used to name a branch
+		// nothing was happening on.
+		dir := f[7]
+		if wd := f[13]; wd != "" {
+			dir = wd
+		}
 		sess.Agents = append(sess.Agents, model.Agent{
 			PaneID:      f[4],
 			WindowIndex: windowIdx,
 			Command:     f[6],
-			Branch:      bc.Get(f[7]),
+			Branch:      bc.Get(dir),
 			State:       state,
 			Seen:        seen,
 			Since:       time.Unix(since, 0),
@@ -142,17 +158,22 @@ func ClientFor(r Runner, session string) string {
 }
 
 // StatusSegment renders a compact status-line summary with tmux colour
-// markup: attention count (red) and working count (yellow). Empty when
-// no agents are running, so the segment vanishes rather than showing 0s.
-func StatusSegment(r Runner) string {
+// markup: attention count and working count. Empty when no agents are
+// running, so the segment vanishes rather than showing 0s.
+//
+// The two colours are passed in rather than pinned here: they belong to the
+// palette (design/palette.toml), and this is the one agent-state surface the
+// theme switcher could not reach. The working count used to render in the
+// asking amber, which read as "a question is waiting" on a busy server.
+func StatusSegment(r Runner, blocked, working string) string {
 	snap := Snapshot(r, nil, "") // nil cache: skip git lookups, counts only
 	att, work := snap.Attention(), snap.Working()
 	parts := []string{}
 	if att > 0 {
-		parts = append(parts, fmt.Sprintf("#[fg=#dc322f,bold]⚠%d#[default]", att))
+		parts = append(parts, fmt.Sprintf("#[fg=%s,bold]\u26a0%d#[default]", blocked, att))
 	}
 	if work > 0 {
-		parts = append(parts, fmt.Sprintf("#[fg=#b58900]●%d#[default]", work))
+		parts = append(parts, fmt.Sprintf("#[fg=%s]\u25cf%d#[default]", working, work))
 	}
 	return strings.Join(parts, " ")
 }

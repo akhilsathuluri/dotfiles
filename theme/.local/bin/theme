@@ -98,19 +98,42 @@ apply_tmux() {
     work_chip="#[fg=$ask bg=$surface] ● dictate "
     idle_chip="#[fg=$muted bg=$surface] ● dictate "
     dseg="#{?#{==:#{@dictate},rec},$rec_chip,#{?#{==:#{@dictate},work},$work_chip,$idle_chip}}"
+    # Diff chip: violet normally, amber when the agent is writing in another
+    # worktree (@diff_drift, set in .tmux.conf). Same width either way.
+    local diffseg
+    diffseg="#{?#{E:@diff_drift},#[fg=$ask bg=$surface bold],#[fg=#6c71c4 bg=$surface]}"
+    diffseg="$diffseg ◧ diff#{?@diff_mode,:#{@diff_mode},} "
+    # Session badge: red while the prefix is pending. A chip that appears instead
+    # would shift every segment right of it (see .tmux.conf).
+    local left
+    left="#{@host_badge}#{?client_prefix,#[fg=$bg bg=$block bold],#[fg=$bg bg=$accent bold]}"
+    left="$left #S #[fg=$fg bg=$surface] "
+    # Rails: one rule for every pane - folder + branch on the left, and where
+    # Claude is writing on the right when that pane runs it. Both zones in the
+    # accent, so the rail reads as chrome instead of blending into the log
+    # scrolling under it. Each zone is given the pane's width and its share of
+    # it, so the branch is cut only when the pane has no room (see .tmux.conf).
+    local border rail
+    rail="#($HOME/.local/bin/tmux-rail.sh '#{pane_current_path}' '#{pane_width}'"
+    rail="$rail '#{?#{E:@rail_agent},2,1}')"
+    border="#{?#{==:#{pane_current_command},agentbar},,"
+    border="$border #[fg=$accent]$rail "
+    border="$border#{?#{E:@rail_agent},#[align=right fg=$accent]→ "
+    border="$border#($HOME/.local/bin/tmux-rail.sh '#{@agent_workdir}' '#{pane_width}' 2) , }}"
     cat >"$f" <<EOF
 set -g status-style "fg=$fg,bg=$surface"
 set -g window-style "fg=$fg,bg=$bg"
 set -g window-active-style "fg=$fg,bg=$bg"
 set -g pane-border-style "fg=$muted,bg=$bg"
 set -g pane-active-border-style "fg=$accent,bg=$bg"
-set -g status-left "#{@host_badge}#[fg=$bg,bg=$accent,bold] #S #[fg=$fg,bg=$surface] "
+set -g status-left "$left"
 set -g window-status-current-format "#[fg=$bg,bg=$accent,bold] #I:#W#{?window_zoomed_flag, Z,} "
 set -g window-status-format "#{?window_bell_flag,#[fg=$bg bg=$block bold],#[fg=$muted bg=$surface]} #I:#W "
 set -g @dictate_seg "$dseg"
 set -g @submit_seg "#{?@submit_flash,#[fg=$bg bg=$grn]  ⏎ enter  ,#[fg=$work bg=$surface]  ⏎ enter  }"
 set -g @push_seg "#{?@push_flash,#[fg=$bg bg=$grn]  ⇡ commit+push  ,#[fg=$accent bg=$surface]  ⇡ commit+push  }"
-set -g @diff_seg "#[fg=#6c71c4 bg=$surface] ◧ diff#{?@diff_mode,:#{@diff_mode},} "
+set -g @diff_seg "$diffseg"
+set -g pane-border-format "$border"
 EOF
     tmux source-file "$f" 2>/dev/null || true
 }
@@ -128,6 +151,7 @@ apply_fzf() {
     sel=$(palette_get "$1" selection)
     muted=$(palette_get "$1" muted)
     work=$(palette_get "$1" working)
+    emph=$(palette_get "$1" emphasis)
     grn=$(palette_get "$1" "done")
     border=$(palette_get "$1" border)
     cat >"$f" <<EOF
@@ -139,21 +163,32 @@ _fzf_color+=" --color=border:$border,gutter:$bg"
 EOF
 }
 
-# Env-driven tools (bat via BAT_THEME, and anything reading $THEME) inherit the flavor
-# from a file sourced by ~/.bashrc.d/theme.bash, so new shells follow it. Catppuccin bat
-# themes need installing separately; until then bat falls back harmlessly.
+# Env-driven tools (bat via BAT_THEME, leaf via LEAF_THEME, and anything reading $THEME)
+# inherit the flavor from a file sourced by ~/.bashrc.d/theme.bash, so new shells follow
+# it. Catppuccin bat themes need installing separately; until then bat falls back
+# harmlessly.
+#
+# leaf is the opposite case to yazi: it ships no Catppuccin, so those flavors get its
+# closest light/dark built-in instead. Every flavor must map to a theme leaf knows, and
+# the failure is silent rather than loud: an unrecognised LEAF_THEME does not error, leaf
+# falls back to its own default (ocean, a DARK theme) and ignores the config's `theme`
+# setting entirely - so an unmapped flavor here would quietly paint dark on a light
+# terminal. (The `--theme` flag is the strict path: it exits 1 on an unknown name.)
+# solarized-light is not a leaf built-in; it is registered under that name in
+# leaf/.config/leaf/config.toml.
 apply_env() {
     local f="$STATE_DIR/env.sh"
-    local bat
+    local bat leaf
     case "$1" in
-        solarized-light) bat="Solarized (light)" ;;
-        solarized-dark) bat="Solarized (dark)" ;;
-        catppuccin-latte) bat="Catppuccin Latte" ;;
-        catppuccin-mocha) bat="Catppuccin Mocha" ;;
+        solarized-light) bat="Solarized (light)" leaf="solarized-light" ;;
+        solarized-dark) bat="Solarized (dark)" leaf="solarized-dark" ;;
+        catppuccin-latte) bat="Catppuccin Latte" leaf="arctic" ;;
+        catppuccin-mocha) bat="Catppuccin Mocha" leaf="ocean" ;;
     esac
     cat >"$f" <<EOF
 export THEME="$1"
 export BAT_THEME="$bat"
+export LEAF_THEME="$leaf"
 EOF
 }
 
@@ -181,6 +216,36 @@ apply_delta() {
 EOF
 }
 
+# The tmux session popup renders the agent-state language in shell (the picker's rows
+# and its preview), so the four state colors and the popup's own fzf palette come from
+# here instead of being pinned in those scripts. Sourced when the popup opens, so a
+# switch lands the next time you press Alt-;.
+apply_agent_state() {
+    local f="$STATE_DIR/agent-state.sh"
+    local bg accent emph muted border block ask work grn
+    bg=$(palette_get "$1" bg)
+    accent=$(palette_get "$1" accent)
+    emph=$(palette_get "$1" emphasis)
+    muted=$(palette_get "$1" muted)
+    border=$(palette_get "$1" border)
+    block=$(palette_get "$1" blocked)
+    ask=$(palette_get "$1" asking)
+    work=$(palette_get "$1" working)
+    emph=$(palette_get "$1" emphasis)
+    grn=$(palette_get "$1" "done")
+    # The popup's selected row is a solid accent bar (bg+/fg+), deliberately louder than
+    # the shell fzf's subtle selection in fzf.sh; gutter/pointer stay off.
+    local sel="bg+:$accent,fg+:$bg,gutter:-1,pointer:-1,hl:$accent,hl+:$bg"
+    cat >"$f" <<EOF
+_state_blocked="$block"
+_state_asking="$ask"
+_state_working="$work"
+_state_done="$grn"
+_state_muted="$muted"
+_popup_fzf_color="$sel,border:$border,info:$muted,prompt:$emph"
+EOF
+}
+
 # nvim reads the flavor at startup from ~/.config/theme/nvim.lua (colorscheme + background).
 apply_nvim() {
     local scheme bg
@@ -202,8 +267,8 @@ EOF
 # hold the old colors in memory, so both get a nudge.
 clear_theme() {
     rm -f "$STATE_DIR/current" "$STATE_DIR/ghostty.conf" "$STATE_DIR/tmux.conf" \
-        "$STATE_DIR/fzf.sh" "$STATE_DIR/env.sh" "$STATE_DIR/delta.gitconfig" \
-        "$STATE_DIR/nvim.lua"
+        "$STATE_DIR/fzf.sh" "$STATE_DIR/agent-state.sh" "$STATE_DIR/env.sh" \
+        "$STATE_DIR/delta.gitconfig" "$STATE_DIR/nvim.lua"
     reload_ghostty
     if command -v tmux >/dev/null; then
         tmux set -gu @agentbar-theme 2>/dev/null || true
@@ -247,6 +312,7 @@ main() {
     apply_ghostty "$flavor"
     apply_tmux "$flavor"
     apply_fzf "$flavor"
+    apply_agent_state "$flavor"
     apply_env "$flavor"
     apply_delta "$flavor"
     apply_nvim "$flavor"
@@ -254,7 +320,7 @@ main() {
     accent=$(palette_get "$flavor" accent)
     msg="→ $flavor (accent $accent)."
     msg="$msg Ghostty + tmux reload now; new shells pick up fzf/bat;"
-    msg="$msg next git diff / nvim launch picks up delta / nvim;"
+    msg="$msg next git diff / nvim launch / Alt-; popup picks up delta / nvim / popup;"
     echo "$msg restart sidebars with prefix+e twice."
 }
 

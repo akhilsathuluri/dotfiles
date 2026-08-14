@@ -20,23 +20,24 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 
 ### Configs (stow packages)
 
-| Package              | Description                                                                                            | Target                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| `bash`               | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode                                        | `~/.bashrc.d/`                          |
-| `bat`                | Syntax highlighter theme                                                                               | `~/.config/bat/`                        |
-| `claude`             | Claude Code settings.json (agentbar + local hooks, statusLine, permissions), statusline script, skills | `~/.claude/`                            |
-| `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                                     | `~/.local/bin/`, `~/.config/autostart/` |
-| `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)                   | `~/.local/bin/clip`                     |
-| `dictate`            | Toggle-key local speech-to-text (faster-whisper) into tmux (Linux only)                                | `~/.local/bin/`                         |
-| `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)                            | `~/.config/ghostty/`                    |
-| `git`                | Git tool settings (delta pager, staging/blame, merge)                                                  | `~/.config/git/config`                  |
-| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                 | `~/.config/hunk/`                       |
-| `nvim`               | Neovim config (LazyVim, LSP, plugins)                                                                  | `~/.config/nvim/`                       |
-| `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                    | `~/.local/bin/`, `~/.config/autostart/` |
-| `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                          | `~/.local/bin/`                         |
-| `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)               | `~/.local/bin/theme`                    |
-| `tmux`               | Tmux config, gitmux, GitLab status script, `prefix + R` UI reset                                       | `~/.tmux.conf`, `~/.gitmux.conf`        |
-| `trace`              | Shared always-on trace log for the tmux/agent stack                                                    | `~/.local/bin/dotfiles-trace`           |
+| Package              | Description                                                                                                | Target                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `bash`               | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode                                            | `~/.bashrc.d/`                          |
+| `bat`                | Syntax highlighter theme                                                                                   | `~/.config/bat/`                        |
+| `claude`             | Claude Code settings.json (agentbar + local hooks, statusLine, permissions), statusline script, skills     | `~/.claude/`                            |
+| `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                                         | `~/.local/bin/`, `~/.config/autostart/` |
+| `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)                       | `~/.local/bin/clip`                     |
+| `dictate`            | Toggle-key local speech-to-text (faster-whisper) into tmux (Linux only)                                    | `~/.local/bin/`                         |
+| `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)                                | `~/.config/ghostty/`                    |
+| `git`                | Git tool settings (delta pager, staging/blame, merge)                                                      | `~/.config/git/config`                  |
+| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                     | `~/.config/hunk/`                       |
+| `leaf`               | leaf markdown previewer config, carrying a full Solarized Light palette (leaf ships only `solarized-dark`) | `~/.config/leaf/`                       |
+| `nvim`               | Neovim config (LazyVim, LSP, plugins)                                                                      | `~/.config/nvim/`                       |
+| `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                        | `~/.local/bin/`, `~/.config/autostart/` |
+| `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                              | `~/.local/bin/`                         |
+| `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)                   | `~/.local/bin/theme`                    |
+| `tmux`               | Tmux config, pane rails, GitLab status script, `prefix + R` UI reset, agent-following diff pane            | `~/.tmux.conf`, `~/.gitmux.conf`        |
+| `trace`              | Shared always-on trace log for the tmux/agent stack                                                        | `~/.local/bin/dotfiles-trace`           |
 
 `bootstrap.sh` auto-skips the Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) on macOS.
 
@@ -73,6 +74,7 @@ so both install the same pinned versions:
 - [jq](https://github.com/jqlang/jq) - JSON processor
 - [lazydocker](https://github.com/jesseduffield/lazydocker) - terminal Docker UI
 - [lazygit](https://github.com/jesseduffield/lazygit) - terminal git UI
+- [leaf](https://github.com/rivolink/leaf) - terminal markdown previewer
 - [Neovim](https://neovim.io/) - editor
 - [ripgrep](https://github.com/BurntSushi/ripgrep) - fast recursive search
 - [ruff](https://docs.astral.sh/ruff/) - Python linter (gates the `dictate` script)
@@ -92,17 +94,17 @@ failing half way through.
 The platform is decided in exactly one place: the `case "$(uname -s)"` at the top of `install.sh`. Linux takes pinned
 release assets and `apt`; macOS takes Homebrew, which resolves arm64 vs x86_64 itself.
 
-| Layer                                    | Linux                          | macOS                                                            |
-| ---------------------------------------- | ------------------------------ | ---------------------------------------------------------------- |
-| Configs (nvim, bat, git, hunk, ghostty)  | portable                       | portable - no change                                             |
-| Clipboard                                | wl-copy / xclip via `clip`     | `pbcopy` via `clip` - same call sites                            |
-| Shell config (`bash/.bashrc.d/`)         | sourced from `~/.bashrc`       | sourced from `~/.zshrc`; each file guards its bash-only sections |
-| System packages                          | `apt`, pinned release assets   | Homebrew - versions are whatever brew ships, not the pins here   |
-| `agentbar`                               | Go, built from source          | same Go build; the e2e suite is Linux-only                       |
-| `trace`                                  | GNU `date`/`stat`/`flock`      | BSD fallbacks in `dotfiles-trace`                                |
-| `dictate`                                | parec/pactl                    | not stowed - different audio stack, unscriptable mic permission  |
-| `claude-indicator`, `screenshot-watcher` | GNOME / inotify                | not stowed                                                       |
-| Ghostty                                  | Ubuntu PPA (skipped on Debian) | brew cask                                                        |
+| Layer                                         | Linux                          | macOS                                                            |
+| --------------------------------------------- | ------------------------------ | ---------------------------------------------------------------- |
+| Configs (nvim, bat, git, hunk, leaf, ghostty) | portable                       | portable - no change                                             |
+| Clipboard                                     | wl-copy / xclip via `clip`     | `pbcopy` via `clip` - same call sites                            |
+| Shell config (`bash/.bashrc.d/`)              | sourced from `~/.bashrc`       | sourced from `~/.zshrc`; each file guards its bash-only sections |
+| System packages                               | `apt`, pinned release assets   | Homebrew - versions are whatever brew ships, not the pins here   |
+| `agentbar`                                    | Go, built from source          | same Go build; the e2e suite is Linux-only                       |
+| `trace`                                       | GNU `date`/`stat`/`flock`      | BSD fallbacks in `dotfiles-trace`                                |
+| `dictate`                                     | parec/pactl                    | not stowed - different audio stack, unscriptable mic permission  |
+| `claude-indicator`, `screenshot-watcher`      | GNOME / inotify                | not stowed                                                       |
+| Ghostty                                       | Ubuntu PPA (skipped on Debian) | brew cask                                                        |
 
 `task portability` prints every Linux-only primitive and the files holding it.
 

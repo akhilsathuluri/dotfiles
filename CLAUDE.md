@@ -27,6 +27,10 @@ see "Platform support" in README.md for the per-layer detail.
 - `git/` → `~/.config/git/config` (delta pager, merge settings)
 - `hunk/` → `~/.config/hunk/` (hunk diff viewer config, Ayu Dark default; the `hunk()` wrapper in
   `bash/.bashrc.d/theme.bash` passes the active flavor to `hunk diff`)
+- `leaf/` → `~/.config/leaf/` (leaf markdown previewer config. Carries a full Solarized Light palette as
+  `[themes.solarized-light]`, since leaf ships only `solarized-dark`; that registration is what lets the theme switcher
+  drive leaf by name via `LEAF_THEME`. **leaf writes this file itself** - a first run with no config seeds upstream's
+  sample there, which then blocks `stow leaf`, so the backup step in `bootstrap.sh` is load-bearing)
 - `nvim/` → `~/.config/nvim/` (LazyVim config)
 - `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (Linux only - auto-copy screenshots
   to the clipboard)
@@ -36,7 +40,22 @@ see "Platform support" in README.md for the per-layer detail.
   flavor for you, so an unswitched machine keeps the defaults in the tracked configs (ghostty's own dark bg, tmux's
   green status bar, nvim's `vscode`); `theme none` clears the state and returns there)
 - `tmux/` → `~/.tmux.conf`, `~/.gitmux.conf`, `~/.local/bin/` scripts (`tmux-gitlab.sh` GitLab status, session picker,
-  resurrect guard, yank, `tmux-reset.sh` the `prefix + R` UI reset - reload + default geometry, nothing killed)
+  resurrect guard, yank, `tmux-reset.sh` the `prefix + R` UI reset - reload + default geometry, nothing killed,
+  `tmux-agent-state.sh` the sourced agent-state language - glyphs, colors and state ranking shared by the picker and its
+  preview, mirroring the sidebar's; colors come from the theme switcher, never hardcoded). **One session order
+  everywhere:** the agentbar sidebar's bands (pinned / active / dormant, alphabetical inside each) are the order,
+  `Alt-h`/`Alt-l` walk it row by row and wrap, and the `Alt-;` picker popup renders the same bands - all three read
+  `agentbar order`, and `p` (pin) in either view is the only thing that moves a session. **Every pane carries a rail**
+  (`pane-border-status top`, `tmux-rail.sh`) and the rule is the same for all of them: LEFT, always, this pane's folder
+  and branch; RIGHT, only when that pane runs Claude, the worktree it is _writing_ in - which its cwd never follows,
+  since the Bash tool's `cd` does not move a pane. Two zones via `#[align=right]`, so the left is anchored at one column
+  and the right grows leftward into rule; nothing shifts as state changes. **The diff pane follows the agent, not the
+  pane:** `tmux-diff-pane.sh` targets `@agent_workdir` (stamped by the agentbar hook from each Edit/Write) and records
+  what is on screen in `@diff_target`; when that worktree is one no agent is touching (`@agent_workdirs`, the recent
+  list) the `◧ diff` chip turns amber and clicking it follows. `tmux-worktree-picker.sh` (the menu's `W`) points it
+  anywhere in the repo family, and per-window auto-follow (`F`, off by default) does it unprompted. The footer holds no
+  per-pane facts at all - gitmux left it, taking ~72ms of git off every status redraw - only the work's commit, its CI
+  and the clock. `tmux-mockup.sh` (`task mockup`) previews the whole frame with fake data on a private server
 - `trace/` → `~/.local/bin/dotfiles-trace` (shared always-on trace log for the tmux/agent stack; see "Debugging" below)
 
 Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) are skipped automatically by `bootstrap.sh` on
@@ -118,11 +137,23 @@ records action _edges_ across the whole interactive stack:
   from every pane and has no fixed-size pane. `src=sidebar evt=pin` is the `window-resized` hook fixing the width
   itself; `prefix + R` logs `src=tmux evt=reset … changed=N` plus one `evt=layout win=… before=… after=…` per window it
   changed, and nothing when nothing had drifted.
+- **Reading a session jump that went to the wrong place:** `Alt-h`/`Alt-l` log
+  `src=agentbar evt=switch session=… from=… key=prev|next ms=…` - the session it landed on and the one it left. No line
+  at all means the binary never ran, so the binding fell through to tmux's own alphabetical `switch-client` (rebuild
+  it); a line whose `session=` is not the neighbouring row means the bands moved under you - `agentbar order` prints the
+  list the keys walk, and `src=agentbar evt=pin session=… pinned=…` is every pin change, from either the sidebar or the
+  picker popup.
 - **Reading state drift:** `src=hook evt=event name=… prev=… new=… sid=…` is ground truth of what Claude told the
   sidebar (`via=cwd` means the pane was recovered by the cwd fallback - a resumed / `claude daemon run` session that
   fired the hook with no `$TMUX_PANE`); `src=hook evt=drop reason=no_pane cwd=… sid=…` flags a hook that arrived with no
   pane to land on. `agentbar doctor` (run `$HOME/dotfiles/apps/agentbar/bin/agentbar doctor`) rolls this into a per-pane
   health check - the one-command way to spot a stale sidebar.
+- **Reading a diff pane showing the wrong tree:** `src=hook evt=workdir pane=… before=… after=…` is every move of an
+  agent's worktree (absent means the agent has only read files, or a hook is not wired - the pane then falls back to its
+  own cwd, the old behaviour). `src=tmux evt=diff action=create|respawn target=…` is what the diff pane was pointed at,
+  and `action=follow from=… to=…` every catch-up; a `to=` that is not where you expected means `@agent_workdir` is
+  stale, so read the `evt=workdir` line above it. `bg=bg` marks an auto-follow (no focus change), `bg=0` an explicit
+  one.
 - **Two writers, one format:** the `dotfiles-trace` CLI (`trace/`, used by all shell/tmux callers) and the Go
   `apps/agentbar/internal/trace` package (used by the sidebar + hook) - keep them in sync on timestamp, escaping, and
   rotation. **Log edges only, never hot loops** (mouse motion, ticks, status redraws, the dictate silence poll, fzf
@@ -169,6 +200,9 @@ here - this repo is public.
 - Bash files in `.bashrc.d/` use `.bash` extension
 - Only `00-path.bash` has a numeric prefix (must load first for PATH); all other files use plain names
 - Each tool init file guards with `command -v tool &>/dev/null || return`
+- Scripts under a `.local/bin/` are executable; a fragment meant to be **sourced** says so in its header comment and
+  stays non-executable (`task perms` enforces both - tmux swallows a `#()` it cannot execute as empty output, so a
+  missing `+x` makes a rail or a status segment silently vanish)
 - Private/work-specific config goes in `~/.bashrc.d/local.bash` (not tracked)
 - `bootstrap.sh` must be idempotent (safe to re-run)
 - `bootstrap.sh` scaffolds the two notes vaults (see "Vault template"); a vault with no git remote is reported once at
@@ -200,8 +234,9 @@ notes are generated from these, so the type and scope are the machine-readable p
 
 - **Types**: `feat` · `fix` · `docs` · `refactor` · `perf` · `test` · `build` · `ci` · `chore`
 - **Scope** is the area, matching a stow package, an app, or a repo concern: `agentbar`, `bash`, `bat`, `bootstrap`,
-  `claude`, `clip`, `design`, `dictate`, `ghostty`, `git`, `hunk`, `indicator`, `install`, `lint`, `nvim`, `release`,
-  `screenshot`, `task`, `tex`, `theme`, `tmux`, `trace`, `vault`. Omit it only when a change genuinely spans everything.
+  `claude`, `clip`, `design`, `dictate`, `ghostty`, `git`, `hunk`, `indicator`, `install`, `leaf`, `lint`, `nvim`,
+  `release`, `screenshot`, `task`, `tex`, `theme`, `tmux`, `trace`, `vault`. Omit it only when a change genuinely spans
+  everything.
 - **Breaking = needs manual steps on the machine.** A `!` after the scope (`feat(tmux)!:`) or a `BREAKING CHANGE:`
   footer marks a release that can't just be pulled - a re-login, a re-stow, a GNOME shortcut, a systemd unit. It renders
   as "needs manual steps" in the changelog and, pre-1.0, drives the MINOR bump.
@@ -232,9 +267,11 @@ release would publish; `task changelog` prepends to `CHANGELOG.md` rather than r
 are the ones that act on the live server (`tmux-reset` is `prefix + R`); the `agentbar:*` tasks delegate to that
 project's own build files.
 
-`task check-ci` reruns the agentbar suite in a container mirroring the runner: older tmux, no `LANG`, `CI` set. Run it
-before pushing anything that touches tmux, rendering or the pane protocol. The rest of the gate reads files and is
-environment-blind.
+`task check-ci` reruns the tmux-driven suites - the shell gates and the agentbar tests - in a container mirroring the
+runner: gawk as `awk`, no `LANG`, `CI` set. Run it before pushing anything that touches tmux, rendering or the pane
+protocol. The rest of the gate reads files and is environment-blind. **The runner's `awk` is gawk and Ubuntu's is
+mawk**: on `exit` gawk closes the pipe and SIGPIPEs the producer, so under `set -e` + `pipefail` a pipeline that reads
+one line and quits dies on CI and passes here. Match a first row with a flag, never `exit`.
 
 ## Formatting
 

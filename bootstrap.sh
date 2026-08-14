@@ -93,7 +93,7 @@ backup_pkg_files() {
 }
 
 stow_packages() {
-    local packages=(bash bat claude clip ghostty git hunk nvim tex theme tmux trace)
+    local packages=(bash bat claude clip ghostty git hunk leaf nvim tex theme tmux trace)
     if is_linux; then
         # Linux-only: GNOME indicator, screenshot watcher (inotify) and dictate
         # (parec/pactl audio stack) have no macOS counterpart.
@@ -121,6 +121,7 @@ stow_packages() {
     backup_if_not_symlink "$HOME/.config/bat"
     backup_if_not_symlink "$HOME/.config/ghostty"
     backup_if_not_symlink "$HOME/.config/hunk"
+    backup_if_not_symlink "$HOME/.config/leaf"
 
     cd "$DOTFILES_DIR"
     for pkg in "${packages[@]}"; do
