@@ -28,6 +28,8 @@ see "Platform support" in README.md for the per-layer detail.
   backends, named for the hardware and picked by what is installed rather than an env var: `gpu` (whisper.cpp via
   Vulkan, on an AMD or Intel iGPU or NVIDIA) once `./install.sh whisper-vulkan` has run, else `cpu` (faster-whisper).
   Same `small.en`, measured 2.7× faster on the GPU. Vulkan is Linux-only, so macOS is always `cpu`.
+  `DICTATE_TMUX_SSH=user@host` routes every tmux call over ssh, so a laptop can dictate into a headless box's pane -
+  dictate runs where the mic is, never on the remote (no mic there to reach).
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
 - `git/` → `~/.config/git/config` (delta pager, merge settings)
 - `hunk/` → `~/.config/hunk/` (hunk diff viewer config, Ayu Dark default; the `hunk()` wrapper in

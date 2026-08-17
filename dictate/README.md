@@ -36,6 +36,33 @@ The transcript goes to the pane you're focused on if it's running Claude; otherw
 session; otherwise the most-recently-active `claude` pane. Check it with `dictate --target`. Force a specific pane with
 `DICTATE_TMUX_TARGET` (a pane id like `%7`, or `session:win.pane`).
 
+## Dictating into a remote tmux
+
+Set `DICTATE_TMUX_SSH` to an ssh destination and every tmux call goes there - target lookup, `send-keys`, the status
+chips - while the mic stays on the machine you're sitting at:
+
+```bash
+export DICTATE_TMUX_SSH=user@devbox     # or a ~/.ssh/config alias
+dictate --check                         # proves the hop, then reports the target pane
+dictate --toggle                        # records here, types there
+```
+
+**Run dictate on the machine with the microphone, always.** An SSH session splits the two halves - the mic is local, the
+pane is remote - and a remote `dictate` cannot reach your mic, no matter what audio packages the far end has. That is
+why this is a tmux-side option rather than an audio-forwarding one: nothing has to stream, and the far end needs no
+sound server, no `parec`, no `pulseaudio-utils`. It needs `tmux`; this end needs `uv`, `ssh`, and the capture backend.
+
+Notes:
+
+- **Key auth, no passphrase prompt.** Calls run under `BatchMode=yes` - a key that needs a passphrase must already be in
+  your agent, or the keypress fails silently (`dotfiles-trace show --src dictate` records it as `evt=remote`).
+- **Bind the key locally.** Inside a remote tmux, `prefix + m` is the _remote_ server's binding and runs the far end's
+  dictate. Use a desktop hotkey on the local machine instead: `dictate --install-shortcut` on GNOME, or Karabiner /
+  Hammerspoon / skhd / Raycast on macOS, or your local tmux's own `prefix + m`.
+- Per-host ssh settings belong in `~/.ssh/config` (port, user, jump host, identity). dictate sets only connection
+  multiplexing, which it needs: one dictation makes ~10 tmux calls, and a fresh handshake each would be felt.
+- `DICTATE_SSH_BIN` swaps the ssh binary itself, for a wrapper or an alternate client.
+
 ## Requirements
 
 `uv`, `tmux`, and `parec` + `pactl` (both from `pulseaudio-utils`). First run downloads the model (~250 MB, cached).
@@ -88,6 +115,8 @@ button in the status bar).
 | `DICTATE_DUCK`        | `1`            | mute other audio while recording (`0`/`off` disables)       |
 | `DICTATE_TMUX_CMD`    | `claude`       | pane command treated as the target app                      |
 | `DICTATE_TMUX_TARGET` | _(unset)_      | force a pane (pane id or `session:win.pane`)                |
+| `DICTATE_TMUX_SSH`    | _(unset)_      | route every tmux call to this ssh destination               |
+| `DICTATE_SSH_BIN`     | `ssh`          | ssh binary used by `DICTATE_TMUX_SSH`                       |
 | `DICTATE_TEST_SECS`   | `5`            | seconds recorded by `--test`                                |
 
 Put per-machine overrides in `~/.bashrc.d/local.bash` (untracked), e.g. `export DICTATE_SOURCE=...`.
