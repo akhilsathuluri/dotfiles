@@ -21,11 +21,13 @@ see "Platform support" in README.md for the per-layer detail.
   fed by the `claude/.claude/hooks/` state files)
 - `clip/` → `~/.local/bin/clip` (copy stdin to the clipboard; picks wl-copy, xclip or pbcopy). Every copy path - tmux
   `copy-command`, `tmux-yank.sh`, fzf's Ctrl-Y, nvim - goes through it, so the backend is chosen in one place.
-- `dictate/` → `~/.local/bin/dictate` (Linux only - toggle-key local Whisper dictation into tmux; opt-in). Has its own
-  nested `CLAUDE.md` - read it before touching the script. Deps are opt-in too: `./bootstrap.sh dictate-deps`. Two
+- `dictate/` → `~/.local/bin/dictate` (toggle-key local Whisper dictation into tmux; opt-in). Has its own nested
+  `CLAUDE.md` - read it before touching the script. Deps are opt-in too: `./bootstrap.sh dictate-deps`. Cross platform:
+  capture is `parec` on Linux and `ffmpeg -f avfoundation` on macOS, which also needs a one-time microphone grant for
+  the terminal. The `--install-shortcut` GNOME binding is Linux-only; on macOS use `prefix + m`. Two transcription
   backends, named for the hardware and picked by what is installed rather than an env var: `gpu` (whisper.cpp via
   Vulkan, on an AMD or Intel iGPU or NVIDIA) once `./install.sh whisper-vulkan` has run, else `cpu` (faster-whisper).
-  Same `small.en`, measured 2.7× faster on the GPU.
+  Same `small.en`, measured 2.7× faster on the GPU. Vulkan is Linux-only, so macOS is always `cpu`.
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
 - `git/` → `~/.config/git/config` (delta pager, merge settings)
 - `hunk/` → `~/.config/hunk/` (hunk diff viewer config, Ayu Dark default; the `hunk()` wrapper in
@@ -45,8 +47,7 @@ see "Platform support" in README.md for the per-layer detail.
 - `tmux/` → `~/.tmux.conf`, `~/.local/bin/` scripts - see [tmux](#tmux) below
 - `trace/` → `~/.local/bin/dotfiles-trace` (shared always-on trace log for the tmux/agent stack; see "Debugging")
 
-Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) are skipped automatically by `bootstrap.sh` on
-macOS.
+Linux-only packages (`claude-indicator`, `screenshot-watcher`) are skipped automatically by `bootstrap.sh` on macOS.
 
 ### tmux
 

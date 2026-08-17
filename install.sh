@@ -236,6 +236,21 @@ install_dictate_deps() {
             env UV_INSTALL_DIR="$LOCAL_BIN" INSTALLER_NO_MODIFY_PATH=1 sh
         ok "uv installed"
     fi
+    # The capture backend: ffmpeg's avfoundation input on macOS, parec on linux
+    # (pactl comes with it and does the audio ducking, which macOS simply skips).
+    if is_macos; then
+        if command -v ffmpeg &>/dev/null; then
+            ok "ffmpeg already installed"
+        else
+            log "Installing ffmpeg (avfoundation capture)..."
+            brew install ffmpeg
+            ok "ffmpeg installed"
+        fi
+        warn "macOS: the first recording raises a microphone prompt for your terminal."
+        warn "Grant it in System Settings > Privacy & Security > Microphone, else the"
+        warn "capture yields silence with no error."
+        return 0
+    fi
     # parec (record) + pactl (audio ducking), both from pulseaudio-utils. Absent
     # on a fresh Ubuntu base, usually present on the desktop. Guarded = no-op when
     # already there.

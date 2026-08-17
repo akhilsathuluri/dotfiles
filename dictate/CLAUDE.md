@@ -50,6 +50,23 @@ values still resolve.
   (`shutil.which("dictate")`, used to spawn `--serve`/`--watch`) all resolve it by that name. Stow is what provides it;
   moving to `apps/` (run-in-place) would only reintroduce a symlink.
 
+## Platform split (linux + macOS)
+
+- Exactly three things differ, all guarded by `IS_MAC`: **capture** (`parec` vs `ffmpeg -f avfoundation`, both writing
+  the same raw s16le mono PCM, so the watcher, the model and the tmux send never learn which ran), **pid identity**
+  (`/proc/<pid>/comm|cmdline` vs `ps -o comm=|command=`, behind `proc_name()` / `proc_cmdline()`), and
+  **`--install-shortcut`** (GNOME `gsettings` only - macOS has no user-level global-hotkey API that skips the
+  Accessibility prompt, so it exits telling you to bind `dictate --toggle` yourself or use `prefix + m`).
+- `CAPTURE_BIN` is the name both the liveness checks and `require()` compare against - add a backend and it is the only
+  string to teach them.
+- Audio **ducking is Linux-only in practice**: `_pactl()` swallows the `OSError` when `pactl` is absent, so macOS simply
+  records without muting. Not a guard - a graceful degrade that predates the port.
+- macOS device selection: `DICTATE_SOURCE` takes an avfoundation index or name from
+  `ffmpeg -f avfoundation -list_devices true -i ""`. Default is `default` (the system input), **not** index 0 - the
+  indices renumber across reboots and headsets, and 0 is often a virtual device.
+- The first macOS recording raises the mic prompt for the **terminal**, not for dictate. Denied or undecided, capture
+  yields silence with no error - the failure looks like a bad mic, not a permission.
+
 ## Process model
 
 - The **toggle client** never imports faster-whisper. It ships raw PCM to a model server and reads text back.

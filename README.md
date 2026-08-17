@@ -27,7 +27,7 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 | `claude`             | Claude Code settings.json (agentbar + local hooks, statusLine, permissions), statusline script, skills     | `~/.claude/`                            |
 | `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                                         | `~/.local/bin/`, `~/.config/autostart/` |
 | `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)                       | `~/.local/bin/clip`                     |
-| `dictate`            | Toggle-key local speech-to-text into tmux - faster-whisper on CPU, or whisper.cpp on the GPU (Linux only)  | `~/.local/bin/`                         |
+| `dictate`            | Toggle-key local speech-to-text into tmux - faster-whisper on CPU, or whisper.cpp on the GPU               | `~/.local/bin/`                         |
 | `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)                                | `~/.config/ghostty/`                    |
 | `git`                | Git tool settings (delta pager, staging/blame, merge)                                                      | `~/.config/git/config`                  |
 | `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                     | `~/.config/hunk/`                       |
@@ -39,7 +39,7 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 | `tmux`               | Tmux config, pane rails, GitLab status script, `prefix + R` UI reset, agent-following diff pane            | `~/.tmux.conf`                          |
 | `trace`              | Shared always-on trace log for the tmux/agent stack                                                        | `~/.local/bin/dotfiles-trace`           |
 
-`bootstrap.sh` auto-skips the Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) on macOS.
+`bootstrap.sh` auto-skips the Linux-only packages (`claude-indicator`, `screenshot-watcher`) on macOS.
 
 ### Apps (built from source)
 
@@ -101,7 +101,7 @@ release assets and `apt`; macOS takes Homebrew, which resolves arm64 vs x86_64 i
 | System packages                               | `apt`, pinned release assets   | Homebrew - versions are whatever brew ships, not the pins here   |
 | `agentbar`                                    | Go, built from source          | same Go build; the e2e suite is Linux-only                       |
 | `trace`                                       | GNU `date`/`stat`/`flock`      | BSD fallbacks in `dotfiles-trace`                                |
-| `dictate`                                     | parec/pactl                    | not stowed - different audio stack, unscriptable mic permission  |
+| `dictate`                                     | parec/pactl, GPU via Vulkan    | ffmpeg (avfoundation); no ducking, manual mic grant, CPU backend |
 | `claude-indicator`, `screenshot-watcher`      | GNOME / inotify                | not stowed                                                       |
 | Ghostty                                       | Ubuntu PPA (skipped on Debian) | brew cask                                                        |
 

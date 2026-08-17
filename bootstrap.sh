@@ -93,11 +93,11 @@ backup_pkg_files() {
 }
 
 stow_packages() {
-    local packages=(bash bat claude clip ghostty git hunk leaf nvim tex theme tmux trace)
+    local packages=(bash bat claude clip dictate ghostty git hunk leaf nvim tex theme tmux trace)
     if is_linux; then
-        # Linux-only: GNOME indicator, screenshot watcher (inotify) and dictate
-        # (parec/pactl audio stack) have no macOS counterpart.
-        packages+=(claude-indicator dictate screenshot-watcher)
+        # Linux-only: the GNOME indicator and the screenshot watcher (inotify)
+        # have no macOS counterpart.
+        packages+=(claude-indicator screenshot-watcher)
     fi
 
     # Single files we own outright: back up the file itself.

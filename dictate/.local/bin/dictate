@@ -27,7 +27,7 @@ otherwise a `claude` pane in your current session, otherwise the most-recent
 
 Setup:
   dictate --install-shortcut     # bind Super+\\ and Super+Z to `dictate --toggle`
-  dictate --check                # verify parec + tmux
+  dictate --check                # verify the capture backend + tmux
 
 Commands: run `dictate --help`. Env-var config (DICTATE_*): see dictate/README.md.
 """
@@ -66,7 +66,7 @@ COMPUTE   = os.environ.get("DICTATE_COMPUTE", "int8")
 LANG      = os.environ.get("DICTATE_LANG", "en")
 SOURCE    = os.environ.get("DICTATE_SOURCE", "")
 BEAM      = int(os.environ.get("DICTATE_BEAM", "1"))
-LATENCY   = os.environ.get("DICTATE_LATENCY", "50")  # ms; low so parec flushes promptly
+LATENCY   = os.environ.get("DICTATE_LATENCY", "50")  # ms; low so parec flushes promptly (linux)
 TMUX_CMD  = os.environ.get("DICTATE_TMUX_CMD", "claude")
 TMUX_TGT  = os.environ.get("DICTATE_TMUX_TARGET", "")
 # Whisper reads this as the text preceding the clip, so listed words become far
@@ -87,6 +87,13 @@ PROMPT    = os.environ.get(
     "tickets, bugs, features, Claude Code, skill, Python, JSON, API, YAML, merge request.",
 )
 RATE = 16000  # Whisper wants 16 kHz mono
+
+# Platform split. Only three things differ: what captures the mic, how a pid is
+# identified, and whether the desktop shortcut can be installed. Everything after
+# capture - the raw s16le stream, the watcher, the model, the tmux send - is the
+# same code on both, because both capture commands write the identical PCM.
+IS_MAC = sys.platform == "darwin"
+CAPTURE_BIN = "ffmpeg" if IS_MAC else "parec"
 
 RUNTIME  = os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/dictate-{os.getuid()}"
 PCM_FILE = os.path.join(RUNTIME, "dictate.pcm")
@@ -504,13 +511,50 @@ def serve_stop():
         log("no running model server")
 
 
-# ---- recording (detached parec -> temp file; daemonless toggle state) ----
-def parec_cmd():
+# ---- recording (detached capture -> temp file; daemonless toggle state) ----
+def capture_cmd():
+    """Mic -> raw s16le mono PCM on stdout, at RATE. parec on linux, ffmpeg's
+    avfoundation input on macOS - the same bytes either way, so the watcher and
+    the model never learn which platform produced them."""
+    if IS_MAC:
+        # avfoundation addresses inputs as "[video]:[audio]"; the empty video half
+        # keeps the camera closed. DICTATE_SOURCE takes an index or a device name
+        # from `ffmpeg -f avfoundation -list_devices true -i ""` - the indices are
+        # not stable across reboots or a plugged-in headset, so the default is the
+        # system's own default input rather than device 0.
+        return ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+                "-f", "avfoundation", "-i", f":{SOURCE or 'default'}",
+                "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"]
     cmd = ["parec", "--format=s16le", f"--rate={RATE}", "--channels=1",
            f"--latency-msec={LATENCY}"]
     if SOURCE:
         cmd.append(f"--device={SOURCE}")
     return cmd
+
+
+def proc_name(pid):
+    """Basename of a running pid's command, or "" if it is gone. /proc is linux-only,
+    so macOS asks ps - same question, same answer shape."""
+    try:
+        if IS_MAC:
+            r = subprocess.run(["ps", "-p", str(pid), "-o", "comm="],
+                               capture_output=True, text=True)
+            return os.path.basename(r.stdout.strip())
+        return open(f"/proc/{pid}/comm").read().strip()
+    except (OSError, ValueError):
+        return ""
+
+
+def proc_cmdline(pid):
+    """Full command line of a running pid, or "" if it is gone (see proc_name)."""
+    try:
+        if IS_MAC:
+            r = subprocess.run(["ps", "-p", str(pid), "-o", "command="],
+                               capture_output=True, text=True)
+            return r.stdout.strip()
+        return open(f"/proc/{pid}/cmdline").read()
+    except (OSError, ValueError):
+        return ""
 
 
 # ---- duck other audio while recording (mute default sink, restore on stop) ----
@@ -559,7 +603,7 @@ def cleanup():
 def recording_pid():
     try:
         pid = int(open(PID_FILE).read().strip())
-        if open(f"/proc/{pid}/comm").read().strip() == "parec":
+        if proc_name(pid) == CAPTURE_BIN:
             return pid
     except (OSError, ValueError):
         pass
@@ -573,7 +617,7 @@ def start_recording(autosend=False):
         open(SEND_FILE, "w").close()
     duck_mute()                                # silence other audio so the mic hears only you
     f = open(PCM_FILE, "wb")
-    p = subprocess.Popen(parec_cmd(), stdout=f, stderr=subprocess.DEVNULL,
+    p = subprocess.Popen(capture_cmd(), stdout=f, stderr=subprocess.DEVNULL,
                          start_new_session=True)  # survives this short-lived process
     open(PID_FILE, "w").write(str(p.pid))
     set_state("rec", "dictsend" if autosend else "dictate")
@@ -596,7 +640,7 @@ def stop_and_send(pid):
     except ProcessLookupError:
         pass
     try:
-        for _ in range(50):                    # wait up to ~1s for parec to exit & flush
+        for _ in range(50):                    # wait up to ~1s for capture to exit & flush
             try:
                 os.kill(pid, 0); time.sleep(0.02)
             except ProcessLookupError:
@@ -606,13 +650,30 @@ def stop_and_send(pid):
         except OSError:
             pcm = b""
         cleanup()
-        unduck()                                  # parec is dead + PCM captured -> mic closed,
+        unduck()                                  # capture is dead + PCM captured -> mic closed,
                                                   # buffer frozen: restore audio now, not after
                                                   # the slow transcribe. Removes DUCK_FILE, so
                                                   # every path below is already unmuted.
         if len(pcm) < MIN_PCM:                    # stray tap - don't wake the server
             log("(no speech)"); flash("no speech")
             trace("result", outcome="no-speech"); return
+        if not pcm.strip(b"\x00"):
+            # Every sample exactly zero. A live mic in a silent room still dithers,
+            # so this is never quiet - it is the OS handing us a muted stream. On
+            # macOS that is how a missing microphone grant presents: no error, no
+            # prompt, just silence, and the transcript then comes back empty and
+            # gets blamed on the speaker. Say what it actually is, and skip the
+            # ~6 s of transcribing digital zeroes.
+            log("(silence - the mic returned no signal at all)")
+            if IS_MAC:
+                log("macOS microphone permission is per-process and decided once,")
+                log("at first use: a tmux server started before the grant keeps the")
+                log("denial for its whole life, and dictate inherits it. Grant your")
+                log("terminal Microphone access, then restart the tmux server.")
+            else:
+                log(f"Check the input source: {SOURCE or 'the default'} may be muted or wrong.")
+            flash("mic returned silence - check permission")
+            trace("result", outcome="silent", secs=round(len(pcm) / (RATE * 2), 1)); return
         log(f"■ captured {len(pcm)/(RATE*2):.1f}s, transcribing…")
         trace("transcribe", secs=round(len(pcm)/(RATE*2), 1))
         try:
@@ -649,7 +710,7 @@ def stop_and_send(pid):
 def watch_pid():
     try:
         wpid = int(open(WATCH_PID).read().strip())
-        if "--watch" in open(f"/proc/{wpid}/cmdline").read():
+        if "--watch" in proc_cmdline(wpid):
             return wpid
     except (OSError, ValueError):
         pass
@@ -657,7 +718,7 @@ def watch_pid():
 
 
 def watch(pid):
-    """Auto-stop the parec recording after trailing silence (post-speech) or the cap."""
+    """Auto-stop the recording after trailing silence (post-speech) or the cap."""
     import numpy as np
     open(WATCH_PID, "w").write(str(os.getpid()))
     stop = []
@@ -669,12 +730,8 @@ def watch(pid):
     try:
         while not stop:
             time.sleep(0.15)
-            try:
-                alive = open(f"/proc/{pid}/comm").read().strip() == "parec"
-            except OSError:
-                alive = False
-            if not alive:
-                break                          # parec ended/crashed - finalise what we have
+            if proc_name(pid) != CAPTURE_BIN:
+                break                          # capture ended/crashed - finalise what we have
             try:
                 with open(PCM_FILE, "rb") as fh:
                     fh.seek(posn); data = fh.read()
@@ -696,7 +753,7 @@ def watch(pid):
 
 
 def toggle(autosend=False):
-    require("parec")
+    require(CAPTURE_BIN)
     pid = recording_pid()
     if not pid:
         trace("toggle", branch="start", autosend=int(autosend))
@@ -715,6 +772,14 @@ DEFAULT_BINDINGS = ["<Super>backslash", "<Super>z"]
 
 
 def install_shortcut(bindings):
+    if IS_MAC:
+        # No gsettings, and macOS has no user-level API for a global hotkey that
+        # doesn't need Accessibility permission. Bind it by hand instead - the
+        # toggle is just a command, so anything that can run one will do.
+        log("--install-shortcut is linux/GNOME only.")
+        log("On macOS bind `dictate --toggle` in Karabiner-Elements, Raycast or")
+        log("Shortcuts.app, or use the ● dictate chip / prefix + m inside tmux.")
+        sys.exit(1)
     require("gsettings")
     import ast
     bindings = bindings or DEFAULT_BINDINGS
@@ -741,11 +806,11 @@ def install_shortcut(bindings):
 
 # ---- checks --------------------------------------------------------------
 def check():
-    require("parec"); require("tmux")
+    require(CAPTURE_BIN); require("tmux")
     if not panes():
         log("tmux has no panes - start tmux first."); sys.exit(1)
     _, lbl = resolve_target()
-    log(f"OK - parec + tmux present. Transcript would go to: {lbl}")
+    log(f"OK - {CAPTURE_BIN} + tmux present. Transcript would go to: {lbl}")
     log(f"model server: {'up' if server_up() else 'down (spawns on first dictation)'}")
     if BACKEND == "gpu":
         # Report the pieces before a dictation needs them: a missing binary or
@@ -759,14 +824,14 @@ def check():
 
 
 def self_test():
-    require("parec")
+    require(CAPTURE_BIN)
     secs = float(os.environ.get("DICTATE_TEST_SECS", "5"))
     if recording_pid():
         log("a dictation is recording right now - stop it first"); sys.exit(1)
     model, np = load_model()
     os.makedirs(RUNTIME, exist_ok=True)
     f = open(TEST_PCM, "wb")
-    p = subprocess.Popen(parec_cmd(), stdout=f, stderr=subprocess.DEVNULL)
+    p = subprocess.Popen(capture_cmd(), stdout=f, stderr=subprocess.DEVNULL)
     log(f"● recording {secs:.0f}s - speak now…")
     time.sleep(secs)
     p.terminate()
@@ -797,7 +862,7 @@ USAGE = """dictate - toggle-key local speech-to-text into tmux (local, zero priv
   dictate --toggle [--send]            start/stop (--send also presses Enter)
   dictate --target                     show which pane the transcript goes to
   dictate --install-shortcut [KEYS…]   bind GNOME keys (default <Super>backslash + <Super>z)
-  dictate --check                      verify parec + tmux, report server state
+  dictate --check                      verify capture backend + tmux, report server state
   dictate --test                       record & print a transcript, with its backend and ms
   dictate --serve-stop                 stop the model server (to pick up new config)
 
