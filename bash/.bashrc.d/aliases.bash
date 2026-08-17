@@ -1,11 +1,41 @@
 # Shell
 set -o vi
-# vi-insert keymap defaults Ctrl+L to self-insert; restore clear-screen.
-# `bind` is bash-only; zsh has `bindkey` and a separate vicmd/viins logic, so
-# skip when sourced under zsh (the macOS default shell).
+# Keymap repair for vi mode - `bind` is bash-only, zsh has `bindkey` and its own
+# viins/vicmd keymaps, so each shell gets the same set its own way. Two defaults bite:
+#
+#   - the insert keymap makes Ctrl+L self-insert; restore clear-screen.
+#   - Option/Alt + arrow arrives as CSI 1;3<D|C|A|B> (ghostty/config maps the left
+#     Option to Alt) and nothing binds it, so the leading ESC switches to the command
+#     keymap and the trailing letter runs there as a command: option+left was
+#     vi-kill-eol and option+right vi-change-eol - the rest of the line silently gone,
+#     from a key that should only ever move the cursor. Binding the family keeps the
+#     sequence matched. Up/Down have no word-motion meaning on one line, so they are
+#     bound to nothing rather than left to fire vi-add-eol. \eb / \ef cover terminals
+#     that send Option+arrow as meta-b / meta-f instead of the CSI form.
 if [ -n "${BASH_VERSION:-}" ]; then
     bind -m vi-insert '"\C-l": clear-screen'
     bind -m vi-command -x '"\C-l": printf "\033[2J\033[H"'
+    for _keymap in vi-insert vi-command; do
+        bind -m "$_keymap" '"\e[1;3D": backward-word'
+        bind -m "$_keymap" '"\e[1;3C": forward-word'
+        bind -m "$_keymap" '"\eb": backward-word'
+        bind -m "$_keymap" '"\ef": forward-word'
+        bind -m "$_keymap" '"\e\C-?": backward-kill-word'
+        bind -m "$_keymap" '"\e[1;3A": ""'
+        bind -m "$_keymap" '"\e[1;3B": ""'
+    done
+    unset _keymap
+elif [ -n "${ZSH_VERSION:-}" ]; then
+    for _keymap in viins vicmd; do
+        bindkey -M "$_keymap" '^[[1;3D' backward-word
+        bindkey -M "$_keymap" '^[[1;3C' forward-word
+        bindkey -M "$_keymap" '^[b' backward-word
+        bindkey -M "$_keymap" '^[f' forward-word
+        bindkey -M "$_keymap" '^[^?' backward-kill-word
+        bindkey -M "$_keymap" '^[[1;3A' undefined-key
+        bindkey -M "$_keymap" '^[[1;3B' undefined-key
+    done
+    unset _keymap
 fi
 export VISUAL=nvim
 export EDITOR=nvim
