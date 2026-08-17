@@ -225,7 +225,9 @@ stow -R <package>    # Re-link (unlink + link)
 - **Python venvs**: direnv auto-activates `.venv` per directory.
 - **Idempotent**: `bootstrap.sh` is safe to re-run (skips what's installed).
 - **Smoke test**: `task fresh` runs bootstrap in a clean Ubuntu 24.04 container (checks binaries, symlinks,
-  idempotency); run before touching `bootstrap.sh`. The release workflow runs it too, so no release ships without it.
+  idempotency); `task fresh IMAGE=debian:13` does the same on Debian. Run both before touching `bootstrap.sh` or the apt
+  list - a package name Debian doesn't carry is invisible on Ubuntu. The release workflow runs both, so no release ships
+  without them.
 
 ## License
 

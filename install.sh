@@ -93,9 +93,14 @@ install_apt_packages() {
         bat bison build-essential chafa curl direnv fontconfig
         gir1.2-ayatanaappindicator3-0.1 imagemagick inotify-tools jq
         libevent-dev libfontconfig-dev libncurses-dev pkg-config poppler-utils
-        python3-gi ripgrep software-properties-common stow tree unzip wget
-        wl-clipboard xclip
+        python3-gi ripgrep stow tree unzip wget wl-clipboard xclip
     )
+    # add-apt-repository, for install_ghostty's PPA. Ubuntu-only: Debian 13 ships no
+    # such package, and apt-get fails the whole install over one unavailable name -
+    # which under `set -e` aborted the bootstrap at its first step, on every run.
+    if is_ubuntu; then
+        pkgs+=(software-properties-common)
+    fi
     local to_install=()
     for pkg in "${pkgs[@]}"; do
         dpkg -s "$pkg" &>/dev/null || to_install+=("$pkg")
@@ -352,7 +357,6 @@ install_gitleaks() {
     rm -rf "$tmp"
     ok "gitleaks $GITLEAKS_VERSION installed"
 }
-
 
 install_go() {
     is_linux || return 0 # macOS gets it from brew

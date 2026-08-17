@@ -171,9 +171,9 @@ tasks:
         test/diff-target.sh && cd {{.AGENTBAR}} && go test ./... -count=1'
 
   fresh:
-    desc: Full bootstrap in a clean Ubuntu container, twice (needs docker, ~10 min)
+    desc: Full bootstrap in a clean container, twice (needs docker, ~10 min). IMAGE=debian:13 for Debian
     cmds:
-      - test/bootstrap-fresh.sh
+      - test/bootstrap-fresh.sh {{.IMAGE}}
 
   changelog:
     desc: Regenerate CHANGELOG.md for a version, e.g. task changelog V=v0.2.0

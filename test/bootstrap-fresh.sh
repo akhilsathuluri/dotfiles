@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
-# Fresh-install smoke test: runs bootstrap.sh in a clean Ubuntu 24.04 container,
-# fails if the first run exits non-zero, verifies binaries + stow symlinks AND the
-# post-stow steps (bashrc patch, vaults, agentbar, nvim plugins), then runs
-# bootstrap a second time to confirm idempotency. ~5 min on first run; cached
-# subsequent runs are faster.
+# Fresh-install smoke test: runs bootstrap.sh in a clean container, fails if the
+# first run exits non-zero, verifies binaries + stow symlinks AND the post-stow
+# steps (bashrc patch, vaults, agentbar, nvim plugins), then runs bootstrap a
+# second time to confirm idempotency. ~5 min on first run; cached subsequent runs
+# are faster.
 #
-# Usage: test/bootstrap-fresh.sh
+# Run it for every distro README claims: an Ubuntu-only package name is invisible
+# here until Debian runs it too.
+#
+# Usage: test/bootstrap-fresh.sh [image]   (default: ubuntu:24.04)
 # Requires: docker.
 
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+IMAGE="${1:-ubuntu:24.04}"
 
 command -v docker >/dev/null || {
     echo "docker not found"
     exit 1
 }
 
-docker run --rm -v "$DOTFILES_DIR:/dotfiles:ro" ubuntu:24.04 bash -c '
+echo "=== fresh-install test on $IMAGE ==="
+docker run --rm -v "$DOTFILES_DIR:/dotfiles:ro" "$IMAGE" bash -c '
 set -e
 apt-get update -qq && apt-get install -y -qq sudo git curl ca-certificates >/dev/null
 useradd -m -s /bin/bash test
@@ -29,13 +34,19 @@ su - test -c "cd ~/dotfiles && ./bootstrap.sh" 2>&1 | tail -60
 rc=${PIPESTATUS[0]}
 [ "$rc" -eq 0 ] || { echo "FAIL: first bootstrap run exited $rc (must be 0 on a fresh machine)"; exit 1; }
 
+# Ghostty comes from a PPA install.sh skips off Ubuntu, so expect it only there.
+# $BINS is expanded by this shell, before su ever sees the string.
+BINS="fzf fd delta lazygit lazydocker zoxide nvim git-cliff gitleaks ruff shellcheck shfmt task"
+if grep -qE "^ID=ubuntu\$" /etc/os-release; then
+  BINS="$BINS ghostty"
+fi
+
 su - test -c "
 export PATH=\$HOME/.local/bin:\$PATH
 echo
 echo \"--- binaries ---\"
 fail=0
-for b in fzf fd delta lazygit lazydocker zoxide nvim ghostty \
-  git-cliff gitleaks ruff shellcheck shfmt task; do
+for b in $BINS; do
   if v=\$(\"\$b\" --version 2>/dev/null | head -1); then
     printf \"OK   %-12s %s\n\" \"\$b\" \"\$v\"
   else
@@ -53,7 +64,7 @@ done
 
 echo
 echo \"--- post-stow steps (skipped entirely if bootstrap aborted early) ---\"
-grep -q \"Load dotfiles shell customizations\" ~/.bashrc \\
+grep -q \"# >>> dotfiles >>>\" ~/.bashrc \\
   && printf \"OK   %s\n\" \".bashrc patched\" \\
   || { printf \"MISS %s\n\" \".bashrc patch\"; fail=1; }
 for d in ~/vaults/personal ~/vaults/work ~/.local/share/nvim/lazy; do

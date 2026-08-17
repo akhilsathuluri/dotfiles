@@ -35,9 +35,13 @@ jobs:
       - name: task check
         run: task check
 
-      # A release ships only if a clean container can bootstrap, twice.
-      - name: Fresh-install test
-        run: test/bootstrap-fresh.sh
+      # A release ships only if a clean container can bootstrap, twice - on both
+      # supported Linux distros. Ubuntu alone let an Ubuntu-only package name ship.
+      - name: Fresh-install test (Ubuntu)
+        run: test/bootstrap-fresh.sh ubuntu:24.04
+
+      - name: Fresh-install test (Debian)
+        run: test/bootstrap-fresh.sh debian:13
 
       - name: Build the release notes for this tag
         run: git cliff --latest --strip header --output RELEASE_NOTES.md
