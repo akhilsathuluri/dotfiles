@@ -6,3 +6,7 @@ Thumbs.db
 bash/.bashrc.d/local.bash
 hunk/.config/hunk/state.json
 bat/.config/bat/themes/
+
+# Python bytecode: importing the dictate script (e.g. to test it) leaves these
+# inside the stow package, where `task perms` then flags them.
+__pycache__/

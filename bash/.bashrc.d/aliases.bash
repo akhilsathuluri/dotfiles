@@ -97,9 +97,11 @@ gwts() {
     cd "$dir" || return
 }
 
-# gwtm: switch to the branch named after the current worktree dir (create it off
-# origin/main if missing), then fast-forward it to origin/main. --ff-only aborts
-# on divergence instead of dropping commits.
+# gwtm: put this worktree's branch (named after the worktree dir, created off
+# origin/main if missing) on the latest origin/main. Always a merge, never a
+# rebase - nothing already committed is rewritten, pushed or not - and it
+# fast-forwards when we have no commits of our own. --autostash keeps a dirty
+# tree out of the way.
 gwtm() {
     local root name
     root=$(git rev-parse --show-toplevel 2>/dev/null) || {
@@ -113,7 +115,7 @@ gwtm() {
     else
         git switch -c "$name" origin/main || return
     fi
-    git merge --ff-only origin/main
+    git merge --no-edit --autostash origin/main
 }
 
 # Docker

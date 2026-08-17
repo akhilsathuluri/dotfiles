@@ -6,6 +6,7 @@
 #   ./install.sh all             everything (bootstrap.sh calls this)
 #   ./install.sh gate-tools      only what `task check` needs (CI calls this)
 #   ./install.sh install_tmux    one step by name
+#   ./install.sh whisper-vulkan  whisper.cpp on the GPU for dictate (opt-in)
 #
 # Sourced by bootstrap.sh, which adds the machine wiring (stow, vaults, bashrc).
 set -euo pipefail
@@ -26,7 +27,7 @@ case "$(uname -s)" in
         export OS_KIND="linux"
         RUST_MUSL="x86_64-unknown-linux-musl" # delta fd git-cliff zoxide
         RUST_GNU="x86_64-unknown-linux-gnu"   # ruff
-        GO_SLUG="linux_amd64"                 # fzf gitmux shfmt task
+        GO_SLUG="linux_amd64"                 # fzf shfmt task
         GOREL_SLUG="Linux_x86_64"             # lazydocker lazygit
         GITLEAKS_SLUG="linux_x64"
         GO_DIST="linux-amd64"
@@ -51,22 +52,26 @@ is_ubuntu() { [ -f /etc/os-release ] && grep -qE '^ID=ubuntu$' /etc/os-release; 
 # Pinned versions (update these to upgrade)
 DELTA_VERSION="0.19.2"
 FD_VERSION="10.4.2"
-FZF_VERSION="0.74.1"
+FZF_VERSION="0.74.2"
 GIT_CLIFF_VERSION="2.13.1"
 GITLEAKS_VERSION="8.30.1"
-GITMUX_VERSION="0.11.5"
-GO_VERSION="1.26.5"
-HUNK_VERSION="0.17.6"
+GO_VERSION="1.26.6"
+HUNK_VERSION="0.18.2"
 LAZYDOCKER_VERSION="0.25.2"
-LAZYGIT_VERSION="0.63.1"
+LAZYGIT_VERSION="0.64.1"
 LEAF_VERSION="1.27.1"
 NEOVIM_VERSION="0.12.4"
-NERD_FONT_VERSION="3.4.0"
-RUFF_VERSION="0.16.0"
+NERD_FONT_VERSION="3.5.0"
+RUFF_VERSION="0.16.3"
 SHELLCHECK_VERSION="0.11.0"
 SHFMT_VERSION="3.13.1"
+# Ubuntu 24.04 ships no SPIRV-Headers package, and whisper.cpp's Vulkan backend
+# needs the spv:: constants; pinned here like everything else it downloads.
+SPIRV_HEADERS_VERSION="vulkan-sdk-1.4.357.0"
 TASK_VERSION="3.52.0"
 TMUX_VERSION="3.7b"
+WHISPER_CPP_VERSION="1.9.2"
+WHISPER_CPP_MODEL="ggml-small.en-q8_0.bin" # what dictate's whispercpp backend loads
 ZOXIDE_VERSION="0.10.0"
 
 # URL of a GitHub release asset: gh_url <owner/repo> <tag> <asset>
@@ -172,7 +177,7 @@ brew_install() {
 install_brew_packages() {
     brew_install \
         bat chafa coreutils direnv fd fswatch fzf git-cliff git-delta gitleaks \
-        gitmux go go-task imagemagick jq lazydocker lazygit neovim node poppler \
+        go go-task imagemagick jq lazydocker lazygit neovim node poppler \
         ripgrep shellcheck shfmt stow tmux tree wget zoxide
 
     # Casks: the Nerd Font and Ghostty (the Linux side gets these from a tarball
@@ -323,25 +328,6 @@ install_gitleaks() {
     ok "gitleaks $GITLEAKS_VERSION installed"
 }
 
-install_gitmux() {
-    is_linux || return 0 # macOS gets it from brew
-    if [ -x "$LOCAL_BIN/gitmux" ] && [ -f "$LOCAL_BIN/.gitmux-version" ] &&
-        grep -q "$GITMUX_VERSION" "$LOCAL_BIN/.gitmux-version"; then
-        ok "gitmux $GITMUX_VERSION already installed"
-        return
-    fi
-    log "Installing gitmux $GITMUX_VERSION..."
-    local url
-    url=$(gh_url arl/gitmux "v${GITMUX_VERSION}" "gitmux_v${GITMUX_VERSION}_${GO_SLUG}.tar.gz")
-    local tmp
-    tmp=$(mktemp -d)
-    curl -sSL "$url" | tar xz -C "$tmp"
-    mv "$tmp/gitmux" "$LOCAL_BIN/gitmux"
-    chmod +x "$LOCAL_BIN/gitmux"
-    echo "$GITMUX_VERSION" >"$LOCAL_BIN/.gitmux-version"
-    rm -rf "$tmp"
-    ok "gitmux $GITMUX_VERSION installed"
-}
 
 install_go() {
     is_linux || return 0 # macOS gets it from brew
@@ -612,6 +598,71 @@ install_tpm() {
     ok "TPM installed - run 'prefix + I' in tmux to install plugins"
 }
 
+# whisper.cpp built against Vulkan, for dictate's `whispercpp` backend: the
+# GPU runs the same Whisper models several times faster than the CPU
+# does - measured 792ms against 1892ms for 20s of audio. Opt-in (not in
+# all_tools) - it needs apt packages, compiles for a few minutes, and pulls a
+# ~260MB model. Built static, so what lands on PATH is one self-contained binary.
+install_whisper_cpp() {
+    # Vulkan, apt and nproc throughout: Linux-only, like every other build step
+    # here. macOS dictate stays on the CPU backend.
+    is_linux || return 0
+    local models="$HOME/.local/share/whisper-cpp/models" src
+    if [ -x "$LOCAL_BIN/whisper-server" ] && [ -f "$models/$WHISPER_CPP_MODEL" ]; then
+        ok "whisper.cpp (Vulkan) already installed"
+        return
+    fi
+    # Everything a fresh Ubuntu lacks for this: mesa-vulkan-drivers carries the
+    # AMD and Intel ICDs, without which Vulkan enumerates no device and the build is for
+    # nothing; cmake is not in install_apt_packages (tmux builds with autotools,
+    # agentbar with Go); glslc compiles the shaders, libvulkan-dev carries the
+    # headers and link lib, vulkan-tools gives vulkaninfo. Same dpkg -s guard the
+    # base package list uses, so a re-run installs nothing.
+    local pkgs=()
+    for pkg in cmake glslc libvulkan-dev mesa-vulkan-drivers vulkan-tools; do
+        dpkg -s "$pkg" &>/dev/null || pkgs+=("$pkg")
+    done
+    if [ ${#pkgs[@]} -gt 0 ]; then
+        log "Installing Vulkan build deps: ${pkgs[*]}"
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq "${pkgs[@]}"
+    fi
+    # A real GPU has to be visible before spending five minutes compiling for it.
+    # llvmpipe is Mesa's software rasterizer - it enumerates like a device and
+    # would be slower than the CPU backend we already have.
+    if ! vulkaninfo --summary 2>/dev/null | grep deviceName | grep -qv llvmpipe; then
+        warn "no Vulkan GPU visible (check: vulkaninfo --summary)"
+        warn "dictate's whispercpp backend needs one; leaving DICTATE_BACKEND=faster-whisper"
+        return 1
+    fi
+    src=$(mktemp -d)
+    log "Building whisper.cpp $WHISPER_CPP_VERSION with Vulkan (a few minutes)..."
+    git clone -q --depth 1 --branch "$SPIRV_HEADERS_VERSION" \
+        https://github.com/KhronosGroup/SPIRV-Headers.git "$src/spirv-src"
+    cmake -S "$src/spirv-src" -B "$src/spirv-build" -DCMAKE_INSTALL_PREFIX="$src/spirv" >/dev/null
+    cmake --install "$src/spirv-build" >/dev/null
+    git clone -q --depth 1 --branch "v$WHISPER_CPP_VERSION" \
+        https://github.com/ggml-org/whisper.cpp.git "$src/whisper.cpp"
+    # CMAKE_CXX_FLAGS as well as CMAKE_PREFIX_PATH: whisper.cpp find_package()s
+    # SPIRV-Headers but never puts its include dir on the compile line, so the
+    # spv:: constants go missing without this.
+    cmake -S "$src/whisper.cpp" -B "$src/build" -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_VULKAN=1 -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_PREFIX_PATH="$src/spirv" -DCMAKE_CXX_FLAGS="-I$src/spirv/include" \
+        -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON >/dev/null
+    cmake --build "$src/build" -j "$(nproc)" --target whisper-server >/dev/null
+    install -Dm755 "$src/build/bin/whisper-server" "$LOCAL_BIN/whisper-server"
+    rm -rf "$src"
+    ok "whisper-server installed"
+    if [ ! -f "$models/$WHISPER_CPP_MODEL" ]; then
+        log "Downloading $WHISPER_CPP_MODEL (~260MB)..."
+        mkdir -p "$models"
+        curl -sSLo "$models/$WHISPER_CPP_MODEL" \
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$WHISPER_CPP_MODEL"
+    fi
+    ok "whisper.cpp ready - enable with DICTATE_BACKEND=whispercpp"
+}
+
 install_zoxide() {
     is_linux || return 0 # macOS gets it from brew
     if [ -x "$LOCAL_BIN/zoxide" ] && "$LOCAL_BIN/zoxide" --version 2>/dev/null | grep -q "$ZOXIDE_VERSION"; then
@@ -668,7 +719,6 @@ all_tools() {
     install_ghostty
     install_git_cliff
     install_gitleaks
-    install_gitmux
     install_go
     install_hunk
     install_lazydocker
@@ -690,6 +740,7 @@ run_step() {
         all) all_tools ;;
         gate-tools) gate_tools ;;
         dictate-deps) install_dictate_deps ;;
+        whisper-vulkan) install_whisper_cpp ;;
         install_*)
             declare -F "$1" >/dev/null || {
                 warn "no such step: $1"
@@ -705,7 +756,7 @@ run_step() {
 }
 
 usage() {
-    echo "usage: ./install.sh <step>...   (all | gate-tools | dictate-deps | install_*)"
+    echo "usage: ./install.sh <step>...   (all | gate-tools | dictate-deps | whisper-vulkan | install_*)"
     echo "steps:"
     declare -F | awk '{print $3}' | grep '^install_' | sed 's/^/  /'
 }

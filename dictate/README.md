@@ -1,8 +1,8 @@
 # dictate
 
 Toggle-key local speech-to-text into tmux. Tap a key to start, tap again to stop - the clip is transcribed offline with
-[faster-whisper](https://github.com/SYSTRAN/faster-whisper) and typed into your active tmux pane. CPU-only, fully local,
-zero elevated privilege.
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) and typed into your active tmux pane. Fully local, zero
+elevated privilege; CPU by default, and on the GPU once the opt-in backend is installed (see below).
 
 ## How it works
 
@@ -24,9 +24,11 @@ zero elevated privilege.
   disables it.
 - Feedback & mouse control: a clickable `● dictate` segment sits dead-centre in the tmux status bar - grey idle, red
   recording, amber transcribing. Click it to toggle, same as the key. Same width in every state, so nothing shifts. A
-  `⏎ enter` button beside it submits - it presses Enter in the pane the transcript went to, so the whole loop is
-  mouse-only. A `⇡ commit+push` button beside that types "commit and push" + Enter into the same pane, a one-click way
-  to tell the agent to commit and push.
+  `⏎ send` button beside it submits - it presses Enter in the pane the transcript went to. Next to those,
+  `● dictate+send` does the whole loop in one press-pair: it records, types the transcript, and presses Enter for you,
+  so you never reach for the keyboard; it rests in teal, the row's one lit chip. A `⇡ commit+push` button types "commit
+  and push" + Enter into the same pane, a one-click way to tell the agent to commit and push, and `◧ changes` opens the
+  diff pane.
 
 ## Targeting
 
@@ -55,6 +57,7 @@ dictate --check               # verify parec + tmux, and show the target pane
 
 ```bash
 dictate --toggle              # start/stop (this is what the shortcut runs)
+dictate --toggle --send       # same, but presses Enter once the transcript lands
 dictate --target              # show which pane the transcript goes to
 dictate --test                # record 5 s and print the transcript
 dictate --serve-stop          # stop the model server (e.g. to pick up new config)
@@ -70,6 +73,7 @@ button in the status bar).
 
 | Var                   | Default        | Notes                                                       |
 | --------------------- | -------------- | ----------------------------------------------------------- |
+| `DICTATE_BACKEND`     | auto           | `gpu` when installed, else `cpu`                            |
 | `DICTATE_MODEL`       | `small.en`     | see models below                                            |
 | `DICTATE_COMPUTE`     | `int8`         | ctranslate2 compute type                                    |
 | `DICTATE_IDLE`        | `300`          | seconds before the model server self-exits                  |
@@ -93,6 +97,54 @@ Put per-machine overrides in `~/.bashrc.d/local.bash` (untracked), e.g. `export 
 `small.en` is the CPU sweet spot (~95% of large-v3 accuracy at ~6× the speed). Alternatives: `base.en` (faster),
 `distil-small.en` (fast English), `large-v3-turbo` (most accurate, slower on CPU - multilingual, so keep
 `DICTATE_LANG=en`). English-only `.en` models beat the same-size multilingual model for English.
+
+### GPU backend (`DICTATE_BACKEND=gpu`)
+
+Whisper pads every clip to a 30-second window, so on CPU a two-second "yes, do that" costs the same as a long sentence.
+Any Vulkan-capable GPU removes most of that - an AMD or Intel iGPU is enough. Installing it _is_ the switch; there is no
+env var to set:
+
+```sh
+./install.sh whisper-vulkan          # apt deps + builds whisper.cpp with Vulkan + model (~260MB)
+dictate --serve-stop                 # the running server still holds the CPU backend
+```
+
+`DICTATE_BACKEND` is resolved from what is installed, not from the environment, because the two launchers that matter -
+the GNOME shortcut and the tmux status chip - never source `~/.bashrc.d`, so an export there would reach only a fresh
+interactive shell. Set `DICTATE_BACKEND=cpu` to force the CPU back.
+
+The two backends are named for the hardware, not the projects behind them (`gpu` is whisper.cpp via Vulkan, `cpu` is
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper)) - "faster-whisper" is upstream's name for being quicker
+than OpenAI's reference implementation, and using it as a backend label read as a claim about _this_ machine, where it
+is the slower of the two. The old values still work.
+
+**The GPU is an optimisation, never a dependency.** Nothing here is AMD-specific: `mesa-vulkan-drivers` covers Intel and
+AMD, NVIDIA works through its own ICD, and the install step checks a real GPU is visible (`llvmpipe`, Mesa's software
+rasterizer, does not count) before spending minutes compiling. `bootstrap.sh` never runs it, so a machine that skips it
+simply dictates on the CPU. And if whisper.cpp cannot start at runtime - driver gone, GPU disabled in a VM, model
+truncated - dictation falls back to faster-whisper and says so, rather than failing.
+
+Measured on a Radeon 860M (RDNA 3.5), warm server, five dictated clips of 16-24s (102s of audio in total):
+
+| Backend                           | Total | Notes                                          |
+| --------------------------------- | ----- | ---------------------------------------------- |
+| `gpu` - `small.en-q8_0` (default) | 3.6s  | 2.7× faster than the CPU backend               |
+| `cpu` - `small.en` faster-whisper | 9.7s  | the fallback when whisper.cpp is not installed |
+| `gpu` - `large-v3-turbo-q5_0`     | 10.7s | slowest, no better on the terms that mattered  |
+
+`large-v3-turbo` is the interesting negative result: on real-length clips it is slower than the CPU it was meant to
+beat, and it read the same technical vocabulary no better. Fetch it (`ggml-large-v3-turbo-q5_0.bin`, ~570MB) and set
+`DICTATE_WHISPERCPP_MODEL` if your own audio disagrees - noisy input or unusual proper nouns are where it should win.
+
+| Var                        | Default                                                    |
+| -------------------------- | ---------------------------------------------------------- |
+| `DICTATE_WHISPERCPP_BIN`   | `~/.local/bin/whisper-server`                              |
+| `DICTATE_WHISPERCPP_MODEL` | `~/.local/share/whisper-cpp/models/ggml-small.en-q8_0.bin` |
+| `DICTATE_WHISPERCPP_PORT`  | `8178`                                                     |
+
+The step installs what a fresh Ubuntu lacks (`cmake`, `glslc`, `libvulkan-dev`, `mesa-vulkan-drivers`, `vulkan-tools`)
+and stops before compiling if no GPU is visible. It is **not** worth using on CPU - whisper.cpp's CPU build measured
+slower than faster-whisper's, so the CPU default stays `faster-whisper`.
 
 ## Uninstall
 

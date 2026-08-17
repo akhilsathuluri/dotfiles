@@ -27,7 +27,7 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 | `claude`             | Claude Code settings.json (agentbar + local hooks, statusLine, permissions), statusline script, skills     | `~/.claude/`                            |
 | `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                                         | `~/.local/bin/`, `~/.config/autostart/` |
 | `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)                       | `~/.local/bin/clip`                     |
-| `dictate`            | Toggle-key local speech-to-text (faster-whisper) into tmux (Linux only)                                    | `~/.local/bin/`                         |
+| `dictate`            | Toggle-key local speech-to-text into tmux - faster-whisper on CPU, or whisper.cpp on the GPU (Linux only)  | `~/.local/bin/`                         |
 | `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)                                | `~/.config/ghostty/`                    |
 | `git`                | Git tool settings (delta pager, staging/blame, merge)                                                      | `~/.config/git/config`                  |
 | `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                     | `~/.config/hunk/`                       |
@@ -36,7 +36,7 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 | `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                        | `~/.local/bin/`, `~/.config/autostart/` |
 | `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                              | `~/.local/bin/`                         |
 | `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)                   | `~/.local/bin/theme`                    |
-| `tmux`               | Tmux config, pane rails, GitLab status script, `prefix + R` UI reset, agent-following diff pane            | `~/.tmux.conf`, `~/.gitmux.conf`        |
+| `tmux`               | Tmux config, pane rails, GitLab status script, `prefix + R` UI reset, agent-following diff pane            | `~/.tmux.conf`                          |
 | `trace`              | Shared always-on trace log for the tmux/agent stack                                                        | `~/.local/bin/dotfiles-trace`           |
 
 `bootstrap.sh` auto-skips the Linux-only packages (`claude-indicator`, `dictate`, `screenshot-watcher`) on macOS.
@@ -66,7 +66,6 @@ so both install the same pinned versions:
 - [Ghostty](https://ghostty.org/) - terminal emulator
 - [git-cliff](https://git-cliff.org/) - changelog and release notes from conventional commits
 - [gitleaks](https://github.com/gitleaks/gitleaks) - secret scanning over the tree and history
-- [gitmux](https://github.com/arl/gitmux) - git status in tmux
 - [GNU Stow](https://www.gnu.org/software/stow/) - symlink manager
 - [Go](https://go.dev/) - toolchain for building `apps/` (agentbar)
 - [hunk](https://github.com/modem-dev/hunk) - interactive diff viewer (via `gd`/`gds` aliases)

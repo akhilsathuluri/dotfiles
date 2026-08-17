@@ -15,15 +15,15 @@
 # Only local git commands run on every status redraw; network calls (glab) are
 # throttled to TTL and never block the status bar.
 
-TTL=30 # seconds a cache entry stays fresh
+# Seconds a cache entry stays fresh. A newly created MR or ticket is invisible
+# until the entry expires, and the bar then paints it at the next redraw
+# (status-interval, 5s) - so this is most of the "why is my MR not showing yet".
+# Lower costs more `glab` calls, which take ~2.6s each but run detached.
+TTL=${TMUX_GITLAB_TTL:-15}
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tmux-gitlab"
 
-# GNU/BSD differences, resolved once. These run on every status redraw, so each
-# is a plain builtin test with no subshell beyond the tool itself.
-hash16() { # short, stable cache key
-    if command -v md5sum >/dev/null 2>&1; then md5sum | cut -c1-16; else md5 -q | cut -c1-16; fi
-}
-mtime_of() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0; }
+# GNU/BSD differences, resolved once. The cache key is parameter expansion and the
+# age comes from $EPOCHSECONDS, so neither md5sum nor stat is reached for at all.
 open_url() { # xdg-open on Linux, open on macOS
     if command -v xdg-open >/dev/null 2>&1; then
         xdg-open "$1" >/dev/null 2>&1 &
@@ -47,18 +47,83 @@ ci_color() { # pipeline status -> style
     esac
 }
 
-ci_word() { case "$1" in success) printf 'passed' ;; *) printf '%s' "$1" ;; esac }
+# One fixed-width glyph per state, not a word: the colour already says which
+# state it is, and a word that changes length ("passed" -> "running") would shift
+# the clock left and right as pipelines flip. Glyphs are single-width and NOT
+# emoji-presentation (⏸ renders double in some terminals; ● ○ do not).
+ci_glyph() {
+    case "$1" in
+        success) printf '✓' ;;
+        failed) printf '✗' ;;
+        running | preparing | pending | created | waiting_for_resource | scheduled | manual) printf '●' ;;
+        canceled | skipped) printf '○' ;;
+        *) printf '·' ;;
+    esac
+}
 
-# Cache file for a repo+branch pair.
-cache_file() { printf '%s/%s' "$CACHE_DIR" "$(printf '%s' "$1::$2" | hash16)"; }
+# ⇢ for open, not ⇄: a merge request points one way, at main, and has not landed
+# yet - which pairs with ✔ for arrived. Arrows also keep the MR's alphabet
+# distinct from CI's ticks and dots, so two indicators do not blur into one.
+#
+# GitLab has four MR states - opened, merged, closed, locked - and `draft` is a
+# separate boolean alongside them, not a fifth state. Conflicts are orthogonal
+# too: an open MR that will not merge keeps the open glyph and turns red, rather
+# than spending a sixth symbol (and ⚠ is emoji-presentation, so it would render
+# double in some terminals and shift the clock).
+mr_glyph() { # <state> <draft> -> one single-width glyph
+    case "$1" in
+        merged) printf '✔' ;;
+        closed) printf '✕' ;;
+        locked) printf '⊘' ;;
+        opened) [ "$2" = true ] && printf '✎' || printf '⇢' ;;
+        *) printf '·' ;;
+    esac
+}
+
+# Palette names, not hex: the bar follows the terminal's own colors unless `theme`
+# has run, so a hardcoded flavor would paint an unswitched machine in colors it
+# never agreed to. Closed and locked share the muted grey - the glyph already
+# separates them, and neither wants attention.
+mr_color() { # <state> <conflicts> -> fg style
+    case "$1" in
+        merged) printf '#[fg=green]' ;;
+        closed | locked) printf '#[fg=brightblack]' ;;
+        *) [ "$2" = true ] && printf '#[fg=red]' || printf '%s' "$C_MR" ;; # red if it will not merge
+    esac
+}
+
+# Cache key for a repo+branch pair. Parameter expansion, not md5sum: this runs on
+# every status redraw and a fork costs more than the string work. Tail-truncated
+# so a deep worktree plus a long branch cannot exceed NAME_MAX.
+cache_key() {
+    local s="$1::$2"
+    s=${s//[^A-Za-z0-9]/_}
+    # Only truncate when it is actually too long: bash returns EMPTY for
+    # ${s: -n} when n exceeds the length, it does not clamp to the whole string.
+    [ ${#s} -gt 180 ] && s=${s: -180}
+    printf '%s' "$s"
+}
+cache_file() { printf '%s/%s' "$CACHE_DIR" "$(cache_key "$1" "$2")"; }
 
 # Echo "<toplevel>\t<branch>" for a GitLab checkout, or return 1 (not a repo,
 # detached HEAD, or a non-GitLab remote -- stay silent in all three cases).
 git_info() {
-    local path="$1" top branch remote
-    top=$(git -C "$path" rev-parse --show-toplevel 2>/dev/null) || return 1
-    branch=$(git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null) || return 1
-    remote=$(git -C "$path" remote get-url origin 2>/dev/null) || return 1
+    local path="$1" out top branch remote memo
+    # One rev-parse for both facts: three git forks per redraw was most of this
+    # script's cost, and the toplevel and branch come out of the same call.
+    out=$(git -C "$path" rev-parse --show-toplevel --abbrev-ref HEAD 2>/dev/null) || return 1
+    top=${out%%$'\n'*}
+    branch=${out##*$'\n'}
+    { [ -n "$top" ] && [ -n "$branch" ] && [ "$branch" != HEAD ]; } || return 1
+    # Whether origin is GitLab is a property of the checkout, not of this redraw,
+    # so it is answered once per worktree and then read back with a builtin.
+    memo="$CACHE_DIR/remote-$(cache_key "$top" '')"
+    if [ -f "$memo" ]; then
+        read -r remote <"$memo"
+    else
+        remote=$(git -C "$path" remote get-url origin 2>/dev/null) || return 1
+        mkdir -p "$CACHE_DIR" 2>/dev/null && printf '%s\n' "$remote" >"$memo"
+    fi
     case "$remote" in *gitlab*) ;; *) return 1 ;; esac
     printf '%s\t%s\n' "$top" "$branch"
 }
@@ -80,24 +145,37 @@ cmd_render() {
     branch=${info#*$'\t'}
     cache=$(cache_file "$top" "$branch")
 
-    # Refresh in the background when missing or older than TTL. Touch first so the
-    # next redraw (~5s) doesn't spawn another refresh while this one is running.
-    local now mtime
-    now=$(date +%s)
-    mtime=$([ -f "$cache" ] && mtime_of "$cache" || echo 0)
-    if [ $((now - mtime)) -ge "$TTL" ]; then
-        [ -f "$cache" ] && touch "$cache"
+    # Age comes from the `updated` key the refresh writes and $EPOCHSECONDS, so
+    # neither `date` nor `stat` is forked here. flock in cmd_refresh is what stops
+    # a slow refresh from being started again by the next redraw.
+    local issue='' mr='' ci='' updated=0 k v out=''
+    local mr_state='' mr_draft='' mr_conflicts=''
+    if [ -f "$cache" ]; then
+        while IFS='=' read -r k v; do
+            case "$k" in
+                issue_iid) issue=$v ;;
+                mr_iid) mr=$v ;;
+                mr_state) mr_state=$v ;;
+                mr_draft) mr_draft=$v ;;
+                mr_conflicts) mr_conflicts=$v ;;
+                ci_status) ci=$v ;;
+                updated) updated=$v ;;
+            esac
+        done <"$cache"          # one pass for every key, not one pass per key
+    fi
+    if [ $((EPOCHSECONDS - updated)) -ge "$TTL" ]; then
         setsid -f "$0" refresh "$path" >/dev/null 2>&1 || ("$0" refresh "$path" >/dev/null 2>&1 &)
     fi
-
     [ -f "$cache" ] || return 0
-    local issue mr ci out=''
-    issue=$(cache_get "$cache" issue_iid)
-    mr=$(cache_get "$cache" mr_iid)
-    ci=$(cache_get "$cache" ci_status)
-    [ -n "$issue" ] && out+=" ${C_ISSUE}#[range=user|gl-issue]issue #${issue}#[norange]"
-    [ -n "$mr" ] && out+=" ${C_MR}#[range=user|gl-mr]MR !${mr}#[norange]"
-    [ -n "$ci" ] && out+=" $(ci_color "$ci")#[range=user|gl-ci]CI $(ci_word "$ci")#[norange]"
+    # No "issue"/"MR" words: # and ! are GitLab's own notation for them, and the
+    # footer is short of columns. CI keeps its word as the click target, with the
+    # state in a glyph beside it.
+    [ -n "$issue" ] && out+=" ${C_ISSUE}#[range=user|gl-issue]#${issue}#[norange]"
+    if [ -n "$mr" ]; then
+        out+=" $(mr_color "$mr_state" "$mr_conflicts")#[range=user|gl-mr]"
+        out+="!${mr} $(mr_glyph "$mr_state" "$mr_draft")#[norange]"
+    fi
+    [ -n "$ci" ] && out+=" $(ci_color "$ci")#[range=user|gl-ci]CI $(ci_glyph "$ci")#[norange]"
     [ -n "$out" ] && printf '%s%s' "$out" "$C_RESET"
 }
 
@@ -122,11 +200,22 @@ cmd_refresh() {
     cd "$path" || return 0
 
     # Merge request for this branch.
-    local mr_json mr_iid='' mr_url=''
-    mr_json=$(glab mr list --source-branch="$branch" -F json 2>/dev/null)
+    # --all, because glab lists only OPEN merge requests by default: without it the
+    # segment does not change when yours merges, it disappears, and "merged" is
+    # indistinguishable from "never had one". Newest first, so a branch reused
+    # across several MRs shows the current one rather than an old closed one.
+    local mr_json mr_iid='' mr_url='' mr_state='' mr_draft='' mr_conflicts=''
+    mr_json=$(glab mr list --source-branch="$branch" --all -F json 2>/dev/null)
     if [ -n "$mr_json" ]; then
-        mr_iid=$(printf '%s' "$mr_json" | jq -r '.[0].iid // empty' 2>/dev/null)
-        mr_url=$(printf '%s' "$mr_json" | jq -r '.[0].web_url // empty' 2>/dev/null)
+        local mr_one
+        mr_one=$(printf '%s' "$mr_json" | jq -c 'sort_by(.iid) | reverse | .[0] // empty' 2>/dev/null)
+        if [ -n "$mr_one" ]; then
+            mr_iid=$(printf '%s' "$mr_one" | jq -r '.iid // empty' 2>/dev/null)
+            mr_url=$(printf '%s' "$mr_one" | jq -r '.web_url // empty' 2>/dev/null)
+            mr_state=$(printf '%s' "$mr_one" | jq -r '.state // empty' 2>/dev/null)
+            mr_draft=$(printf '%s' "$mr_one" | jq -r '.draft // false' 2>/dev/null)
+            mr_conflicts=$(printf '%s' "$mr_one" | jq -r '.has_conflicts // false' 2>/dev/null)
+        fi
     fi
 
     # Issue: branch-name prefix (e.g. 42-fix-login), else the MR's first closing issue.
@@ -164,8 +253,12 @@ cmd_refresh() {
         printf 'issue_url=%s\n' "$issue_url"
         printf 'mr_iid=%s\n' "$mr_iid"
         printf 'mr_url=%s\n' "$mr_url"
+        printf 'mr_state=%s\n' "$mr_state"
+        printf 'mr_draft=%s\n' "$mr_draft"
+        printf 'mr_conflicts=%s\n' "$mr_conflicts"
         printf 'ci_status=%s\n' "$ci_status"
         printf 'ci_url=%s\n' "$ci_url"
+        printf 'updated=%s\n' "$EPOCHSECONDS"
     } >"$tmp" && mv -f "$tmp" "$cache"
 }
 

@@ -102,7 +102,6 @@ stow_packages() {
 
     # Single files we own outright: back up the file itself.
     backup_if_not_symlink "$HOME/.tmux.conf" "$DOTFILES_DIR/tmux/.tmux.conf"
-    backup_if_not_symlink "$HOME/.gitmux.conf" "$DOTFILES_DIR/tmux/.gitmux.conf"
     backup_if_not_symlink "$HOME/.local/bin/tmux-gitlab.sh" "$DOTFILES_DIR/tmux/.local/bin/tmux-gitlab.sh"
     backup_if_not_symlink "$HOME/.local/bin/tmux-rename-session.sh" \
         "$DOTFILES_DIR/tmux/.local/bin/tmux-rename-session.sh"
