@@ -124,9 +124,23 @@ Every pane's top border carries the same two zones. Left, always: that pane's fo
 pane runs Claude: `→ <worktree>` — where it is actually writing, which its own cwd never follows. Nothing on the left
 moves when the right changes.
 
-### Status bar - the ◧ diff chip
+### Status bar - the centred chips
 
-Click it to open the menu - that is all a click does. The chip is **violet** while the diff pane shows a worktree an
+The five centred chips are clickable, and each has a key - worth knowing, because a status click has to survive the
+terminal's mouse encoding and Ghostty drops them often enough to notice. All five act on the **agent pane**: the focused
+pane if it runs Claude, else the most recently active Claude pane.
+
+| Key            | Chip             | Action                                                      |
+| -------------- | ---------------- | ----------------------------------------------------------- |
+| `prefix m`     | `● dictate`      | toggle dictation (records, then types the transcript)       |
+| `prefix M`     | `● dictate+send` | the same, then presses Enter once the transcript lands      |
+| `prefix Enter` | `⏎ send`         | press Enter in the agent pane - submit what's already typed |
+| `prefix p`     | `⇡ commit+push`  | type "commit and push" + Enter there                        |
+| `prefix D`     | `◧ changes`      | the diff-pane menu (`prefix d` is still detach)             |
+
+### Status bar - the ◧ changes chip
+
+Click it to open the menu - that is all a click does. The chip is **magenta** while the diff pane shows a worktree an
 agent is working in, **amber** when it shows one none of them is touching; amber is a report, `f` is what follows. The
 pane's worktree sticks: the mode keys change what you see, not where you look, and only `f`, `W` and auto-follow move
 it. The footer carries no per-pane facts: just the work's commit, its CI, and the clock.

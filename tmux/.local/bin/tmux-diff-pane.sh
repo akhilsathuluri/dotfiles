@@ -323,11 +323,39 @@ cmd_close() {
     trace action=close
 }
 
+# The mode menu, defined once and opened from both the ◧ diff chip and prefix + D.
+# It lives here rather than inline in tmux.conf so the two entry points cannot drift.
+# The client is passed in (#{client_tty}) instead of inferred: we run under
+# `run-shell -b`, which has no client of its own, and display-menu needs one.
+# -O keeps the menu up after the opening MouseUp (we bind release, not press, since
+# Ghostty drops the MouseDown) - else it self-closes the instant the mouse leaves the
+# status line. Click an item or press its key.
+cmd_menu() {
+    local tty="$1" x=C y=C
+    # At the chip for a click, centred for a key press - there is no pointer to sit under.
+    [ "${2:-}" = mouse ] && x=M y=S
+    tmux display-menu -c "$tty" -O -x "$x" -y "$y" \
+        -T "#[align=centre,fg=magenta]◧ diff pane#{?@diff_target, · #{b:@diff_target},}" \
+        "Working tree - watch" w "run-shell -b '$SELF work'" \
+        "Staged" s "run-shell -b '$SELF staged'" \
+        "Vs main" m "run-shell -b '$SELF main'" \
+        "Last commit" l "run-shell -b '$SELF last'" \
+        "" \
+        "Follow agent#{?@agent_workdir,  → #{b:@agent_workdir},}" f "run-shell -b '$SELF follow'" \
+        "Pick worktree..." W "run-shell -b '$SELF pick'" \
+        "Auto-follow  [ #{?#{==:#{@diff_follow},on},on,off} ]" F "run-shell -b '$SELF autofollow-toggle'" \
+        "" \
+        "Toggle split/stack" t "run-shell -b '$SELF layout'" \
+        "" \
+        "Close diff pane" x "run-shell -b '$SELF close'"
+}
+
 case "${1:-}" in
     --run)
         shift
         cmd_run "${1:-work}" "${2:--}"
         ;;
+    menu) cmd_menu "${2:-}" "${3:-}" ;;
     # A dir argument targets that worktree instead of resolving one (the picker).
     work | staged | main | last) cmd_ensure "$1" "${2:-}" ;;
     follow) cmd_follow ;;
@@ -338,6 +366,6 @@ case "${1:-}" in
     close) cmd_close ;;
     *)
         tmux display-message \
-            "diff: usage: work|staged|main|last [dir]|follow|pick|autofollow-toggle|layout|close" 2>/dev/null
+            "diff: usage: menu|work|staged|main|last [dir]|follow|pick|autofollow-toggle|layout|close" 2>/dev/null
         ;;
 esac
