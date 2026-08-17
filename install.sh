@@ -120,7 +120,17 @@ install_bat_themes() {
     # selects them via BAT_THEME. Idempotent. Must run after stow_packages.
     command -v bat &>/dev/null || return
     local dir changed=0 t enc
-    dir="$(bat --config-dir)/themes"
+    # `command -v` proves bat is on PATH, not that it runs. A Homebrew binary whose
+    # dylibs have drifted (libgit2 built against an llhttp that has since been
+    # upgraded out from under it) aborts with SIGABRT, and under `set -e` that took
+    # the whole bootstrap down - shell rc, vaults, nvim plugins and the apps build,
+    # none of which have anything to do with bat. Skip the themes instead, loudly.
+    if ! dir="$(bat --config-dir 2>/dev/null)" || [ -z "$dir" ]; then
+        warn "bat is on PATH but won't run - skipping its themes."
+        warn "Broken library links are the usual cause; on macOS try: brew reinstall bat"
+        return 0
+    fi
+    dir="$dir/themes"
     mkdir -p "$dir"
     for t in "Catppuccin Latte" "Catppuccin Mocha"; do
         [ -f "$dir/$t.tmTheme" ] && continue
