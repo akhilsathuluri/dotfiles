@@ -512,6 +512,26 @@ install_nvim_plugins() {
     ok "Neovim plugins installed"
 }
 
+install_ghostty_terminfo() {
+    # macOS only: the Linux packages install xterm-ghostty into the system terminfo
+    # database, the .app bundle does not - it only exports TERMINFO to the shells it
+    # spawns. A tmux SERVER does its own terminfo lookup, so a server first started
+    # from any other terminal cannot resolve xterm-ghostty, and attaching to it from
+    # Ghostty dies with "missing or unsuitable terminal". Copy the bundled entry into
+    # the user database, where every process finds it regardless of who started it.
+    is_macos || return 0
+    local src="/Applications/Ghostty.app/Contents/Resources/terminfo"
+    [ -d "$src" ] || return 0
+    if infocmp xterm-ghostty &>/dev/null; then
+        ok "xterm-ghostty terminfo already resolvable"
+        return
+    fi
+    log "Installing Ghostty terminfo into ~/.terminfo..."
+    mkdir -p "$HOME/.terminfo"
+    cp -R "$src"/* "$HOME/.terminfo/"
+    ok "xterm-ghostty terminfo installed"
+}
+
 install_ruff() {
     is_linux || return 0 # macOS gets it from brew
     if [ -x "$LOCAL_BIN/ruff" ] && "$LOCAL_BIN/ruff" --version 2>/dev/null | grep -q "$RUFF_VERSION"; then
@@ -717,6 +737,7 @@ all_tools() {
     if is_macos; then
         install_brew
         install_brew_packages
+        install_ghostty_terminfo
         install_hunk
         install_tpm
         return
