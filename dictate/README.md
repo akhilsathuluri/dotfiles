@@ -59,6 +59,10 @@ Notes:
 - **Bind the key locally.** Inside a remote tmux, `prefix + m` is the _remote_ server's binding and runs the far end's
   dictate. Use a desktop hotkey on the local machine instead: `dictate --install-shortcut` on GNOME, or Karabiner /
   Hammerspoon / skhd / Raycast on macOS, or your local tmux's own `prefix + m`.
+- **Set the var where the hotkey can see it.** A desktop shortcut sources no shell rc, so `export DICTATE_TMUX_SSH=…` in
+  `~/.bashrc.d/local.bash` or `~/.zshrc` reaches an interactive shell and _not_ the keypress - which then dictates into
+  the local tmux and looks like the option was ignored. Put it in the binding itself
+  (`DICTATE_TMUX_SSH=devbox ~/.local/bin/dictate --toggle`) or in a wrapper script the hotkey runs.
 - Per-host ssh settings belong in `~/.ssh/config` (port, user, jump host, identity). dictate sets only connection
   multiplexing, which it needs: one dictation makes ~10 tmux calls, and a fresh handshake each would be felt.
 - `DICTATE_SSH_BIN` swaps the ssh binary itself, for a wrapper or an alternate client.
