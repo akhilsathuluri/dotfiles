@@ -188,7 +188,7 @@ install_brew_packages() {
     brew_install \
         bat chafa coreutils direnv fd fswatch fzf git-cliff git-delta gitleaks \
         go go-task imagemagick jq lazydocker lazygit neovim node poppler \
-        ripgrep shellcheck shfmt stow tmux tree wget zoxide
+        ripgrep ruff shellcheck shfmt stow tmux tree wget zoxide
 
     # Casks: the Nerd Font and Ghostty (the Linux side gets these from a tarball
     # and a PPA). Font Book picks the font up; there is no fc-cache to run.
