@@ -344,6 +344,31 @@ build_apps() {
 }
 
 # =============================================================================
+# Commit guard
+# =============================================================================
+
+# This repo is public and its configs are stowed, so the Claude runtime writes
+# machine-local state (an autoMode environment description) straight into a tracked
+# file. Wire the pre-commit guard that refuses to commit it, and seed the untracked
+# pattern file it reads for the names a public repo cannot list.
+enable_commit_guard() {
+    git -C "$DOTFILES_DIR" config core.hooksPath .githooks
+    local dir="${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles"
+    local f="$dir/redact-patterns"
+    mkdir -p "$dir"
+    if [ ! -f "$f" ]; then
+        cat >"$f" <<'PATTERNS'
+# Machine-local redact patterns for the dotfiles pre-commit guard.
+# One extended-regex per line; '#' comments and blank lines ignored. Case-insensitive.
+# Deliberately OUTSIDE the repo: the public repo can name none of this. Add employer,
+# product, project, internal host and bucket names as you meet them.
+PATTERNS
+        ok "seeded $f (add your employer/product/host patterns)"
+    fi
+    ok "pre-commit guard wired (core.hooksPath=.githooks)"
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -355,6 +380,7 @@ fi
 
 log "Starting dotfiles bootstrap on $OS_KIND..."
 link_dotfiles_dir
+enable_commit_guard
 all_tools
 
 stow_packages

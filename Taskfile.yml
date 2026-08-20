@@ -34,6 +34,7 @@ tasks:
       - task: py
       - task: fmt-check
       - task: secrets
+      - task: audit
       - task: perms
       - task: clipboard
       - task: gwtm
@@ -70,6 +71,11 @@ tasks:
         git ls-files -z | xargs -0 grep -nEI
         '\b(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3})\b'
         && { echo "private IP in a tracked file (see above)" >&2; exit 1; } || true
+
+  audit:
+    desc: Run the pre-commit guard against the staged diff (same checks, on demand)
+    cmds:
+      - .githooks/pre-commit
 
   perms:
     desc: Every script under a .local/bin must be executable (tmux runs them directly)

@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Pre-commit guard for a PUBLIC repo: refuse anything staged that would leak. Wired by
+# bootstrap via `git config core.hooksPath .githooks`. `task audit` runs the same checks
+# on demand. Bypass a false positive deliberately with `git commit --no-verify`.
+#
+# The names this repo must never carry - employer, product, project, hosts - cannot be
+# listed here, so they live in an untracked file outside the repo (see PATTERNS below).
+set -euo pipefail
+
+# Staged additions only, minus the two LICENSE files: upstream's copyright line is
+# required attribution, not a leak.
+added=$(git diff --cached --no-color -U0 -- . ':!LICENSE' ':!apps/*/LICENSE' |
+    grep -E '^\+' | grep -vE '^\+\+\+' || true)
+[ -n "$added" ] || exit 0
+
+fail() { # fail <what> <matching lines>
+    echo "pre-commit: $1" >&2
+    printf '%s\n' "$2" | sed 's/^/  /' >&2
+    echo "" >&2
+    echo "Refusing to commit. Remove it, or bypass deliberately: git commit --no-verify" >&2
+    exit 1
+}
+
+check() { # check <what> <ere>
+    local hits
+    # -e: a pattern starting with "-" (a PEM header) is otherwise read as options.
+    hits=$(printf '%s\n' "$added" | grep -inE -e "$2" || true)
+    [ -z "$hits" ] || fail "$1" "$hits"
+}
+
+# Machine-local Claude state. The stowed settings.json is written by the runtime, and
+# the autoMode key carries an environment description - org, internal services, local
+# paths. Scoped to that file: the word in a doc or in this hook is not a leak, the JSON
+# key is. Whatever the runtime parks there next, the pattern file below still reads its
+# contents.
+settings=$(git diff --cached --no-color -U0 -- claude/.claude/settings.json |
+    grep -E '^\+' | grep -vE '^\+\+\+' || true)
+if printf '%s\n' "$settings" | grep -q '"autoMode"'; then
+    fail 'machine-local Claude autoMode block staged (claude/.claude/settings.json)' \
+        "$(printf '%s\n' "$settings" | grep -n '"autoMode"')"
+fi
+
+# Private IPv4. Four octets, so version pins like 10.4.2 do not fire.
+o='[0-9]{1,3}'
+ip="\\b(10\\.$o\\.$o\\.$o|192\\.168\\.$o\\.$o|172\\.(1[6-9]|2[0-9]|3[01])\\.$o\\.$o)\\b"
+check 'private IP staged' "$ip"
+
+# Nobody's address belongs here, including the author's.
+check 'email address staged' \
+    '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
+
+# Credentials, same shape as the vault guard's list.
+creds='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}'
+creds+='|xox[baprs]-[0-9A-Za-z-]+|gh[pousr]_[0-9A-Za-z]{20,}'
+creds+='|(api[_-]?key|secret|token|password|passwd)'
+creds+='[[:space:]]*[:=][[:space:]]*["'"'"'0-9A-Za-z._-]{8,}'
+check 'possible credential staged' "$creds"
+
+# The machine-local denylist: one ERE per line, '#' comments and blank lines ignored.
+# Outside the repo so a re-clone keeps it, and so this public file names nothing.
+PATTERNS="${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/redact-patterns"
+if [ -r "$PATTERNS" ]; then
+    while IFS= read -r pat; do
+        case "$pat" in '' | '#'*) continue ;; esac
+        check "staged text matches a local redact pattern (/$pat/)" "$pat"
+    done <"$PATTERNS"
+fi
+
+# gitleaks knows shapes this file does not; staged-only, so it stays fast.
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --staged --no-banner --redact 2>/dev/null || {
+        echo "pre-commit: gitleaks flagged the staged changes (run: gitleaks git --staged)" >&2
+        echo "Refusing to commit. Bypass deliberately: git commit --no-verify" >&2
+        exit 1
+    }
+fi
+exit 0

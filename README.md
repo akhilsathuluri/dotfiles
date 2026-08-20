@@ -221,6 +221,11 @@ stow -R <package>    # Re-link (unlink + link)
   `xterm-256color` if that fails. The host needs `tic` (`ncurses-bin`). `ghostty +ssh-cache` lists the hosts already
   done, and a host seeded before this landed can be fixed by hand with
   `infocmp -x xterm-ghostty | ssh HOST -- tic -x -`.
+- **Commit guard**: this repo is public, and the stowed `~/.claude/settings.json` is written by the Claude runtime -
+  which parks machine-local state (an `autoMode` block naming your org, internal services and local paths) in a tracked
+  file. `.githooks/pre-commit`, wired by `bootstrap.sh`, refuses to commit that block, private IPs, emails, credential
+  shapes and anything in `~/.config/dotfiles/redact-patterns` (untracked, since a public repo cannot name what it must
+  reject). `task audit` runs it on demand. Leaving that block sitting uncommitted in the working tree is expected.
 - **Neovim plugins**: `lazy-lock.json` pins versions - commit it to keep installs reproducible.
 - **Python venvs**: direnv auto-activates `.venv` per directory.
 - **Idempotent**: `bootstrap.sh` is safe to re-run (skips what's installed).

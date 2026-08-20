@@ -207,10 +207,16 @@ here - this repo is public.
 
 - **Never commit personal info**: no names, emails, IP addresses, work-specific paths, or employer / product / project
   names
-- **Audit before committing**: `task secrets` (gitleaks over the tree and the full history) must pass, **and**
-  `git diff --cached -- . ':!LICENSE' ':!apps/*/LICENSE' | grep -iE '10\.\d+\.\d+|172\.\d+|abhishek|alpha'` must return
-  empty - a scanner won't catch a name, an employer or a project. The two `LICENSE` files are excluded on purpose: they
-  carry upstream's copyright line, which is required attribution, not a leak.
+- **The commit guard enforces this, not a habit.** `.githooks/pre-commit` (wired by `bootstrap.sh` via `core.hooksPath`)
+  refuses a staged private IP, email address, credential shape, Claude `autoMode` block, or anything matching the
+  machine-local pattern file - and runs `gitleaks git --staged`. `task audit` is the same checks on demand; `task check`
+  runs it. Bypass only deliberately: `git commit --no-verify`.
+- **The names never live here.** A public repo cannot list the employer, product, project or host names it must reject,
+  so they go one per line in `~/.config/dotfiles/redact-patterns` (untracked, outside the repo, seeded empty by
+  bootstrap). Add a name there the first time you meet it. The two `LICENSE` files are excluded from every check on
+  purpose: they carry upstream's copyright line, which is required attribution, not a leak.
+- **Audit the whole tree too**: `task secrets` (gitleaks over the tree and the full history) must pass - the hook only
+  ever sees what is staged.
 - **Only track customizations**: don't add stock Ubuntu/macOS defaults (prompt, bash-completion, color aliases) - those
   belong in the system `.bashrc` / `.zshrc`
 - **Prefer `~/.local/bin`** for tool installations over system-wide installs
