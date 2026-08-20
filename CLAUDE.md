@@ -37,7 +37,7 @@ see "Platform support" in README.md for the per-layer detail.
 - `leaf/` → `~/.config/leaf/` (leaf markdown previewer config). Carries a full Solarized Light palette as
   `[themes.solarized-light]`, since leaf ships only `solarized-dark`; that registration is what lets the theme switcher
   drive leaf by name via `LEAF_THEME`. **leaf writes this file itself** - a first run with no config seeds upstream's
-  sample there, which blocks `stow leaf`, so the backup step in `bootstrap.sh` is load-bearing.
+  sample there, which blocks `stow leaf`, so the backup step in `bootstrap.sh` is load-bearing)
 - `nvim/` → `~/.config/nvim/` (LazyVim config)
 - `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (Linux only - auto-copy screenshots
   to the clipboard)
@@ -58,7 +58,8 @@ Scripts in `tmux/.local/bin/`:
 - `tmux-gitlab.sh` - GitLab status, `#issue !mr CI ✓`. No words: the sigils are GitLab's own notation, and the CI glyph
   is fixed-width so a flipping pipeline never shifts the clock.
 - `tmux-agent-state.sh` - sourced agent-state language: glyphs, colors and state ranking shared by the session picker
-  and its preview, mirroring the sidebar's. Colors come from the theme switcher, never hardcoded.
+  and its preview, mirroring the sidebar's. Colors come from the theme switcher; the fallbacks for an unswitched machine
+  are ANSI slots, never one flavor's hex.
 - `tmux-reset.sh` - the `prefix + R` UI reset: reload + default geometry, nothing killed.
 - `tmux-mockup.sh` - `task mockup`, previews the whole frame with fake data on a private server.
 - Session picker, resurrect guard, yank.
@@ -76,8 +77,8 @@ Rules:
   agentbar hook from each Edit/Write) and records what is on screen in `@diff_target`.
 - **The target then sticks.** A mode item changes what you see, not where you look; only `f` (follow),
   `tmux-worktree-picker.sh` (the menu's `W`) and per-window auto-follow (`F`, off by default) re-point a live pane.
-- An amber `◧ diff` chip means the worktree is in no agent's `@agent_workdirs`, and reports nothing else. A click only
-  opens the menu.
+- An amber `◧ changes` chip means the worktree is in no agent's `@agent_workdirs`, and reports nothing else. A click
+  only opens the menu.
 - **The footer holds no per-pane facts** - only the work's commit (7-char sha), its CI and the clock. Dropping the
   git-status plugin took ~72ms of git off every status redraw.
 
