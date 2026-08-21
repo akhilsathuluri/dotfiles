@@ -27,10 +27,10 @@ func (f *fakeRunner) Run(args ...string) (string, error) {
 
 // Lines as tmux emits them: tab-separated, empty user options at the end
 // of the last line (must not be lost - regression for the TrimSpace bug).
-const fixture = "beta\t1\t1\t1\t%9\t1\tbash\t/tmp\t\t\t\t\t\t\n" +
-	"app\t1\t2\t1\t%3\t1\tclaude\t/tmp\t1\tdone\t1700000000\t\t2\t/wt/other\n" +
-	"app\t1\t1\t0\t%2\t0\tbash\t/tmp\t1\tworking\t1700000000\t\t\t\n" +
-	"app\t1\t3\t0\t%5\t1\tnode\t/tmp\t1\tworking\t1700000000\t\t\t"
+const fixture = "beta\t1\t1\t1\t%9\t1\tbash\t/tmp\t\t\t\t\t\t\tbox\tbox\n" +
+	"app\t1\t2\t1\t%3\t1\tclaude\t/tmp\t1\tdone\t1700000000\t\t2\t/wt/other\t✳ Ship the parser\tbox\n" +
+	"app\t1\t1\t0\t%2\t0\tbash\t/tmp\t1\tworking\t1700000000\t\t\t\tbox\tbox\n" +
+	"app\t1\t3\t0\t%5\t1\tnode\t/tmp\t1\tworking\t1700000000\t\t\t\tbox\tbox"
 
 func TestSnapshotParsesFilters(t *testing.T) {
 	r := &fakeRunner{panes: fixture}
@@ -95,5 +95,56 @@ func TestCurrentSessionFallsBackOffAStalePane(t *testing.T) {
 	}}
 	if got := CurrentSession(own); got != "payments" {
 		t.Errorf("CurrentSession = %q, want the pane's own session payments", got)
+	}
+}
+
+// The title is Claude's own name for the session, read from the pane title.
+func TestSnapshotReadsAgentTitle(t *testing.T) {
+	snap := Snapshot(&fakeRunner{panes: fixture}, NewBranchCache(), "app")
+	agents := snap.Sessions[0].Agents
+	if len(agents) != 2 {
+		t.Fatalf("want 2 agents, got %d", len(agents))
+	}
+	if got := agents[0].Title; got != "Ship the parser" {
+		t.Errorf("title = %q, want %q (glyph stripped)", got, "Ship the parser")
+	}
+	// The second agent's pane title is still the hostname tmux seeded it with.
+	if got := agents[1].Title; got != "" {
+		t.Errorf("an untitled pane must read as no title, got %q", got)
+	}
+}
+
+// The glyph Claude prefixes is optional; its pre-prompt placeholder and the
+// hostname tmux seeds pane_title with both mean "not titled yet".
+func TestAgentTitle(t *testing.T) {
+	for in, want := range map[string]string{
+		"✳ Ship the parser":     "Ship the parser",
+		"◐ Ship the parser":     "Ship the parser", // the glyph varies per pane
+		"◑ Ship the parser":     "Ship the parser",
+		"Ship the parser":       "Ship the parser",
+		titlePlaceholder:        "",
+		"✳ " + titlePlaceholder: "",
+		"◐ " + titlePlaceholder: "",
+		"box":                   "",
+		"":                      "",
+		// Only a marker goes: an ASCII first character is part of the title.
+		"\"quoted\" thing": "\"quoted\" thing",
+		"1 of 3 ready":     "1 of 3 ready",
+	} {
+		if got := agentTitle(in, "box"); got != want {
+			t.Errorf("agentTitle(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// The branch is rolled up to the session, since one worktree is one checkout.
+func TestSnapshotRollsBranchUpToSession(t *testing.T) {
+	snap := Snapshot(&fakeRunner{panes: fixture}, NewBranchCache(), "app")
+	if got := snap.Sessions[0].Branch; got != snap.Sessions[0].Agents[0].Branch {
+		t.Errorf("session branch = %q, want its agents' %q", got, snap.Sessions[0].Agents[0].Branch)
+	}
+	// The agent-less session has no worktree to read one from.
+	if got := snap.Sessions[1].Branch; got != "" {
+		t.Errorf("agent-less session branch = %q, want empty", got)
 	}
 }

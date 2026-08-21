@@ -11,6 +11,9 @@
 # Sourced by bootstrap.sh, which adds the machine wiring (stow, vaults, bashrc).
 set -euo pipefail
 
+# Unattended apt: without this a debconf-configuring package blocks on a prompt.
+export DEBIAN_FRONTEND=noninteractive
+
 LOCAL_BIN="$HOME/.local/bin"
 
 # The only place a platform is decided. Release-asset names are grouped by
@@ -69,7 +72,7 @@ SHFMT_VERSION="3.13.1"
 # needs the spv:: constants; pinned here like everything else it downloads.
 SPIRV_HEADERS_VERSION="vulkan-sdk-1.4.357.0"
 TASK_VERSION="3.52.0"
-TMUX_VERSION="3.7b"
+TMUX_VERSION="3.7c"
 WHISPER_CPP_VERSION="1.9.2"
 WHISPER_CPP_MODEL="ggml-small.en-q8_0.bin" # what dictate's whispercpp backend loads
 ZOXIDE_VERSION="0.10.0"
@@ -91,7 +94,7 @@ install_apt_packages() {
     # poppler-utils: pdftoppm/pdftotext for tex/texpage and tex/texpeek
     local pkgs=(
         bat bison build-essential chafa curl direnv fontconfig
-        gir1.2-ayatanaappindicator3-0.1 imagemagick inotify-tools jq
+        gir1.2-ayatanaappindicator3-0.1 git imagemagick inotify-tools jq
         libevent-dev libfontconfig-dev libncurses-dev pkg-config poppler-utils
         python3-gi ripgrep stow tree unzip wget wl-clipboard xclip
     )
@@ -661,6 +664,12 @@ install_whisper_cpp() {
         ok "whisper.cpp (Vulkan) already installed"
         return
     fi
+    # No DRM render node means no GPU to compile for - skip before apt-installing
+    # the toolchain. vulkaninfo below is authoritative but needs those packages.
+    if ! compgen -G "/dev/dri/renderD*" >/dev/null; then
+        warn "no DRM render node - skipping whisper.cpp; dictate uses the cpu backend"
+        return 1
+    fi
     # Everything a fresh Ubuntu lacks for this: mesa-vulkan-drivers carries the
     # AMD and Intel ICDs, without which Vulkan enumerates no device and the build is for
     # nothing; cmake is not in install_apt_packages (tmux builds with autotools,
@@ -764,6 +773,7 @@ all_tools() {
     install_apt_packages
     install_nodejs
     install_delta
+    install_dictate_deps
     install_fd
     install_fzf
     install_ghostty

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -38,12 +39,17 @@ func (f *fakeRunner) Run(args ...string) (string, error) {
 }
 
 func twoSessionSnap() model.Snapshot {
+	// Titled agents, as live ones are: each block is then two lines (title +
+	// state) and each session header two (spacer + name), which is the geometry
+	// the click and hover tests below count rows against.
 	return model.Snapshot{Sessions: []model.Session{
-		{Name: "api", Current: true, Agents: []model.Agent{
-			{PaneID: "%0", WindowIndex: 1, Branch: "main", State: model.StateIdle},
+		{Name: "api", Current: true, Branch: "main", Agents: []model.Agent{
+			{PaneID: "%0", WindowIndex: 1, Branch: "main", Title: "Rate limits",
+				State: model.StateIdle, Since: time.Now().Add(-2 * time.Minute)},
 		}},
-		{Name: "blog", Agents: []model.Agent{
-			{PaneID: "%6", WindowIndex: 1, Branch: "blog", State: model.StateIdle},
+		{Name: "blog", Branch: "blog", Agents: []model.Agent{
+			{PaneID: "%6", WindowIndex: 1, Branch: "blog", Title: "Draft the post",
+				State: model.StateIdle, Since: time.Now().Add(-2 * time.Minute)},
 		}},
 	}}
 }
@@ -94,34 +100,6 @@ func TestSnapMsgUnknownPaneKeepsCursor(t *testing.T) {
 	a = m.(App)
 	if a.cursor != 1 {
 		t.Errorf("unknown pane moved cursor: got %d, want 1", a.cursor)
-	}
-}
-
-func TestNotifyKeyTogglesOption(t *testing.T) {
-	r := &fakeRunner{}
-	a := testApp(r)
-	if a.notify {
-		t.Fatal("notify should start off")
-	}
-	press := func() App {
-		m, _ := a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-		return m.(App)
-	}
-	a = press()
-	if !a.notify {
-		t.Error("first n did not turn notify on")
-	}
-	wrote := false
-	for _, c := range r.calls {
-		if strings.Join(c, " ") == "set-option -g @agent_notify on" {
-			wrote = true
-		}
-	}
-	if !wrote {
-		t.Errorf("no `set-option -g @agent_notify on`; calls=%v", r.calls)
-	}
-	if a = press(); a.notify {
-		t.Error("second n did not turn notify off")
 	}
 }
 
@@ -421,7 +399,7 @@ func TestClickOnDividerIsNoop(t *testing.T) {
 	// row 0 (the top divider gets no leading blank).
 	a := App{runner: r, current: "api", pins: map[string]bool{"blog": true}}
 	snap := twoSessionSnap()
-	snap.Sessions = model.Arrange(snap.Sessions, a.pins)
+	snap.Sessions = model.Arrange(snap.Sessions, model.Grouping{Pinned: a.pins, Now: time.Now(), ActiveFor: time.Hour})
 	a.setSnapshot(snap)
 	a.width, a.height = 30, 20
 
@@ -513,5 +491,51 @@ func TestTabNoAttentionIsNoop(t *testing.T) {
 		if len(c) > 0 && c[0] == "switch-client" {
 			t.Errorf("tab jumped with nothing waiting: %v", c)
 		}
+	}
+}
+
+// One key, one destination: `p`, `a` and `d` place the selected session, and
+// pressing the same key again changes nothing. `a` on a pinned session moves it,
+// which is the case the pin used to swallow.
+func TestBandKeysPlaceTheSession(t *testing.T) {
+	r := &fakeRunner{}
+	a := testApp(r)
+	press := func(k rune) App {
+		m, _ := a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{k}})
+		return m.(App)
+	}
+	name := a.snap.Sessions[a.blocks[a.cursor].session].Name
+
+	a = press('p')
+	if !a.pins[name] {
+		t.Fatalf("p did not pin %s", name)
+	}
+	a = press('p')
+	if !a.pins[name] {
+		t.Error("p again should leave it pinned")
+	}
+	a = press('a')
+	if a.pins[name] {
+		t.Error("a should clear the pin, not be swallowed by it")
+	}
+	if got := a.bands[name]; got != model.BandActive {
+		t.Errorf("a put %s in %q, want active", name, got)
+	}
+	a = press('d')
+	if got := a.bands[name]; got != model.BandDormant {
+		t.Errorf("d put %s in %q, want dormant", name, got)
+	}
+	a = press('d')
+	if got := a.bands[name]; got != model.BandDormant {
+		t.Errorf("d again should leave it dormant, got %q", got)
+	}
+	wrote := false
+	for _, c := range r.calls {
+		if strings.Contains(strings.Join(c, " "), "@agentbar-bands") {
+			wrote = true
+		}
+	}
+	if !wrote {
+		t.Errorf("no @agentbar-bands write; calls=%v", r.calls)
 	}
 }

@@ -21,8 +21,6 @@ fi
 session=${1:-}
 [ -z "$session" ] && exit 0
 
-path=$(tmux display-message -p -t "$session" '#{pane_current_path}' 2>/dev/null)
-home_short=${path/#$HOME/\~}
 now=$(date +%s)
 
 # Per-pane Claude state from the @agent_* pane options the agentbar
@@ -30,18 +28,58 @@ now=$(date +%s)
 # the unix time of the last state change; a pane counts as a live agent only
 # with @agent_present=1 and a claude/node foreground command. Only active
 # states are kept, so idle/registered panes show no state line.
-pane_fmt=$'#{pane_id}\t#{pane_current_command}\t#{@agent_present}'
-pane_fmt+=$'\t#{@agent_state}\t#{@agent_since}'
-win_fmt=$'#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_active}\t#{window_active}'
+# Optional fields carry a "-" placeholder: tab is IFS whitespace, so bash
+# collapses a run of empty ones and every field after them shifts left.
+pane_fmt=$'#{session_name}\t#{pane_id}\t#{pane_current_command}\t#{?@agent_present,1,0}'
+pane_fmt+=$'\t#{?@agent_state,#{@agent_state},-}\t#{?@agent_since,#{@agent_since},-}'
+pane_fmt+=$'\t#{?pane_title,#{pane_title},-}\t#{host}'
+pane_fmt+=$'\t#{?@agent_workdir,#{@agent_workdir},-}\t#{pane_current_path}'
+pane_fmt+=$'\t#{window_index}\t#{pane_index}'
+# One line per window, from tmux's own window list. The flags are spelled out
+# rather than taken from #{window_flags}: that one carries activity and silence
+# too, which the status line deliberately ignores (monitor-activity is on, so #
+# would be on every row), and it escapes # as ## for re-parsing. Current, zoomed
+# and bell are what the status line shows, so they are what this shows.
+# The flags go last because they are the field that can be empty: tab is IFS
+# whitespace, so an empty one in the middle collapses and shifts the rest left.
+win_fmt=$'#{window_index}\t#{window_name}\t#{window_panes}'
+win_fmt+=$'\t#{?window_active,*,}#{?window_zoomed_flag,Z,}#{?window_bell_flag,!,}'
 
-declare -A PANE_STATE PANE_TS
-while IFS=$'\t' read -r pid cmd present state since; do
+declare -A PANE_STATE PANE_TS PANE_AGENT PANE_TITLE PANE_PANE DIR_VOTES
+vote_dir='' agent_dir='' vote_best=0
+while IFS=$'\t' read -r sess pid cmd present state since title host wd ppath widx pidx; do
+    [ "$state" = - ] && state=
+    [ "$since" = - ] && since=
+    [ "$title" = - ] && title=
+    [ "$wd" = - ] && wd=
+    # The directory that names this session: where most of its panes sit, not
+    # its active pane - that is usually the sidebar, whose cwd is only wherever
+    # that process started, and every session then reported the same repo. The
+    # picker's rows resolve it the same way; the sidebar is excluded outright.
+    if [ "$sess" = "$session" ] && [ "$cmd" != agentbar ] && [ -n "$ppath" ]; then
+        DIR_VOTES[$ppath]=$((${DIR_VOTES[$ppath]:-0} + 1))
+        if [ "${DIR_VOTES[$ppath]}" -gt "$vote_best" ]; then
+            vote_best=${DIR_VOTES[$ppath]}
+            vote_dir=$ppath
+        fi
+    fi
     [ "$present" = 1 ] || continue
     case $cmd in claude | node) ;; *) continue ;; esac
+    # An agent's worktree wins: it is where the work is, and a pane's cwd never
+    # follows it.
+    [ "$sess" = "$session" ] && [ -n "$wd" ] && [ -z "$agent_dir" ] && agent_dir=$wd
+    # Every registered agent, idle included, for the agents block below.
+    PANE_AGENT[$pid]=${state:-idle}
+    PANE_TITLE[$pid]=$(agent_title "$title" "$host")
+    # tmux's own notation for a pane: window.pane, as `-t` takes it.
+    PANE_PANE[$pid]="$widx.$pidx"
     case $state in working | permission | question | done) ;; *) continue ;; esac
     PANE_STATE[$pid]=$state
     PANE_TS[$pid]=${since:-0}
 done < <(tmux list-panes -a -F "$pane_fmt")
+
+path=${agent_dir:-$vote_dir}
+home_short=${path/#$HOME/\~}
 
 fmt_ago() {
     local delta=$((now - $1))
@@ -86,6 +124,9 @@ if [ -n "$path" ] && [ -d "$path" ]; then
         # BSD readlink has no -f; brew's coreutils ships greadlink.
         repo=$(basename "$(readlink -f "$common" 2>/dev/null ||
             greadlink -f "$common" 2>/dev/null || echo "$common")")
+        # A worktree of a bare clone puts the common dir in .bare/.git, whose
+        # basename names neither the repo nor anything useful - its parent does.
+        case $repo in .bare | .git | .*) repo=$(basename "$(dirname "$common")") ;; esac
         branch=$(git -C "$path" symbolic-ref --short HEAD 2>/dev/null ||
             git -C "$path" rev-parse --short HEAD 2>/dev/null)
         echo "repo:    $repo"
@@ -97,21 +138,33 @@ if [ -n "$agg_state" ]; then
     echo "state:   $(agent_icon "$agg_state") $agg_state ($(fmt_ago "$agg_ts"))"
 fi
 
-# ---- Windows + per-pane state ----------------------------------------------
+# ---- Agents: what each Claude here is on -----------------------------------
+# The row above shows one title, the most urgent agent's, with "+N" for the
+# rest; this is the N. Idle agents included, since the row's count counts them.
+for p in $panes_in_session; do
+    [ -n "${PANE_AGENT[$p]:-}" ] || continue
+    if [ -z "${agents_shown:-}" ]; then
+        echo
+        echo "agents:"
+        agents_shown=1
+    fi
+    ttl=${PANE_TITLE[$p]:-}
+    [ -n "$ttl" ] || ttl=$(agent_muted "not titled yet")
+    tail="${PANE_AGENT[$p]}"
+    [ -n "${PANE_TS[$p]:-}" ] && tail="$tail · $(fmt_ago "${PANE_TS[$p]}")"
+    printf '  %s %s  %s\n' "$(agent_icon "${PANE_AGENT[$p]}")" "$ttl" \
+        "$(agent_muted "$tail · pane ${PANE_PANE[$p]}")"
+done
+
+# ---- Windows ---------------------------------------------------------------
+# One line per window, not per pane: this block used to iterate panes under a
+# "windows:" heading, so a window with three panes appeared three times. Panes
+# are the splits inside a window; what each agent is doing is the block above.
 echo
 echo "windows:"
-# Use tab (#{\t} not supported; tmux passes literal $'\t' through -F if quoted).
-# Filter to this session via -t. Fields: window_index, window_name, pane_id,
-# pane_active, window_active.
-tmux list-panes -s -t "$session" -F "$win_fmt" 2>/dev/null |
-    while IFS=$'\t' read -r widx wname pid pactive wactive; do
-        marker=' '
-        [ "$wactive" = "1" ] && [ "$pactive" = "1" ] && marker='*'
-        st=${PANE_STATE[$pid]:-}
-        icon=$(agent_icon "$st")
-        if [ -n "$st" ]; then
-            printf '  %s:%-8s %s  %s %s (%s)\n' "$widx" "$wname" "$marker" "$icon" "$st" "$(fmt_ago "${PANE_TS[$pid]}")"
-        else
-            printf '  %s:%-8s %s\n' "$widx" "$wname" "$marker"
-        fi
+tmux list-windows -t "$session" -F "$win_fmt" 2>/dev/null |
+    while IFS=$'\t' read -r widx wname wpanes wflags; do
+        [ "$wpanes" = 1 ] && unit=pane || unit=panes
+        printf '  %s:%-10s %-2s %s\n' "$widx" "$wname" "$wflags" \
+            "$(agent_muted "$wpanes $unit")"
     done

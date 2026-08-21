@@ -372,10 +372,47 @@ PATTERNS
 # Main
 # =============================================================================
 
+bootstrap_usage() {
+    cat <<'EOF'
+usage: ./bootstrap.sh [--help] [step...]
+
+Sets up this machine: tools, stow packages, the shell rc, vaults, resurrect timer,
+apps/. Idempotent. A step name is forwarded to install.sh, so `./bootstrap.sh
+dictate-deps` runs only that one.
+
+Per-step CLI: ./install.sh, run it to list the steps.
+Unattended: nothing prompts; on Linux the apt steps need sudo, asked for once up front.
+EOF
+}
+
+case "${1:-}" in
+    -h | --help)
+        bootstrap_usage
+        exit 0
+        ;;
+esac
+
+# Everything lands under $HOME; as root that becomes /root and leaves
+# root-owned files behind. install.sh sudo's the steps that need it.
+if [ "$(id -u)" -eq 0 ]; then
+    warn "run bootstrap.sh as your own user, not root - it installs into \$HOME" >&2
+    exit 2
+fi
+
 # Opt-in steps, not part of the default run:  ./bootstrap.sh dictate-deps
 if [ $# -gt 0 ]; then
     for step in "$@"; do run_step "$step"; done
     exit 0
+fi
+
+# Ask once here rather than at the first apt step. macOS has no apt steps; brew
+# prompts for itself when it needs to.
+if is_linux && ! sudo -n true 2>/dev/null; then
+    log "The apt steps need sudo - authenticating once now..."
+    sudo -v || {
+        warn "cannot acquire sudo; pre-cache with 'sudo -v' or add a NOPASSWD entry" >&2
+        exit 2
+    }
 fi
 
 log "Starting dotfiles bootstrap on $OS_KIND..."

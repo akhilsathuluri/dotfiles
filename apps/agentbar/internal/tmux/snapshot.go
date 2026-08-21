@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/abhishekrana/agentbar/internal/model"
 )
@@ -17,14 +19,45 @@ import (
 const snapFormat = "#{session_name}\t#{session_attached}\t#{window_index}\t#{window_active}\t" +
 	"#{pane_id}\t#{pane_active}\t#{pane_current_command}\t#{pane_current_path}\t" +
 	"#{@agent_present}\t#{@agent_state}\t#{@agent_since}\t#{@agent_seen}\t#{@agent_subagents}\t" +
-	"#{@agent_workdir}"
+	"#{@agent_workdir}\t#{pane_title}\t#{host}"
 
-const snapFields = 14
+const snapFields = 16
 
 // agentCommands guards against zombies: a pane whose Claude died without
 // SessionEnd keeps its options, but its foreground command changes.
 // Claude Code runs as `claude` (native) or `node` (npm install).
 var agentCommands = map[string]bool{"claude": true, "node": true}
+
+// titlePlaceholder is what Claude Code names a session before its first
+// prompt, so it reads as no title at all.
+const titlePlaceholder = "Claude Code"
+
+// agentTitle is Claude's own title for the session, read from the terminal
+// title it sets on its pane - the generated one, or a rename, whichever it is
+// currently showing.
+//
+// Claude marks that title with a leading glyph, and the set is open-ended: ✳ on
+// one pane, ◐ or ◑ on another, and it has changed between versions. So strip by
+// shape rather than by a list - one non-ASCII rune followed by a space is a
+// marker, never the title, which the transcript's own aiTitle confirms.
+//
+// Two values mean "not titled yet": Claude's own placeholder, and the hostname,
+// which is what tmux seeds pane_title with until something sets one - so a
+// Claude that has not titled itself falls back to its branch instead of heading
+// the row with the machine's name.
+//
+// This is the one thing the sidebar takes from a pane property rather than a
+// hook: state stays hooks-only, but no hook carries the title.
+func agentTitle(s, host string) string {
+	s = strings.TrimSpace(s)
+	if r, size := utf8.DecodeRuneInString(s); r > unicode.MaxASCII && strings.HasPrefix(s[size:], " ") {
+		s = strings.TrimSpace(s[size:])
+	}
+	if s == titlePlaceholder || s == host {
+		return ""
+	}
+	return s
+}
 
 // CurrentSession names the session the sidebar pane lives in, anchored
 // to our own pane: a bare display-message resolves against the attached
@@ -104,6 +137,7 @@ func Snapshot(r Runner, bc *BranchCache, currentSession string) model.Snapshot {
 			WindowIndex: windowIdx,
 			Command:     f[6],
 			Branch:      bc.Get(dir),
+			Title:       agentTitle(f[14], f[15]),
 			State:       state,
 			Seen:        seen,
 			Since:       time.Unix(since, 0),
@@ -127,6 +161,7 @@ func Snapshot(r Runner, bc *BranchCache, currentSession string) model.Snapshot {
 			}
 			return a.PaneID < b.PaneID
 		})
+		sess.Branch = model.BranchOf(sess.Agents)
 		snap.Sessions = append(snap.Sessions, *sess)
 	}
 	return snap

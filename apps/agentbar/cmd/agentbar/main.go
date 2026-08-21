@@ -31,7 +31,8 @@ commands:
   order                         print the sidebar's session order, "band<TAB>name" per line
   next | prev [<session> [<tty>]]
                                 switch the client one session down / up that order
-  pin <session>                 toggle a session's pin (the sidebar's p key)
+  band <session> pinned|active|dormant
+                                put a session in a band by hand (the p/a/d keys)
   hook                          Claude Code hook entry: stdin JSON -> pane options
   doctor                        audit Claude panes vs the hook trace for state desync
 
@@ -59,8 +60,8 @@ func main() {
 		runStep(1, os.Args[2:])
 	case "prev":
 		runStep(-1, os.Args[2:])
-	case "pin":
-		runPin(os.Args[2:])
+	case "band":
+		runBand(os.Args[2:])
 	case "hook":
 		runHook()
 	case "doctor":
@@ -77,7 +78,12 @@ func main() {
 // and these run on a keypress.
 func ordered(r tmux.Runner, current string) []model.Session {
 	snap := tmux.Snapshot(r, nil, current)
-	return model.Arrange(snap.Sessions, tmux.Pins(r))
+	return model.Arrange(snap.Sessions, model.Grouping{
+		Pinned:    tmux.Pins(r),
+		Forced:    tmux.Bands(r),
+		Now:       time.Now(),
+		ActiveFor: tmux.ActiveFor(r),
+	})
 }
 
 // runOrder publishes the order as "band<TAB>name" lines, the picker popup's
@@ -149,24 +155,28 @@ func stepLabel(delta int) string {
 	return "next"
 }
 
-// runPin toggles one session's pin - the sidebar's `p` key as a command, so
-// the picker popup drives the same set instead of keeping its own order.
-func runPin(args []string) {
-	if len(args) != 1 || args[0] == "" {
-		fmt.Fprint(os.Stderr, "usage: agentbar pin <session>\n")
+// runBand puts one session in a band by hand - the sidebar's p, a and d keys as
+// a command, so the picker drives the same two stores. One key, one
+// destination; naming the band a session is already in changes nothing.
+func runBand(args []string) {
+	if len(args) != 2 || args[0] == "" {
+		fmt.Fprint(os.Stderr, "usage: agentbar band <session> pinned|active|dormant\n")
 		os.Exit(2)
 	}
-	name := args[0]
-	r := tmux.Exec{}
-	pins := tmux.Pins(r)
-	pinned := !pins[name]
-	if pinned {
-		pins[name] = true
-	} else {
-		delete(pins, name)
+	name, want := args[0], args[1]
+	switch want {
+	case model.BandPinned, model.BandActive, model.BandDormant:
+	default:
+		fmt.Fprintf(os.Stderr, "agentbar: unknown band %q\n", want)
+		os.Exit(2)
 	}
+	r := tmux.Exec{}
+	pins, bands := model.Place(tmux.Pins(r), tmux.Bands(r), name, want)
 	err := tmux.SetPins(r, pins)
-	trace.Log("agentbar", "pin", "session", name, "pinned", pinned, "err", trace.Err(err))
+	if bandErr := tmux.SetBands(r, bands); err == nil {
+		err = bandErr
+	}
+	trace.Log("agentbar", "band", "session", name, "band", want, "err", trace.Err(err))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "agentbar:", err)
 		os.Exit(1)
@@ -208,6 +218,14 @@ func runHook() {
 	notifyOpt, _ := r.Run("show-options", "-gqv", "@agent_notify")
 	if hook.ShouldNotify(prev, ef, notifyOpt) {
 		hook.Notify(r, pane, ef.State)
+	}
+	// A new or ended agent context must not inherit the previous session's write
+	// target: the pane option outlives the Claude session. Before the stamp below,
+	// so the two never fight over one event.
+	if ef.ClearWorkdir {
+		if wdFrom := hook.ClearWorkdir(r, pane); wdFrom != "" {
+			trace.Log("hook", "workdir", "pane", pane, "before", wdFrom, "after", "")
+		}
 	}
 	// Where the agent is writing, which the pane's cwd does not follow. Only a
 	// change is traced or acted on; an edit in the same worktree costs nothing.

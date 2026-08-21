@@ -21,7 +21,7 @@
 #
 # Internal subcommands (invoked by fzf reload/execute callbacks):
 #   --list                emit fzf line data (NAME<TAB>display)
-#   --pin       NAME      toggle NAME's pin, print fzf actions to follow it
+#   --band      NAME BAND put NAME in BAND, print fzf actions to follow it
 #   --rename    NAME      interactive rename of NAME
 #   --kill      NAME      interactive kill of NAME
 #   --new                 interactive new-session prompt
@@ -80,7 +80,9 @@ tmux session picker
 
   j / k       cursor down / up
   g / G       jump to first / last
-  p           pin / unpin session
+  p           pin session (floats to the top band)
+  a           put session in the active band
+  d           put session in the dormant band
   r           rename session
   D           kill session (with confirm)
   c           new session (name + start dir)
@@ -155,18 +157,23 @@ do_rename() {
 # the row to its new band - a pin moves it, and leaving the cursor at the old
 # index would aim the next keypress at a different session. Bound as a
 # `transform` action, whose stdout fzf reads as an action list.
-do_pin() {
-    local name=$1 pos
+# do_band <session> <pinned|active|dormant> - the sidebar's p, a and d keys,
+# through the same binary so both views drive one store. One key, one
+# destination; pressing it again changes nothing.
+#
+# Repositions after the reload: fzf's reload resets the cursor, and the first
+# match is taken without `exit` because exiting closes the pipe while
+# build_lines is still writing - gawk (the CI runner's awk) then SIGPIPEs it,
+# and 141 through pipefail would kill this script before the printf below, so
+# the band would land but nothing would redraw.
+do_band() {
+    local name=$1 band=$2 pos
     { [ -z "$name" ] || [ "$name" = "$BAND_MARK" ]; } && return 0
     [ -x "$agentbar_bin" ] || return 0
-    "$agentbar_bin" pin "$name" >/dev/null 2>&1 || return 0
-    # First match without `exit`: exiting closes the pipe while build_lines is
-    # still writing rows, and gawk (the CI runner's awk) then SIGPIPEs it - 141
-    # through pipefail kills this script before the printf below, so the pin
-    # lands but nothing redraws. mawk drains the pipe first and hides it.
+    "$agentbar_bin" band "$name" "$band" >/dev/null 2>&1 || return 0
     pos=$(build_lines | awk -F'\t' -v n="$name" '$1 == n && !p { print NR; p = 1 }')
     printf 'reload-sync(%s --list)+pos(%s)' "$self" "${pos:-1}"
-    "$HOME/.local/bin/dotfiles-trace" log picker pin name="$name" 2>/dev/null || true
+    "$HOME/.local/bin/dotfiles-trace" log picker band name="$name" band="$band" 2>/dev/null || true
 }
 
 # ---- Display lines ---------------------------------------------------------
@@ -188,7 +195,9 @@ band_row() {
 # list shows none), exactly as the sidebar does it.
 build_lines() {
     local -A STATE_BY_SESSION WORKDIR_BY_SESSION DIR_BY_SESSION DIR_VOTES PANES_IN
-    local sess cmd present state wd path seen prev current ordered band name branch icon mark header
+    local -A TITLE_BY_SESSION AGENTS_IN BRANCH_BY_SESSION
+    local sess cmd present state wd path title host seen prev current ordered band name branch icon mark header
+    local rank prev_rank col more bw=0 b
     local headed=
     local -A count
 
@@ -203,9 +212,10 @@ build_lines() {
     # Optional fields carry a "-" placeholder: tab is IFS whitespace, so bash
     # collapses a run of empty ones into a single separator and every field after
     # them shifts left - a pane with no @agent_* options would lose its path.
-    while IFS=$'\t' read -r sess cmd present state wd path; do
+    while IFS=$'\t' read -r sess cmd present state wd title host path; do
         [ "$state" = - ] && state=
         [ "$wd" = - ] && wd=
+        [ "$title" = - ] && title=
         # The directory that names a session: where most of its panes sit. NOT the
         # session's active pane - that is usually the sidebar, whose cwd is only
         # wherever that process started, or the diff pane, pointed at whatever
@@ -225,18 +235,43 @@ build_lines() {
         if [ -n "$wd" ] && [ -z "${WORKDIR_BY_SESSION[$sess]:-}" ]; then
             WORKDIR_BY_SESSION[$sess]=$wd
         fi
+        # One agent speaks for the row: the most urgent one, which is already
+        # the one the glyph describes - so glyph and title never disagree. The
+        # first agent seen sets both, since idle outranks nothing.
         prev=${STATE_BY_SESSION[$sess]:-}
-        if [ "$(agent_state_rank "$state")" -gt "$(agent_state_rank "$prev")" ]; then
+        rank=$(agent_state_rank "$state")
+        prev_rank=$(agent_state_rank "$prev")
+        if [ -z "${AGENTS_IN[$sess]:-}" ] || [ "$rank" -gt "$prev_rank" ]; then
             STATE_BY_SESSION[$sess]=$state
+            TITLE_BY_SESSION[$sess]=$(agent_title "$title" "$host")
         fi
+        AGENTS_IN[$sess]=$((${AGENTS_IN[$sess]:-0} + 1))
     done < <(tmux list-panes -a -F "$(
         printf '#{session_name}\t#{pane_current_command}\t#{?@agent_present,1,0}\t'
         printf '#{?@agent_state,#{@agent_state},-}\t#{?@agent_workdir,#{@agent_workdir},-}\t'
-        printf '#{pane_current_path}'
+        printf '#{?pane_title,#{pane_title},-}\t#{host}\t#{pane_current_path}'
     )")
 
     while IFS=$'\t' read -r band name; do
         [ -n "$name" ] && count[$band]=$((${count[$band]:-0} + 1))
+    done <<<"$ordered"
+
+    # The branch column is sized to the longest name on screen, not to a guess:
+    # the popup has ~187 columns, and branches here run past 30. One git call per
+    # session, the same one the render loop used to make.
+    while IFS=$'\t' read -r band name; do
+        [ -z "$name" ] && continue
+        path=${WORKDIR_BY_SESSION[$name]:-${DIR_BY_SESSION[$name]:-}}
+        b=
+        if [ -n "$path" ] && [ -d "$path" ]; then
+            b=$(git -C "$path" symbolic-ref --short HEAD 2>/dev/null ||
+                git -C "$path" rev-parse --short HEAD 2>/dev/null ||
+                true)
+        fi
+        # Past 44 a branch is eating the title's room, so cap it there.
+        [ ${#b} -gt 44 ] && b="${b:0:43}…"
+        BRANCH_BY_SESSION[$name]=$b
+        [ ${#b} -gt "$bw" ] && bw=${#b}
     done <<<"$ordered"
 
     prev=
@@ -267,16 +302,22 @@ build_lines() {
             fi
             prev=$band
         fi
-        path=${WORKDIR_BY_SESSION[$name]:-${DIR_BY_SESSION[$name]:-}}
-        branch=
-        if [ -n "$path" ] && [ -d "$path" ]; then
-            branch=$(git -C "$path" symbolic-ref --short HEAD 2>/dev/null ||
-                git -C "$path" rev-parse --short HEAD 2>/dev/null ||
-                true)
-        fi
+        branch=${BRANCH_BY_SESSION[$name]:-}
+        # Fixed columns, so cycling lands the eye in the same place on every row.
+        # printf pads by bytes, so only pad the all-ASCII case: a capped branch
+        # ends in an ellipsis and is already the full width.
+        case $branch in
+            '') col=$(printf "%-$((bw + 2))s" '') ;;
+            *…) col="⎇ $branch" ;;
+            *) col="⎇ $(printf "%-${bw}s" "$branch")" ;;
+        esac
+        # "+N" owns up to the agents the one title does not speak for.
+        more=$((${AGENTS_IN[$name]:-0} - 1))
+        [ "$more" -gt 0 ] && more=" $(agent_muted "+$more")" || more=
         icon=$(agent_icon "${STATE_BY_SESSION[$name]:-}")
         [ "$name" = "$current" ] && mark='▸' || mark=' '
-        printf '%s\t%s %s %-18s  %s\n' "$name" "$mark" "$icon" "$name" "$branch"
+        printf '%s\t%s %s %-18s  %s  %s%s\n' "$name" "$mark" "$icon" "$name" \
+            "$(agent_muted "$col")" "${TITLE_BY_SESSION[$name]:-$(agent_muted —)}" "$more"
     done <<<"$ordered"
     return 0
 }
@@ -300,8 +341,9 @@ case "${1:-}" in
         do_new
         exit 0
         ;;
-    --pin)
-        do_pin "${2:-}"
+
+    --band)
+        do_band "${2:-}" "${3:-}"
         exit 0
         ;;
     --rename)
@@ -316,7 +358,7 @@ lines=$(build_lines)
 [ -z "$lines" ] && exit 0
 
 current=$(tmux display-message -p '#S')
-# No `exit` here either, for the reason do_pin gives: a closed pipe under
+# No `exit` here either, for the reason do_band gives: a closed pipe under
 # pipefail would take the popup down before fzf ever runs.
 current_pos=$(printf '%s\n' "$lines" | awk -F'\t' -v c="$current" '$1 == c && !p { print NR; p = 1 }')
 : "${current_pos:=1}"
@@ -357,7 +399,9 @@ target=$(
             --bind 'alt-;:abort' \
             --bind "enter:transform([ {1} = $BAND_MARK ] && echo ignore || echo accept)" \
             --bind "?:execute($self --help)" \
-            --bind "p:transform($self --pin {1})" \
+            --bind "p:transform($self --band {1} pinned)" \
+            --bind "a:transform($self --band {1} active)" \
+            --bind "d:transform($self --band {1} dormant)" \
             --bind "r:execute($self --rename {1})+reload($self --list)" \
             --bind "D:execute($self --kill {1})+reload($self --list)" \
             --bind "c:execute($self --new)+reload($self --list)+last" |

@@ -2,7 +2,10 @@
 # tex-dev [file...] -- 2x2 tmux layout:  nvim | texpage  /  claude | build(make watch)
 # Viewer is texpage (stable kitty-image preview); tdf is flaky in tmux, run it by hand if wanted.
 set -euo pipefail
-[ -n "${TMUX:-}" ] || { echo "run inside tmux"; exit 1; }
+[ -n "${TMUX:-}" ] || {
+    echo "run inside tmux"
+    exit 1
+}
 pdf="root.pdf"
 
 # Build the 2x2 grid from plain shells first, so a tool that exits can't kill a split target.

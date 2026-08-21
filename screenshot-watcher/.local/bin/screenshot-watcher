@@ -3,11 +3,11 @@
 dir="$HOME/Pictures/Screenshots"
 mkdir -p "$dir"
 inotifywait -m "$dir" -e create -e moved_to --format '%f' |
-while read -r file; do
-    case "$file" in
-        *.png)
-            sleep 0.5
-            wl-copy --type image/png < "$dir/$file"
-            ;;
-    esac
-done
+    while read -r file; do
+        case "$file" in
+            *.png)
+                sleep 0.5
+                wl-copy --type image/png <"$dir/$file"
+                ;;
+        esac
+    done

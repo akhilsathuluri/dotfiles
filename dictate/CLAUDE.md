@@ -6,15 +6,16 @@ Keep it a single file - do not split it into a package.
 ## Backends (`DICTATE_BACKEND`)
 
 Two, named for the hardware and resolved from what is installed rather than from the environment: **`gpu`** runs
-`small.en` through whisper.cpp against Vulkan on whatever GPU is present when `./install.sh whisper-vulkan` has been
-run, else **`faster-whisper`** runs `small.en` int8 on the CPU, in-process. Measured on a Radeon 860M over five dictated
-clips (102s of audio): GPU `small.en` **3.6s** total, CPU `small.en` **9.7s**, GPU `large-v3-turbo` **10.7s**. Install
-with `./install.sh whisper-vulkan`; `DICTATE_BACKEND=cpu` forces the CPU back, and the old `whispercpp`/`faster-whisper`
+`small.en` through whisper.cpp against Vulkan on whatever GPU is present, else **`faster-whisper`** runs `small.en` int8
+on the CPU, in-process. `bootstrap.sh` installs the GPU build when a GPU is visible; a machine without one is a skip,
+never a bootstrap failure. Measured on a Radeon 860M over five dictated clips (102s of audio): GPU `small.en` **3.6s**
+total, CPU `small.en` **9.7s**, GPU `large-v3-turbo` **10.7s**. Install or rebuild it alone with
+`./install.sh whisper-vulkan`; `DICTATE_BACKEND=cpu` forces the CPU back, and the old `whispercpp`/`faster-whisper`
 values still resolve.
 
 - **The backend is detected, not configured, on purpose.** The GNOME shortcut and the tmux status chip both launch
   `dictate` without sourcing `~/.bashrc.d`, so an env var set there reaches only a fresh interactive shell - the path
-  used least. Having installed the binary and model is the opt-in signal; do not replace this with an env var.
+  used least. The binary and model existing is the signal; do not replace this with an env var.
 - **The GPU is an optimisation, never a dependency, and nothing here is AMD-specific.** File existence only says what to
   _try_: `load_model()` falls back to faster-whisper when whisper.cpp will not start, and every caller dispatches on the
   handle (`is_whispercpp()`) rather than on `BACKEND`, so the fallback routes itself. Keep it that way - a machine with
@@ -124,6 +125,21 @@ values still resolve.
   orange blurs idle into busy. To recolor, move the highlight - do not add a second.
 - **Hover is impossible** - tmux 3.7b rejects `MouseMoveStatus`; only Down/Up/Drag/Wheel exist for the status line.
 
+## Key binding
+
+- **Two shortcuts, one action (`--toggle --send`): the Copilot key and Pause.** `--install-shortcut` resets every
+  `dictate*` keybinding it does not install, so the dconf list matches its arguments exactly - which is also why adding
+  a key means adding it to `DEFAULT_BINDINGS`, never installing it by hand.
+- **Pause is bound bare, and is not the media key.** GNOME claims no shortcut on the `Pause` keysym, while
+  `play-static`/`pause-static` hold `XF86AudioPlay`/`XF86AudioPause` with static grabs a custom binding cannot outrank.
+  A keyboard whose key emits the media keysym therefore needs that key, not this one - `--check` prints every bound key
+  so this is diagnosable without dconf spelunking.
+- **The string is `<Shift><Super>XF86TouchpadOff`, not `F23`.** The key emits `LeftMeta`+`LeftShift`+`F23`, and
+  `KEY_F23`'s keycode carries the `XF86TouchpadOff` keysym, so `F23` does not match. GNOME's static touchpad-off grab is
+  on the bare keysym, which the held modifiers do not match either - the touchpad is unaffected.
+- **The numpad's Backspace and `=` cannot be bound.** They emit the main-row scancodes (`0xe`, `0xd`), so no layer -
+  hwdb, keyd, xkb, GNOME - can distinguish them.
+
 ## Tracing
 
 - `log()` prints to stderr, which is **discarded** in every real launch context (tmux `run-shell -b`, the GNOME
@@ -139,5 +155,5 @@ values still resolve.
   dictation starts a fresh server. The stowed symlink itself is live the moment the file is saved.
 - Audio ducking mutes the default sink via `pactl` while recording; `DUCK_FILE` persists the prior mute state so a crash
   cannot strand it muted.
-- Smoke test: `dictate --check` (parec + tmux + server state), `dictate --test` (record 5s, print transcript). Clean-env
-  install of the deps: `./bootstrap.sh dictate-deps` (see `bootstrap.sh`).
+- Smoke test: `dictate --check` (parec + tmux, server state, model cache, bound key), `dictate --test` (record 5s, print
+  transcript). `bootstrap.sh` installs the deps; `./install.sh dictate-deps` does them alone.

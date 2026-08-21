@@ -32,6 +32,7 @@ tasks:
       - task: lint
       - task: width
       - task: py
+      - task: fmt-sh
       - task: fmt-check
       - task: secrets
       - task: audit
@@ -41,6 +42,8 @@ tasks:
       - task: picker
       - task: reset
       - task: diff-target
+      - task: theme
+      - task: settings
       - task: test
 
   lint:
@@ -59,6 +62,11 @@ tasks:
     desc: Lint the Python scripts (rules and 120-column limit in ruff.toml)
     cmds:
       - ruff check {{.PY_FILES}}
+
+  fmt-sh:
+    desc: Check shell formatting (shfmt -i 4 -ci; `shfmt -w` to fix)
+    cmds:
+      - shfmt -i 4 -ci -d {{.SHELL_FILES}}
 
   secrets:
     desc: Scan for credentials (gitleaks) and private IPs in tracked files
@@ -176,10 +184,25 @@ tasks:
         {{.AGENTBAR}} build && bash test/clipboard.sh && bash test/session-picker.sh && bash test/reset.sh && bash
         test/diff-target.sh && cd {{.AGENTBAR}} && go test ./... -count=1'
 
+  theme:
+    desc: Every flavor writes its own colors into every generated per-tool file
+    cmds:
+      - bash test/theme.sh
+
+  settings:
+    desc: The ⛭ dialogue applies the row you picked and leaves the cursor on it
+    cmds:
+      - bash test/settings.sh
+
   fresh:
     desc: Full bootstrap in a clean container, twice (needs docker, ~10 min). IMAGE=debian:13 for Debian
     cmds:
       - test/bootstrap-fresh.sh {{.IMAGE}}
+
+  fresh-gpu:
+    desc: Same, plus the host render node, requiring the Vulkan whisper.cpp build
+    cmds:
+      - test/bootstrap-fresh.sh --gpu
 
   changelog:
     desc: Regenerate CHANGELOG.md for a version, e.g. task changelog V=v0.2.0

@@ -67,3 +67,18 @@ agent_state_rank() {
         *) printf 0 ;;
     esac
 }
+
+# agent_title <pane-title> <host> - Claude's own title for a session, as it
+# publishes it in its pane title. Claude marks it with a leading glyph and the
+# set is open-ended (✳, ◐, ◑, and it changes between versions), so strip by
+# shape: one non-ASCII character then a space. Both the pre-prompt placeholder
+# and the hostname tmux seeds the title with mean it has none yet. Mirrors
+# agentTitle in apps/agentbar/internal/tmux/snapshot.go - change them together.
+agent_title() {
+    local t=$1
+    if [ "${t:1:1}" = " " ] && [[ ${t:0:1} == [!\ -~] ]]; then
+        t=${t:2}
+    fi
+    case $t in "Claude Code" | "$2") t= ;; esac
+    printf '%s' "$t"
+}

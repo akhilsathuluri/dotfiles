@@ -8,25 +8,26 @@ you always know which agents are working, which need your attention, and which a
 ──────────────────────────────
  pinned ·2 ───────────────────
 
- dotfiles
- main
-   ? claude  asking       4m
+ dotfiles  ⎇ main
+   Sidebar label toggle
+     ? asking              4m
 
- payments
- 2091-refund-idempotency-keys
-   ◔ claude  permission  40s
-   ✓ claude  done        11m
+ payments  ⎇ 2091-refund-idempo…
+   Refund idempotency keys
+     ◔ permission         40s
+   Retry the dropped webhooks
+     ✓ done               11m
 
  active ·2 ───────────────────
 
- api-server
- feat/rate-limit-rollout
-   ⠼ claude  working      2m
+ api-server  ⎇ feat/rate-limit-…
+   Rate limit middleware rollout
+     ⠼ working             2m
      ⤷ 2 subagents
 
- blog
- draft/tmux-agents-post
-   ✓ claude  done        12m
+ blog  ⎇ draft/tmux-agents-post
+   Draft the parallel agents po…
+     ✓ done               12m
 
  dormant ·2 ──────────────────
 
@@ -46,7 +47,7 @@ the sidebar picks it up on its 1s tick.
 
 ## Requirements
 
-- tmux 3.7b (pinned; `bootstrap.sh` builds it - Ubuntu 24.04 ships 3.4, which this suite fails on)
+- tmux 3.7+, pinned in `install.sh` and built by `bootstrap.sh` - Ubuntu 24.04 ships 3.4, which this suite fails on
 - Claude Code ≥ 2.x (hooks)
 - Go ≥ 1.25 (to build; only needed once)
 - git (for the branch line)
@@ -75,8 +76,8 @@ picked up on their next restart.
 | `Enter`, click  | on an agent: jump to its pane; on a session name: switch to that session                            |
 | `g` / `G`       | first / last row                                                                                    |
 | `Tab`           | jump to the next agent waiting on you (permission/asking), cycling across sessions - the work queue |
-| `p`             | pin / unpin the selected session - pinned sessions float to a band at the top                       |
-| `n`, click chip | toggle desktop notifications (footer shows the state)                                               |
+| `p`             | pin the selected session - pinned sessions float to a band at the top                               |
+| `a` / `d`       | put the session in the active / dormant band by hand; another key moves it                          |
 | `q`             | hide the sidebar everywhere (same as toggle)                                                        |
 
 Clicking a session name switches to it - the one way to reach a session with no agents running (it just
@@ -87,8 +88,12 @@ Clicking a session name switches to it - the one way to reach a session with no 
 Sessions are grouped into three bands so your working set stays together and dead sessions get out of the way:
 
 - **`pinned`** - sessions you pinned with `p`, floated to the top; the label reads gold.
-- **`active`** - the rest of the sessions that have a Claude running.
-- **`dormant`** - sessions with no agents, dimmed grey and sunk to the bottom (one compact line each).
+- **`active`** - sessions whose agents are working, blocked on you, or last changed state within `@agentbar-active-for`
+  (default 1h).
+- **`dormant`** - sessions with no agents **and** sessions whose agents have all gone quiet for longer than
+  `@agentbar-active-for`, dimmed grey and sunk to the bottom, name only. A quiet session sinks on its own an hour after
+  you stop; nothing runs in the background to do it, since the band is `now - @agent_since` evaluated on the sidebar's
+  existing poll. A pinned session never moves, however quiet.
 
 A labelled divider heads each band - all three named, on one rule: it appears when the band has a non-empty neighbour to
 divide it from, so a single-band list shows no dividers at all. The names are `model.BandLabel`, the same tokens
@@ -115,16 +120,37 @@ next-tick). Session switches made outside the sidebar move the highlight too - e
 switching.
 
 Agent states: `working` (teal spinner) · `permission` (red) · `asking` (amber) · `done` (green until you visit the pane,
-then gray) · `idle` (gray). Each agent shows its git branch and live subagent count.
+then gray) · `idle` (gray). Each session shows its branch; each agent its title and live subagent count.
+
+## What a row says
+
+The list nests: a **session** carries its name and, dim beside it, the branch of the worktree it works in. Each
+**agent** under it carries the title Claude gave that session, with its state a step deeper.
+
+```text
+ api-server  ⎇ feat/rate-limit-…
+   Rate limit middleware rollout
+     ⠼ working                2m
+   Backfill the refund ledger
+     ◔ permission            40s
+```
+
+That split is the whole design: one checkout is one branch, so the branch belongs to the session; each Claude titles its
+own session, so the title belongs to the agent. Both facts fit at once, which is why nothing has to choose between them.
+
+Claude Code generates the title itself and publishes it in its pane title - nothing to configure. A session it has not
+titled yet (or whose pane title is still the hostname tmux seeded) shows its state line alone. The state line does not
+spell out `claude`: it is the same word on every row, and dropping it is what buys the indent.
 
 ## Notifications
 
-Off by default. Press `n` (or click the `notify` chip in the footer) to toggle desktop notifications for the whole
-server. When on, the instant any agent needs you - a permission prompt or a question - the plugin fires a `notify-send`
-notification (`Claude · permission` / `Claude · asking`, with the `session:window`). It rides the same Claude Code hooks
-as the sidebar (no pane scraping) and only fires on the transition _into_ an attention state, so a working agent never
-spams you. The footer chip mirrors the state (`notify on` / `notify off`), held in the global `@agent_notify` tmux
-option; it needs `notify-send` (libnotify) installed and no-ops harmlessly without it.
+Off by default. Set it from the `⛭` dialogue's Notify row (dotfiles) or with `tmux set -g @agent_notify on` to get
+desktop notifications for the whole server. When on, the instant any agent needs you - a permission prompt or a
+question - the plugin fires a `notify-send` notification (`Claude · permission` / `Claude · asking`, with the
+`session:window`). It rides the same Claude Code hooks as the sidebar (no pane scraping) and only fires on the
+transition _into_ an attention state, so a working agent never spams you. The footer chip mirrors the state (`notify on`
+/ `notify off`), held in the global `@agent_notify` tmux option; it needs `notify-send` (libnotify) installed and no-ops
+harmlessly without it.
 
 ## Tip: window-tab clicks that need a second try
 
@@ -179,6 +205,8 @@ set -g @agentbar-width '30'             # sidebar width in columns
 set -g @agentbar-theme 'solarized-light' # or 'dark'
 set -g @agentbar-focus 'off'            # 'on' focuses sidebar on open
 set -g @agentbar-autostart 'on'         # 'off' starts with the sidebar closed
+set -g @agentbar-active-for '1h'        # how long a quiet session stays in the active band
+# @agentbar-pins / @agentbar-bands hold the p and a/d choices (mirrored under XDG_STATE_HOME)
 ```
 
 ## Development

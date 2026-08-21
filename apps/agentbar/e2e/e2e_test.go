@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -132,6 +133,22 @@ func (s *server) tmux(args ...string) string {
 		s.t.Fatalf("tmux %v: %v\n%s", args, err, out)
 	}
 	return out
+}
+
+// killServer kills the server and waits for it to actually be gone. kill-server
+// returns before the process exits, so a new-session straight after it can reach
+// the dying socket and fail with "server exited unexpectedly" - a flake that only
+// showed up under load, and only in the full suite.
+func (s *server) killServer() {
+	s.t.Helper()
+	_, _ = s.tmuxErr("kill-server")
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+		if _, err := s.tmuxErr("list-sessions"); err != nil {
+			return // the socket has stopped answering
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	s.t.Fatal("tmux server still answering 5s after kill-server")
 }
 
 // newSession creates a detached session and returns its first pane id.
@@ -316,11 +333,22 @@ func waitFor(t *testing.T, desc string, timeout time.Duration, cond func() bool)
 // selBG is the Solarized Light selection background every theme test uses.
 const selBG = "48;2;238;232;213"
 
+// isAgentLine reports whether a rendered line is an agent's state line. The row
+// no longer spells out the command, so its state word is what marks it.
+func isAgentLine(l string) bool {
+	for _, w := range []string{"idle", "working", "done", "permission", "asking"} {
+		if strings.Contains(l, w) {
+			return true
+		}
+	}
+	return false
+}
+
 // highlightedAgentLine returns the text of the line carrying the selection
-// background and the word claude, "" if none.
+// background and an agent's state, "" if none.
 func highlightedAgentLine(capture string) (line string, lineNo int) {
 	for i, l := range strings.Split(capture, "\n") {
-		if strings.Contains(l, selBG) && strings.Contains(l, "claude") {
+		if strings.Contains(l, selBG) && isAgentLine(l) {
 			return l, i
 		}
 	}
@@ -654,7 +682,7 @@ func TestSidebarRendersAgentState(t *testing.T) {
 	}
 	waitFor(t, "sidebar shows working agent", 5*time.Second, func() bool {
 		c := s.capture(side)
-		return strings.Contains(c, "claude") && strings.Contains(c, "working")
+		return strings.Contains(c, "working")
 	})
 
 	s.hook(agent, `{"hook_event_name":"Stop"}`)
@@ -665,7 +693,7 @@ func TestSidebarRendersAgentState(t *testing.T) {
 	// Killing the agent pane removes its entry within a tick.
 	s.tmux("kill-pane", "-t", agent)
 	waitFor(t, "dead agent dropped", 5*time.Second, func() bool {
-		return !strings.Contains(s.capture(side), "claude ")
+		return !isAgentLine(s.captureText(side))
 	})
 }
 
@@ -802,14 +830,14 @@ func TestClickJump(t *testing.T) {
 
 	s.ptyClient("aaa")
 
-	// Find bbb's agent row in aaa's sidebar: the first claude line after
+	// Find bbb's agent row in aaa's sidebar: the first agent line after
 	// the bbb session header (rows are 0-based, SGR is 1-based).
 	lines := strings.Split(s.captureText(sideA), "\n")
 	row := -1
 	for i, l := range lines {
 		if strings.Contains(l, "bbb") {
 			for j := i + 1; j < len(lines); j++ {
-				if strings.Contains(lines[j], "claude") {
+				if isAgentLine(lines[j]) {
 					row = j + 1
 					break
 				}
@@ -843,7 +871,7 @@ func TestClickJump(t *testing.T) {
 	lines = strings.Split(s.captureText(sideB), "\n")
 	backRow := -1
 	for i, l := range lines {
-		if strings.Contains(l, "claude") {
+		if isAgentLine(l) {
 			backRow = i + 1 // first agent listed is aaa's
 			break
 		}
@@ -949,7 +977,7 @@ func TestHoverMotionReachesUnfocusedSidebar(t *testing.T) {
 	s.script("open.sh", "work")
 	side := s.sidebarPane("work")
 	waitFor(t, "sidebar shows the agent", 5*time.Second, func() bool {
-		return strings.Contains(s.capture(side), "claude")
+		return isAgentLine(s.captureText(side))
 	})
 	if active, _ := s.tmuxErr("display-message", "-t", "work", "-p", "#{pane_id}"); active == side {
 		t.Fatal("sidebar is focused; test needs it unfocused")
@@ -1454,9 +1482,10 @@ func TestResurrectSaveHookClaudeResume(t *testing.T) {
 	}
 }
 
-// TestNotifyToggle: pressing `n` in the sidebar flips the global
-// @agent_notify option (which the hook reads) and the footer chip.
-func TestNotifyToggle(t *testing.T) {
+// TestNotifyIsNotASidebarControl: notifications are set from the settings
+// dialogue (covered by test/settings.sh), so the bar carries no chip and no key
+// - `n` must be inert rather than flipping the option behind your back.
+func TestNotifyIsNotASidebarControl(t *testing.T) {
 	s := start(t)
 	s.newSession("work")
 	s.agentPane("work")
@@ -1465,16 +1494,16 @@ func TestNotifyToggle(t *testing.T) {
 	if side == "" {
 		t.Fatal("no sidebar pane")
 	}
-	waitFor(t, "footer shows notify off", 5*time.Second, func() bool {
-		return strings.Contains(s.capture(side), "notify off")
+	waitFor(t, "sidebar rendered", 5*time.Second, func() bool {
+		return strings.Contains(s.capture(side), "idle")
 	})
-
+	if c := s.capture(side); strings.Contains(c, "notify") {
+		t.Errorf("footer still carries a notify chip: %q", c)
+	}
 	s.tmux("send-keys", "-t", side, "n")
-	waitFor(t, "footer shows notify on", 5*time.Second, func() bool {
-		return strings.Contains(s.capture(side), "notify on")
-	})
-	if got := s.tmux("show-option", "-gqv", "@agent_notify"); got != "on" {
-		t.Errorf("@agent_notify = %q, want on", got)
+	time.Sleep(time.Second)
+	if got := s.tmux("show-option", "-gqv", "@agent_notify"); got != "" {
+		t.Errorf("`n` wrote @agent_notify = %q, want it untouched", got)
 	}
 }
 
@@ -1554,8 +1583,8 @@ func TestOrderFollowsSidebarBands(t *testing.T) {
 	}
 	s.newSession("payments") // no agent: dormant
 	s.ptyClient("dotfiles")
-	s.agentbar("pin", "blog")
-	s.agentbar("pin", "dotfiles")
+	s.agentbar("band", "blog", "pinned")
+	s.agentbar("band", "dotfiles", "pinned")
 
 	// Alphabetically this would be api, blog, dotfiles, payments.
 	want := "pinned\tblog\npinned\tdotfiles\nactive\tapi\ndormant\tpayments\n"
@@ -1574,8 +1603,8 @@ func TestNextPrevWalkSidebarOrder(t *testing.T) {
 	}
 	s.newSession("payments")
 	s.ptyClient("dotfiles")
-	s.agentbar("pin", "blog")
-	s.agentbar("pin", "dotfiles")
+	s.agentbar("band", "blog", "pinned")
+	s.agentbar("band", "dotfiles", "pinned")
 	// Order is now: blog, dotfiles, api, payments.
 
 	// The bindings pass tmux's own #{client_session}: tmux never re-stamps
@@ -1612,9 +1641,9 @@ func TestPinsSurviveServerRestart(t *testing.T) {
 	s.newSession("blog")
 	s.agentPane("blog")
 	s.ptyClient("api")
-	s.agentbar("pin", "blog")
+	s.agentbar("band", "blog", "pinned")
 
-	s.tmux("kill-server")
+	s.killServer()
 	s.newSession("api") // fresh server: @agentbar-pins is gone
 	s.agentPane("api")
 	s.newSession("blog")
@@ -1629,19 +1658,168 @@ func TestPinsSurviveServerRestart(t *testing.T) {
 	}
 }
 
-// `agentbar pin` is the picker popup's pin key: it must toggle the same set
-// the sidebar's own p key writes, both ways.
-func TestPinCommandToggles(t *testing.T) {
+// `agentbar band` is the picker popup's p/a/d keys: it must drive the same two
+// stores the sidebar's own keys write, for a session name tmux allows.
+func TestBandCommandPlacesSessions(t *testing.T) {
 	s := start(t)
 	s.newSession("my repo") // a space: tmux allows it, so the storage must
 	s.agentPane("my repo")
 
-	s.agentbar("pin", "my repo")
+	s.agentbar("band", "my repo", "pinned")
 	if got := s.agentbar("order"); got != "pinned\tmy repo\n" {
-		t.Errorf("order after pin = %q, want the session pinned", got)
+		t.Errorf("order after pinning = %q, want it pinned", got)
 	}
-	s.agentbar("pin", "my repo")
+	// Again is a no-op, not a toggle.
+	s.agentbar("band", "my repo", "pinned")
+	if got := s.agentbar("order"); got != "pinned\tmy repo\n" {
+		t.Errorf("pinning twice moved it: %q", got)
+	}
+	// Another band moves it, clearing the pin rather than stacking on it.
+	s.agentbar("band", "my repo", "dormant")
+	if got := s.agentbar("order"); got != "dormant\tmy repo\n" {
+		t.Errorf("order after dormant = %q, want it dormant", got)
+	}
+	s.agentbar("band", "my repo", "active")
 	if got := s.agentbar("order"); got != "active\tmy repo\n" {
-		t.Errorf("order after unpin = %q, want the session unpinned", got)
+		t.Errorf("order after active = %q, want it active", got)
 	}
+}
+
+// The nesting: a session line carries its branch, and each agent under it
+// carries the title Claude gave itself. Both facts on screen at once, which is
+// what removed the option that used to pick between them.
+func TestSessionCarriesBranchAgentCarriesTitle(t *testing.T) {
+	s := start(t)
+	s.newSession("work")
+	agent := s.agentPane("work")
+	// The pane title is where Claude Code publishes that title.
+	s.tmux("select-pane", "-t", agent, "-T", "✳ Ship the parser")
+	s.hook(agent, `{"hook_event_name":"UserPromptSubmit","session_id":"e2e"}`)
+
+	s.script("open.sh", "work")
+	side := s.sidebarPane("work")
+	waitFor(t, "the agent's title is on screen", 5*time.Second, func() bool {
+		return strings.Contains(s.captureText(side), "Ship the parser")
+	})
+
+	// The title is indented under its session, the state line deeper still. A
+	// selected row spends column 0 on its accent edge, so allow that in place of
+	// the leading space.
+	indent := func(l string, n int) bool {
+		l = strings.TrimPrefix(l, "▎")
+		return strings.HasPrefix(l, strings.Repeat(" ", n)) && !strings.HasPrefix(l, strings.Repeat(" ", n+1))
+	}
+	for _, l := range strings.Split(s.captureText(side), "\n") {
+		if strings.Contains(l, "Ship the parser") && !indent(l, 3) && !indent(l, 2) {
+			t.Errorf("the title should be indented under its session: %q", l)
+		}
+		if strings.Contains(l, "working") {
+			if !indent(l, 5) && !indent(l, 4) {
+				t.Errorf("the state line should sit a step deeper: %q", l)
+			}
+			if strings.Contains(l, "claude") {
+				t.Errorf("the state line should not spell out the command: %q", l)
+			}
+		}
+	}
+
+	// A retitle reaches the bar on the next poll, with no option to set.
+	s.tmux("select-pane", "-t", agent, "-T", "✳ Pin the worker images")
+	waitFor(t, "a retitle follows", 5*time.Second, func() bool {
+		return strings.Contains(s.captureText(side), "Pin the worker images")
+	})
+}
+
+// A session whose agents have gone quiet sinks to dormant on the clock alone -
+// no keypress, no process watching it. Backdating @agent_since is exactly what
+// an hour of not touching a worktree looks like.
+func TestQuietSessionSinksToDormant(t *testing.T) {
+	s := start(t)
+	s.newSession("work")
+	s.newSession("other")
+	quiet := s.agentPane("work")
+	busy := s.agentPane("other")
+	s.hook(quiet, `{"hook_event_name":"Stop"}`)            // done, just now
+	s.hook(busy, `{"hook_event_name":"UserPromptSubmit"}`) // working
+
+	s.script("open.sh", "work")
+	side := s.sidebarPane("work")
+	waitFor(t, "the finished agent starts out active", 5*time.Second, func() bool {
+		return strings.Contains(s.captureText(side), "done")
+	})
+
+	old := strconv.FormatInt(time.Now().Add(-2*time.Hour).Unix(), 10)
+	s.tmux("set-option", "-pq", "-t", quiet, "@agent_since", old)
+	waitFor(t, "and sinks once its last activity ages out", 5*time.Second, func() bool {
+		c := s.captureText(side)
+		return strings.Contains(c, "dormant") && !strings.Contains(c, "done")
+	})
+	// Sunk, not gone: the session keeps its name in the dormant band.
+	if c := s.captureText(side); !strings.Contains(c, "work") {
+		t.Errorf("the sunk session lost its name: %q", c)
+	}
+
+	// The trap: @agent_since is the time of the last state *change*, so an agent
+	// mid-turn carries an old stamp. It must stay active regardless.
+	s.tmux("set-option", "-pq", "-t", busy, "@agent_since", old)
+	time.Sleep(1500 * time.Millisecond)
+	if c := s.captureText(side); !strings.Contains(c, "working") {
+		t.Errorf("a working agent aged out of the active band: %q", c)
+	}
+
+	// Widening the window brings the quiet one back, with no restart.
+	s.tmux("set-option", "-g", "@agentbar-active-for", "4h")
+	waitFor(t, "a wider window revives it", 5*time.Second, func() bool {
+		return strings.Contains(s.captureText(side), "done")
+	})
+}
+
+// One key, one destination: p, a and d place a session, pressing the same key
+// again changes nothing, and `a` on a pinned session moves it. The sidebar key,
+// the `band` command and the picker drive one store, and `order` - what
+// Alt-h/Alt-l walk - must agree with what the bar draws.
+func TestBandsPlacedByHand(t *testing.T) {
+	s := start(t)
+	s.newSession("other")
+	s.newSession("work")
+	quiet := s.agentPane("work")
+	s.agentPane("other")
+	s.hook(quiet, `{"hook_event_name":"Stop"}`)
+
+	s.script("open.sh", "work")
+	side := s.sidebarPane("work")
+	waitFor(t, "both sessions start active", 5*time.Second, func() bool {
+		return strings.Contains(s.agentbar("order"), "active\twork")
+	})
+
+	s.agentbar("band", "work", "pinned")
+	waitFor(t, "p pins it", 5*time.Second, func() bool {
+		return strings.Contains(s.agentbar("order"), "pinned\twork")
+	})
+
+	// `a` on a pinned session moves it: the pin is cleared, not stacked under.
+	s.agentbar("band", "work", "active")
+	waitFor(t, "a moves a pinned session to active", 5*time.Second, func() bool {
+		out := s.agentbar("order")
+		return strings.Contains(out, "active\twork") && !strings.Contains(out, "pinned\twork")
+	})
+	// d sinks it now, without waiting out the window.
+	s.agentbar("band", "work", "dormant")
+	waitFor(t, "d sends it to dormant", 5*time.Second, func() bool {
+		return strings.Contains(s.agentbar("order"), "dormant\twork")
+	})
+
+	// The same band again changes nothing.
+	s.agentbar("band", "work", "dormant")
+	time.Sleep(1500 * time.Millisecond)
+	if out := s.agentbar("order"); !strings.Contains(out, "dormant\twork") {
+		t.Errorf("pressing d twice moved it:\n%s", out)
+	}
+
+	// The sidebar key drives the same store. The cursor starts on the first
+	// agent, and "other" sorts before "work".
+	s.tmux("send-keys", "-t", side, "d")
+	waitFor(t, "the d key places the selected session", 5*time.Second, func() bool {
+		return strings.Contains(s.agentbar("order"), "dormant\tother")
+	})
 }

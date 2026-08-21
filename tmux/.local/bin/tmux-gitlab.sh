@@ -161,7 +161,7 @@ cmd_render() {
                 ci_status) ci=$v ;;
                 updated) updated=$v ;;
             esac
-        done <"$cache"          # one pass for every key, not one pass per key
+        done <"$cache" # one pass for every key, not one pass per key
     fi
     if [ $((EPOCHSECONDS - updated)) -ge "$TTL" ]; then
         setsid -f "$0" refresh "$path" >/dev/null 2>&1 || ("$0" refresh "$path" >/dev/null 2>&1 &)

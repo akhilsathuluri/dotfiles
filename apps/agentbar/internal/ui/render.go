@@ -69,6 +69,12 @@ func buildBlocks(snap model.Snapshot) []block {
 			prev = band
 		}
 		blocks = append(blocks, block{kind: blockSession, session: si})
+		// A dormant session is its name alone: reclaiming the rows is the point
+		// of sinking one, and skipping the blocks here (not just their render)
+		// keeps nav and clicks off rows that are not on screen.
+		if band == 2 {
+			continue
+		}
 		for ai := range sess.Agents {
 			blocks = append(blocks, block{kind: blockAgent, session: si, agent: ai})
 		}
@@ -165,11 +171,18 @@ func truncate(s string, width int) string {
 type renderer struct {
 	theme Theme
 	width int
-	nameW int // agent-name column width (fixed; commands are only claude/node)
 }
 
 // labelW fits the longest state label ("permission").
 const labelW = 10
+
+// The nesting: a session sits at the margin, its agents' titles one step in,
+// their state lines one step further. Two steps plus the state label is what
+// 30 columns hold - which is why the row no longer spells out "claude".
+const (
+	agentIndent = "   "
+	stateIndent = "     "
+)
 
 // padCol pads (or truncates) a plain string to exactly w cells.
 func padCol(s string, w int) string {
@@ -236,32 +249,62 @@ func (r renderer) sessionMarker(sess model.Session) string {
 	return ""
 }
 
-// sessionRow is the session's single name line, indented one column so the
-// selection's accent edge has a place to sit. When lit (hovered or
-// selected) it fills; the selected row also shows the edge. A dormant row is
-// dimmed and drops its "no agents" tag (the dormant divider already says it).
+// branchTag is the session's branch as it sits beside the name: "⎇ <branch>",
+// truncated to what is left of the line, or "" when there is no room for a
+// readable stub. The glyph is the pane rail's, so both surfaces name a branch
+// the same way.
+func branchTag(branch string, room int) string {
+	if branch == "" || room < 6 {
+		return ""
+	}
+	tag := "⎇ " + branch
+	if len([]rune(tag)) > room {
+		tag = padCol(tag, room)
+	}
+	return strings.TrimRight(tag, " ")
+}
+
+// sessionRow is the session's name line: the name, then its branch, dim,
+// because one worktree is one checkout and the branch belongs to the session
+// rather than to any agent in it. Indented one column so the selection's accent
+// edge has a place to sit. A dormant row is dimmed and drops both its branch
+// (no agent means no worktree to read) and its "no agents" tag.
 func (r renderer) sessionRow(sess model.Session, dim, lit, bar bool) string {
 	marker := r.sessionMarker(sess)
+	tag := ""
 	if dim {
 		marker = ""
+	} else {
+		// 1 lead + name + 2 gap is what precedes the branch.
+		tag = branchTag(sess.Branch, r.width-lipgloss.Width(sess.Name)-3)
 	}
 	nameColor := r.theme.Emphasis
 	if dim && !lit {
 		nameColor = r.theme.Muted
 	}
+	right := marker
+	if tag != "" {
+		right = "" // the branch takes the room the marker would have used
+	}
 	if lit {
 		contentW := max(r.width-1, 0) // column 0 is the edge
-		gap := max(contentW-lipgloss.Width(sess.Name)-lipgloss.Width(marker), 0)
-		plain := sess.Name + strings.Repeat(" ", gap) + marker
+		plain := sess.Name
+		if tag != "" {
+			plain += "  " + tag
+		}
+		gap := max(contentW-lipgloss.Width(plain)-lipgloss.Width(right), 0)
+		plain += strings.Repeat(" ", gap) + right
 		return r.leftEdge(bar) + lipgloss.NewStyle().Foreground(nameColor).
 			Background(r.theme.SelBg).Render(padCol(plain, contentW))
 	}
-	name := lipgloss.NewStyle().Foreground(nameColor).Render(sess.Name)
-	right := ""
-	if marker != "" {
-		right = lipgloss.NewStyle().Foreground(r.theme.Muted).Render(marker)
+	left := " " + lipgloss.NewStyle().Foreground(nameColor).Render(sess.Name)
+	if tag != "" {
+		left += "  " + lipgloss.NewStyle().Foreground(r.theme.Muted).Render(tag)
 	}
-	return line(" "+name, right, r.width)
+	if right != "" {
+		right = lipgloss.NewStyle().Foreground(r.theme.Muted).Render(right)
+	}
+	return line(left, right, r.width)
 }
 
 // sessionBlock is a blank spacer (groups the sessions) above the name line.
@@ -283,56 +326,23 @@ func (r renderer) stateColor(a model.Agent) lipgloss.Color {
 	return r.theme.StateColor(a.State)
 }
 
-// attentionRank orders agents by how much they want the user, so a branch
-// shared by several Claudes takes the color of its most-urgent one.
-func attentionRank(a model.Agent) int {
-	switch {
-	case a.State.NeedsAttention():
-		return 4
-	case a.State == model.StateWorking:
-		return 3
-	case a.State == model.StateDone && !a.Seen:
-		return 2
-	default:
-		return 1
-	}
-}
-
-// agentShowsBranch reports whether this agent draws the branch headline:
-// true unless it repeats the branch of the previous agent in the session,
-// so several Claudes on one branch show that branch once.
-func agentShowsBranch(sess model.Session, idx int) bool {
-	if sess.Agents[idx].Branch == "" {
-		return false
-	}
-	return idx == 0 || sess.Agents[idx-1].Branch != sess.Agents[idx].Branch
-}
-
-// groupColor is the state color of the most-urgent agent in the run of
-// consecutive same-branch agents starting at idx.
-func (r renderer) groupColor(sess model.Session, idx int) lipgloss.Color {
-	lead := sess.Agents[idx]
-	for j := idx + 1; j < len(sess.Agents) && sess.Agents[j].Branch == lead.Branch; j++ {
-		if attentionRank(sess.Agents[j]) > attentionRank(lead) {
-			lead = sess.Agents[j]
-		}
-	}
-	return r.stateColor(lead)
-}
-
-// branchRow is the agent block's headline: the branch, colored by state so
-// scanning the list reads as attention at a glance.
-func (r renderer) branchRow(branch string, col lipgloss.Color, lit, bar bool) string {
+// titleRow is the agent's first line: Claude's own title for the session,
+// indented under it and colored by state so scanning the list reads as
+// attention at a glance. An agent Claude has not titled yet draws no such line.
+func (r renderer) titleRow(text string, col lipgloss.Color, lit, bar bool) string {
 	s := lipgloss.NewStyle().Foreground(col).Bold(true)
 	if lit {
-		// The edge occupies column 0 in place of the leading space, so the
-		// branch stays at column 1 whether or not the row is lit.
+		// The edge occupies column 0, so the text keeps its indent either way.
 		s = s.Background(r.theme.SelBg)
-		return r.leftEdge(bar) + s.Render(padCol(branch, max(r.width-1, 0)))
+		return r.leftEdge(bar) + s.Render(padCol(agentIndent[1:]+text, max(r.width-1, 0)))
 	}
-	return s.Render(padCol(" "+branch, r.width))
+	return s.Render(padCol(agentIndent+text, r.width))
 }
 
+// agentRow is the agent's state line, a step deeper than its title: glyph,
+// state, and the elapsed time at the right edge. The pane's command is not
+// drawn - it is "claude" on every row, and the title above already says whose
+// row this is, so the eight columns go to the title instead.
 func (r renderer) agentRow(a model.Agent, lit, bar bool, frame int, now time.Time) string {
 	col := r.stateColor(a)
 	// Each fragment carries its own style: an outer background would break at
@@ -344,20 +354,18 @@ func (r renderer) agentRow(a model.Agent, lit, bar bool, frame int, now time.Tim
 		}
 		return s
 	}
-	// When lit, column 0 is the edge; the icon stays at column 3 either way.
-	var row string
+	indent := stateIndent
 	if lit {
-		row = r.leftEdge(bar) + frag(col).Render("  "+stateIcon(a.State, frame)+" ")
-	} else {
-		row = frag(col).Render("   " + stateIcon(a.State, frame) + " ")
+		indent = indent[1:] // column 0 is the edge
 	}
-	row += frag(r.theme.Fg).Render(padCol(a.Command, r.nameW)) +
-		frag(col).Render("  "+padCol(a.State.Label(), labelW)) +
-		frag(r.theme.Muted).Render(fmt.Sprintf("%5s", elapsed(a.Since, now)))
-	if pad := r.width - lipgloss.Width(row); pad > 0 && lit {
-		row += frag(r.theme.Fg).Render(strings.Repeat(" ", pad))
+	left := frag(col).Render(indent+stateIcon(a.State, frame)+" ") +
+		frag(col).Render(padCol(a.State.Label(), labelW))
+	age := frag(r.theme.Muted).Render(elapsed(a.Since, now))
+	if lit {
+		gap := max(r.width-1-lipgloss.Width(left)-lipgloss.Width(age), 0)
+		return r.leftEdge(bar) + left + frag(r.theme.Muted).Render(strings.Repeat(" ", gap)) + age
 	}
-	return line(row, "", r.width)
+	return line(left, age+" ", r.width)
 }
 
 // subRow renders a secondary line of an agent block (branch, subagents),
@@ -372,14 +380,15 @@ func (r renderer) subRow(text string, italic, lit, bar bool) string {
 	return s.Render(padCol("     "+text, r.width))
 }
 
-// agentBlock renders an agent's full block: the branch as a state-colored
-// headline (shown once per same-branch run), the status line beneath, and a
-// subagent count when any.
+// agentBlock renders one agent under its session: its title as a state-colored
+// line, the state line a step deeper, and a subagent count when any. Every
+// agent draws its own title - unlike a branch, no two of them are the same - so
+// nothing is collapsed.
 func (r renderer) agentBlock(sess model.Session, idx int, lit, bar bool, frame int, now time.Time) []string {
 	a := sess.Agents[idx]
 	var lines []string
-	if agentShowsBranch(sess, idx) {
-		lines = append(lines, r.branchRow(a.Branch, r.groupColor(sess, idx), lit, bar))
+	if a.Title != "" {
+		lines = append(lines, r.titleRow(a.Title, r.stateColor(a), lit, bar))
 	}
 	lines = append(lines, r.agentRow(a, lit, bar, frame, now))
 	if a.Subagents > 0 {
@@ -413,7 +422,7 @@ func blockLineCount(b block, snap model.Snapshot) int {
 	sess := snap.Sessions[b.session]
 	a := sess.Agents[b.agent]
 	n := 1
-	if agentShowsBranch(sess, b.agent) {
+	if a.Title != "" {
 		n++
 	}
 	if a.Subagents > 0 {
@@ -422,7 +431,7 @@ func blockLineCount(b block, snap model.Snapshot) int {
 	return n
 }
 
-func (r renderer) footer(snap model.Snapshot, notify bool) string {
+func (r renderer) footer(snap model.Snapshot) string {
 	var status string
 	if att := snap.Attention(); att > 0 {
 		status = lipgloss.NewStyle().Foreground(r.theme.Asking).Bold(true).
@@ -430,19 +439,11 @@ func (r renderer) footer(snap model.Snapshot, notify bool) string {
 	} else {
 		status = lipgloss.NewStyle().Foreground(r.theme.Muted).Render(" all quiet")
 	}
-	help := " j/k · ⏎ · p pin · n · q"
+	help := " j/k · ⏎ · p/a/d band · q"
 	if snap.Attention() > 0 {
 		help = " j/k · tab ⚠ · p pin · q" // tab steps through agents waiting on you
 	}
 	hint := lipgloss.NewStyle().Foreground(r.theme.Muted).Render(help)
-	return r.sep() + "\n" + line(status, r.notifyChip(notify), r.width) + "\n" + hint
-}
-
-// notifyChip is the desktop-notification toggle's state, shown at the right
-// of the status line: green "notify on", muted "notify off".
-func (r renderer) notifyChip(on bool) string {
-	if on {
-		return lipgloss.NewStyle().Foreground(r.theme.Done).Render("notify on")
-	}
-	return lipgloss.NewStyle().Foreground(r.theme.Muted).Render("notify off")
+	// Notifications moved to the settings dialogue: one home per setting.
+	return r.sep() + "\n" + line(status, "", r.width) + "\n" + hint
 }

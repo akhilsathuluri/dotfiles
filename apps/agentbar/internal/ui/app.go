@@ -31,11 +31,12 @@ const (
 type tickMsg time.Time
 
 type snapMsg struct {
-	snap   model.Snapshot
-	sel    string          // global @sidebar_selected at snapshot time
-	notify bool            // global @agent_notify at snapshot time
-	pins   map[string]bool // global @agentbar-pins at snapshot time
-	signal bool            // woken by the wait-for channel, not the 1s tick
+	snap      model.Snapshot
+	sel       string            // global @sidebar_selected at snapshot time
+	activeFor time.Duration     // global @agentbar-active-for at snapshot time
+	pins      map[string]bool   // global @agentbar-pins at snapshot time
+	bands     map[string]string // global @agentbar-bands at snapshot time
+	signal    bool              // woken by the wait-for channel, not the 1s tick
 }
 
 // App is the Bubble Tea model for the sidebar. In mockup mode the
@@ -52,8 +53,12 @@ type App struct {
 	height     int
 	flash      string
 	mockup     bool
-	notify     bool            // desktop-notification toggle (@agent_notify), mirrored for the footer
-	pins       map[string]bool // pinned session names (@agentbar-pins), used to regroup on `p`
+	pins       map[string]bool   // pinned session names (@agentbar-pins), regrouped on `p`
+	bands      map[string]string // hand-placed bands (@agentbar-bands), regrouped on `a`/`d`
+
+	// How long a session stays active after its last agent activity
+	// (@agentbar-active-for). Re-read every poll, like the other options.
+	activeFor time.Duration
 
 	// live-mode plumbing (nil in mockup mode)
 	runner   tmux.Runner
@@ -81,18 +86,17 @@ func NewLive(theme Theme) App {
 		branches: tmux.NewBranchCache(),
 		current:  tmux.CurrentSession(runner),
 		pins:     tmux.Pins(runner),
+		bands:    tmux.Bands(runner),
 	}
+	app.activeFor = tmux.ActiveFor(runner)
 	snap := tmux.Snapshot(runner, app.branches, app.current)
-	snap.Sessions = model.Arrange(snap.Sessions, app.pins)
+	snap.Sessions = model.Arrange(snap.Sessions, app.grouping())
 	app.setSnapshot(snap)
 	app.attached = attachedKey(app.snap)
 	// Selection is shared across sidebars via the global @sidebar_selected.
 	if sel, err := runner.Run("show-option", "-gqv", "@sidebar_selected"); err == nil {
 		app.lastSel = strings.TrimSpace(sel)
 		app.adoptSelection(app.lastSel)
-	}
-	if v, err := runner.Run("show-option", "-gqv", "@agent_notify"); err == nil {
-		app.notify = strings.TrimSpace(v) == "on"
 	}
 	app.register()
 	trace.Log("agentbar", "start", "pane", os.Getenv("TMUX_PANE"), "session", app.current)
@@ -148,11 +152,13 @@ func (a *App) setSnapshot(snap model.Snapshot) {
 	var anchorPane, anchorSess string
 	if a.blockSelectable(a.cursor) {
 		b := a.blocks[a.cursor]
-		switch b.kind {
-		case blockAgent:
+		// An agent anchors on its pane, but remember its session too: sinking a
+		// session drops its agent blocks, and without the fallback the cursor
+		// would jump to an unrelated row - so `d` then `a` acted on whatever it
+		// landed on rather than on the session you just sank.
+		anchorSess = a.snap.Sessions[b.session].Name
+		if b.kind == blockAgent {
 			anchorPane = a.snap.Sessions[b.session].Agents[b.agent].PaneID
-		case blockSession:
-			anchorSess = a.snap.Sessions[b.session].Name
 		}
 	}
 	a.snap = snap
@@ -160,15 +166,15 @@ func (a *App) setSnapshot(snap model.Snapshot) {
 	if a.hover >= len(a.blocks) {
 		a.hover = -1 // pointer target no longer exists
 	}
-	switch {
-	case anchorPane != "":
+	if anchorPane != "" {
 		for i, b := range a.blocks {
 			if b.kind == blockAgent && snap.Sessions[b.session].Agents[b.agent].PaneID == anchorPane {
 				a.cursor = i
 				return
 			}
 		}
-	case anchorSess != "":
+	}
+	if anchorSess != "" {
 		for i, b := range a.blocks {
 			if b.kind == blockSession && snap.Sessions[b.session].Name == anchorSess {
 				a.cursor = i
@@ -195,23 +201,27 @@ func (a App) waitRefresh() tea.Cmd {
 	}
 }
 
-// gather takes a fresh snapshot plus the shared selection and notify state.
+// gather takes a fresh snapshot plus the shared selection and pin set.
 func (a App) gather(signal bool) snapMsg {
 	sel, _ := a.runner.Run("show-option", "-gqv", "@sidebar_selected")
-	notify, _ := a.runner.Run("show-option", "-gqv", "@agent_notify")
 	// Re-read the verbose gate each poll so `tmux set -g @agentbar-trace-verbose
 	// on` takes effect within ~1s, no sidebar restart.
 	verbose, _ := a.runner.Run("show-option", "-gqv", "@agentbar-trace-verbose")
 	trace.SetVerbose(truthy(verbose))
 	pins := tmux.Pins(a.runner)
+	bands := tmux.Bands(a.runner)
+	activeFor := tmux.ActiveFor(a.runner)
 	snap := tmux.Snapshot(a.runner, a.branches, a.current)
-	snap.Sessions = model.Arrange(snap.Sessions, pins)
+	snap.Sessions = model.Arrange(snap.Sessions, model.Grouping{
+		Pinned: pins, Forced: bands, Now: time.Now(), ActiveFor: activeFor,
+	})
 	return snapMsg{
-		snap:   snap,
-		sel:    strings.TrimSpace(sel),
-		notify: strings.TrimSpace(notify) == "on",
-		pins:   pins,
-		signal: signal,
+		snap:      snap,
+		sel:       strings.TrimSpace(sel),
+		activeFor: activeFor,
+		pins:      pins,
+		bands:     bands,
+		signal:    signal,
 	}
 }
 
@@ -289,38 +299,59 @@ func NewMockup(theme Theme) App {
 		// share it (here a single Claude, working, with two subagents).
 		{Name: "api-server", Current: true, Agents: []model.Agent{
 			{PaneID: "%1", WindowIndex: 1, Command: "claude", Branch: "feat/rate-limit-middleware-rollout",
+				Title: "Rate limit middleware rollout",
 				State: model.StateWorking, Since: now.Add(-2 * time.Minute), Subagents: 2},
+		}},
+		// Agents, but none live or recent: sinks to dormant on the clock alone.
+		{Name: "archive", Agents: []model.Agent{
+			{PaneID: "%12", WindowIndex: 1, Command: "claude", Branch: "chore/retire-v1",
+				Title: "Retire the v1 endpoints",
+				State: model.StateDone, Seen: true, Since: now.Add(-3 * time.Hour)},
 		}},
 		{Name: "blog", Agents: []model.Agent{
 			{PaneID: "%7", WindowIndex: 1, Command: "claude", Branch: "draft/tmux-agents-post",
+				Title: "Draft the parallel agents post",
 				State: model.StateDone, Since: now.Add(-12 * time.Minute)},
 		}},
+		// No Title: never prompted, so name mode falls back to its branch.
 		{Name: "cli", Agents: []model.Agent{
 			{PaneID: "%3", WindowIndex: 1, Command: "claude", Branch: "chore/flag-parsing",
 				State: model.StateIdle, Since: now.Add(-8 * time.Minute)},
 		}},
 		{Name: "dotfiles", Agents: []model.Agent{
 			{PaneID: "%5", WindowIndex: 1, Command: "claude", Branch: "main",
+				Title: "Sidebar label toggle",
 				State: model.StateQuestion, Since: now.Add(-4 * time.Minute)},
 		}},
 		{Name: "notes"},
 		// Three Claudes on one branch: the branch shows once, colored by the
-		// most-urgent of them (here the one waiting on a permission).
+		// most-urgent of them (here the one waiting on a permission). Their names
+		// differ, so name mode heads all three separately.
 		{Name: "payments", Agents: []model.Agent{
 			{PaneID: "%9", WindowIndex: 1, Command: "claude", Branch: "2091-refund-idempotency-keys",
+				Title: "Refund idempotency keys",
 				State: model.StateWorking, Since: now.Add(-6 * time.Minute)},
 			{PaneID: "%10", WindowIndex: 2, Command: "claude", Branch: "2091-refund-idempotency-keys",
+				Title: "Backfill the refund ledger",
 				State: model.StatePermission, Since: now.Add(-30 * time.Second)},
 			{PaneID: "%11", WindowIndex: 3, Command: "claude", Branch: "2091-refund-idempotency-keys",
+				Title: "Retry the dropped webhooks",
 				State: model.StateDone, Since: now.Add(-11 * time.Minute)},
 		}},
 		{Name: "scratch"},
 		{Name: "www", Agents: []model.Agent{
 			{PaneID: "%8", WindowIndex: 1, Command: "claude", Branch: "main",
+				Title: "Bump the pricing copy",
 				State: model.StateDone, Seen: true, Since: now.Add(-33 * time.Minute)},
 		}},
 	}}
-	snap.Sessions = model.Arrange(snap.Sessions, pins)
+	for i := range snap.Sessions {
+		snap.Sessions[i].Branch = model.BranchOf(snap.Sessions[i].Agents)
+	}
+	// One session held up by `a` and one pushed down by `d`, so the mockup shows
+	// what a hand-placed band looks like next to the clock's own.
+	forced := map[string]string{"cli": model.BandDormant, "www": model.BandActive}
+	snap.Sessions = model.Arrange(snap.Sessions, model.Grouping{Pinned: pins, Forced: forced, Now: now})
 	app := App{
 		theme:  theme,
 		hover:  -1,
@@ -412,9 +443,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tick()
 	case snapMsg:
 		a.setSnapshot(msg.snap)
-		a.notify = msg.notify
+		if msg.activeFor > 0 {
+			a.activeFor = msg.activeFor
+		}
 		if msg.pins != nil {
 			a.pins = msg.pins
+		}
+		if msg.bands != nil {
+			a.bands = msg.bands
 		}
 		key := attachedKey(a.snap)
 		switch {
@@ -501,9 +537,6 @@ func (a App) handleMouse(m tea.MouseMsg) (tea.Model, tea.Cmd) {
 		// Always-on: a click that lands nowhere (hit=none) vs a hit whose
 		// jump then fails (see the jump `err`) are different bugs.
 		trace.Log("agentbar", "click", "x", m.X, "y", m.Y, "hit", hitStr)
-		if a.onNotifyChip(m.X, m.Y) {
-			return a.toggleNotify()
-		}
 		if hit >= 0 {
 			a.cursor = hit
 			return a.activate()
@@ -629,60 +662,47 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a.activate()
 		}
 	case "p":
-		return a.togglePin()
-	case "n":
-		return a.toggleNotify()
+		return a.place(model.BandPinned)
+	case "a":
+		return a.place(model.BandActive)
+	case "d":
+		return a.place(model.BandDormant)
 	}
 	return a, nil
 }
 
-// togglePin pins or unpins the selected session, regrouping the list right
-// away (the cursor rides along with the session as it moves bands) and
-// persisting the set (tmux.SetPins) so every sidebar and the picker popup pick
-// it up, and it survives a server restart.
-func (a App) togglePin() (tea.Model, tea.Cmd) {
+// grouping is the banding input: the two persisted user choices plus the clock,
+// taken from this App's own state so a regroup agrees with the last poll.
+func (a App) grouping() model.Grouping {
+	return model.Grouping{Pinned: a.pins, Forced: a.bands, Now: time.Now(), ActiveFor: a.activeFor}
+}
+
+// place puts the selected session in a band by hand: `p` pinned, `a` active,
+// `d` dormant. One key, one destination - pressing it again changes nothing.
+// Persisted like pins were, so every sidebar and the picker agree, and the
+// regroup happens here so the row moves under your cursor immediately.
+func (a App) place(band string) (tea.Model, tea.Cmd) {
 	if !a.blockSelectable(a.cursor) {
 		return a, nil
 	}
 	name := a.snap.Sessions[a.blocks[a.cursor].session].Name
-	pins := map[string]bool{}
-	for k := range a.pins {
-		pins[k] = true
-	}
-	if pins[name] {
-		delete(pins, name)
-	} else {
-		pins[name] = true
-	}
-	a.pins = pins
+	before := model.Placement(a.pins, a.bands, name)
+	a.pins, a.bands = model.Place(a.pins, a.bands, name, band)
 	snap := a.snap
-	snap.Sessions = model.Arrange(a.snap.Sessions, pins)
-	a.setSnapshot(snap) // captures the current selection, re-anchors it after regroup
+	snap.Sessions = model.Arrange(a.snap.Sessions, a.grouping())
+	a.setSnapshot(snap) // captures the selection, re-anchors it after regroup
 	if !a.mockup {
-		_ = tmux.SetPins(a.runner, pins)
+		_ = tmux.SetPins(a.runner, a.pins)
+		_ = tmux.SetBands(a.runner, a.bands)
 	}
-	return a, nil
-}
-
-// toggleNotify flips the global desktop-notification switch (@agent_notify),
-// which the hook reads. The `n` key and a click on the footer chip both route
-// here; in mockup mode it just flips the local preview.
-func (a App) toggleNotify() (tea.Model, tea.Cmd) {
-	a.notify = !a.notify
-	if !a.mockup {
-		val := "off"
-		if a.notify {
-			val = "on"
+	auto := func(v string) string {
+		if v == "" {
+			return "auto"
 		}
-		_, _ = a.runner.Run("set-option", "-g", "@agent_notify", val)
+		return v
 	}
+	trace.Log("agentbar", "band", "session", name, "before", auto(before), "after", band)
 	return a, nil
-}
-
-// onNotifyChip reports whether (x,y) landed on the footer's notify chip: the
-// status line is the second-from-last row, and the chip sits on its right.
-func (a App) onNotifyChip(x, y int) bool {
-	return a.height > 1 && y == a.height-2 && x >= a.width/2
 }
 
 func (a App) View() string {
@@ -692,9 +712,7 @@ func (a App) View() string {
 		return ""
 	}
 	now := time.Now()
-	// Agent commands are only ever "claude"/"node", so the name column is fixed.
-	nameW := 6
-	r := renderer{theme: a.theme, width: a.width, nameW: nameW}
+	r := renderer{theme: a.theme, width: a.width}
 
 	var b strings.Builder
 	b.WriteString(r.header(a.snap, a.frame) + "\n")
@@ -733,6 +751,6 @@ func (a App) View() string {
 	if a.flash != "" {
 		b.WriteString(" " + a.flash + "\n")
 	}
-	b.WriteString(r.footer(a.snap, a.notify))
+	b.WriteString(r.footer(a.snap))
 	return b.String()
 }

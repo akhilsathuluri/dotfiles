@@ -16,7 +16,8 @@ func TestDecide(t *testing.T) {
 		ev   Event
 		want Effect
 	}{
-		{"session start", Event{Name: "SessionStart"}, Effect{Register: true, State: model.StateIdle}},
+		{"session start", Event{Name: "SessionStart"},
+			Effect{Register: true, State: model.StateIdle, ClearWorkdir: true}},
 		{"prompt", Event{Name: "UserPromptSubmit"}, Effect{Register: true, State: model.StateWorking}},
 		{"tool", Event{Name: "PreToolUse"}, Effect{Register: true, State: model.StateWorking}},
 		{"permission", Event{Name: "PermissionRequest", ToolName: "Bash"}, Effect{State: model.StatePermission}},
@@ -38,7 +39,7 @@ func TestDecide(t *testing.T) {
 		{"stop", Event{Name: "Stop"}, Effect{State: model.StateDone}},
 		{"subagent start", Event{Name: "SubagentStart"}, Effect{SubagentDelta: 1}},
 		{"subagent stop", Event{Name: "SubagentStop"}, Effect{SubagentDelta: -1}},
-		{"session end", Event{Name: "SessionEnd"}, Effect{ClearAll: true}},
+		{"session end", Event{Name: "SessionEnd"}, Effect{ClearAll: true, ClearWorkdir: true}},
 		{"unknown ignored", Event{Name: "PostToolBatch"}, Effect{}},
 	}
 	for _, c := range cases {
@@ -75,11 +76,12 @@ func TestShouldNotify(t *testing.T) {
 	}
 }
 
-// fakeRunner records tmux invocations and serves canned option reads and a
-// canned list-panes fixture.
+// fakeRunner records tmux invocations and serves canned option reads, a canned
+// list-panes fixture and a canned display-message reply.
 type fakeRunner struct {
 	options map[string]string // option name -> value for show-options
 	panes   string            // list-panes -F output
+	display string            // display-message -p output
 	calls   []string
 }
 
@@ -90,6 +92,9 @@ func (f *fakeRunner) Run(args ...string) (string, error) {
 	}
 	if len(args) > 0 && args[0] == "list-panes" {
 		return f.panes, nil
+	}
+	if len(args) > 0 && args[0] == "display-message" {
+		return f.display, nil
 	}
 	return "", nil
 }

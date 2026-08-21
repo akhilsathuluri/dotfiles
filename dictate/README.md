@@ -2,12 +2,12 @@
 
 Toggle-key local speech-to-text into tmux. Tap a key to start, tap again to stop - the clip is transcribed offline with
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and typed into your active tmux pane. Fully local, zero
-elevated privilege; CPU by default, and on the GPU once the opt-in backend is installed (see below).
+elevated privilege; on the GPU where there is one, on the CPU otherwise (see below).
 
 ## How it works
 
-- A GNOME custom shortcut runs `dictate --toggle`. First press records the mic via `parec`; second press ships the clip
-  to a local model server for transcription and injects the text with `tmux send-keys`.
+- A GNOME custom shortcut runs `dictate --toggle --send`. First press records the mic via `parec`; second press ships
+  the clip to a local model server for transcription, injects the text with `tmux send-keys`, and presses Enter.
 - Runs entirely in userspace - no sudo, no groups, no `/dev/*` access. tmux owns the pane's pty, so writing to it is
   ordinary I/O.
 - **Lazy model server:** the first dictation spawns a background `dictate --serve` that loads faster-whisper once and
@@ -69,26 +69,33 @@ Notes:
 
 ## Requirements
 
-`uv`, `tmux`, and `parec` + `pactl` (both from `pulseaudio-utils`). First run downloads the model (~250 MB, cached).
+`uv`, `tmux`, and `parec` + `pactl` (both from `pulseaudio-utils`) - all installed by `./bootstrap.sh`. To install just
+these: `./install.sh dictate-deps`.
 
-`tmux` ships with the default bootstrap; the rest are opt-in, like the package itself. Install them in one step:
-
-```bash
-cd ~/dotfiles && ./bootstrap.sh dictate-deps
-```
+The model is not prefetched. The first dictation downloads `small.en` into the Hugging Face cache (~460 MB) and reuses
+it after; `dictate --check` reports whether it is there.
 
 ## Setup
 
 ```bash
-dictate --install-shortcut    # bind Super+\ and Super+Z to `dictate --toggle`
-dictate --check               # verify parec + tmux, and show the target pane
+dictate --install-shortcut    # bind the Copilot and Pause keys to `dictate --toggle --send`
+dictate --check               # parec + tmux, the target pane, the model cache and the bound keys
 ```
+
+Two keys are bound, both to dictate+send:
+
+- the **Copilot key**, between AltGr and right Ctrl, as `<Shift><Super>XF86TouchpadOff` - it emits
+  `LeftMeta`+`LeftShift`+`F23`, and `KEY_F23`'s keycode carries the `XF86TouchpadOff` keysym, so `F23` does not match.
+- **Pause**, bare. GNOME claims no shortcut on that keysym; the media pair is a different one (`XF86AudioPlay` /
+  `XF86AudioPause`), held by static grabs a custom binding cannot outrank.
+
+Pass keys to bind others; the dconf list ends up matching the arguments exactly.
 
 ## Usage
 
 ```bash
-dictate --toggle              # start/stop (this is what the shortcut runs)
-dictate --toggle --send       # same, but presses Enter once the transcript lands
+dictate --toggle              # start/stop
+dictate --toggle --send       # same, but presses Enter once the transcript lands (the shortcut runs this)
 dictate --target              # show which pane the transcript goes to
 dictate --test                # record 5 s and print the transcript
 dictate --serve-stop          # stop the model server (e.g. to pick up new config)
@@ -97,8 +104,8 @@ dictate --serve-stop          # stop the model server (e.g. to pick up new confi
 The server picks up its config (model, prompt, etc.) at spawn time, so after changing a `DICTATE_*` env var run
 `dictate --serve-stop` (or wait for the idle timeout) so the next dictation starts a fresh server.
 
-Dictated newlines are collapsed to spaces, so speech never submits a prompt - you press Enter yourself (or click the `⏎`
-button in the status bar).
+Dictated newlines are collapsed to spaces, so the speech itself can never submit a prompt - only `--send` presses Enter,
+whether from the key, the `dictate+send` chip, or the `⏎ send` chip.
 
 ## Config (env vars)
 
@@ -134,12 +141,12 @@ Put per-machine overrides in `~/.bashrc.d/local.bash` (untracked), e.g. `export 
 ### GPU backend (`DICTATE_BACKEND=gpu`)
 
 Whisper pads every clip to a 30-second window, so on CPU a two-second "yes, do that" costs the same as a long sentence.
-Any Vulkan-capable GPU removes most of that - an AMD or Intel iGPU is enough. Installing it _is_ the switch; there is no
-env var to set:
+Any Vulkan-capable GPU removes most of that - an AMD or Intel iGPU is enough. `bootstrap.sh` installs this build when a
+GPU is visible. To install or rebuild it alone:
 
 ```sh
 ./install.sh whisper-vulkan          # apt deps + builds whisper.cpp with Vulkan + model (~260MB)
-dictate --serve-stop                 # the running server still holds the CPU backend
+dictate --serve-stop                 # a running server still holds the old backend
 ```
 
 `DICTATE_BACKEND` is resolved from what is installed, not from the environment, because the two launchers that matter -
@@ -153,9 +160,10 @@ is the slower of the two. The old values still work.
 
 **The GPU is an optimisation, never a dependency.** Nothing here is AMD-specific: `mesa-vulkan-drivers` covers Intel and
 AMD, NVIDIA works through its own ICD, and the install step checks a real GPU is visible (`llvmpipe`, Mesa's software
-rasterizer, does not count) before spending minutes compiling. `bootstrap.sh` never runs it, so a machine that skips it
-simply dictates on the CPU. And if whisper.cpp cannot start at runtime - driver gone, GPU disabled in a VM, model
-truncated - dictation falls back to faster-whisper and says so, rather than failing.
+rasterizer, does not count) before spending minutes compiling, and skips before installing anything when there is no DRM
+render node at all. A machine that skips it simply dictates on the CPU, and bootstrap does not fail for it. And if
+whisper.cpp cannot start at runtime - driver gone, GPU disabled in a VM, model truncated - dictation falls back to
+faster-whisper and says so, rather than failing.
 
 Measured on a Radeon 860M (RDNA 3.5), warm server, five dictated clips of 16-24s (102s of audio in total):
 

@@ -85,8 +85,8 @@ session api agent
 session blog agent
 session dotfiles agent
 session payments # no agent: dormant
-"$BIN" pin blog >/dev/null
-"$BIN" pin dotfiles >/dev/null
+"$BIN" band blog pinned >/dev/null
+"$BIN" band dotfiles pinned >/dev/null
 
 # Alphabetically this list would be api, blog, dotfiles, payments. Each band but
 # the first also opens with a blank spacer, so the groups read apart - the same
@@ -111,21 +111,26 @@ tmux kill-server 2>/dev/null
 session solo agent
 eq "a single band shows no header or gap rows" "solo" "$(rows | tr '\n' ' ' | sed 's/ $//')"
 
-printf '\npicker: p pins through the binary and follows the row\n'
+printf '\npicker: p/a/d place through the binary and follow the row\n'
 
 tmux kill-server 2>/dev/null
 session api agent
 session payments
 # payments is dormant and last; pinning floats it to row 2, under the header.
-eq "pin prints the fzf actions that redraw and follow" \
+eq "p prints the fzf actions that redraw and follow" \
     "reload-sync+pos(2)" \
-    "$("$PICKER" --pin payments | sed -E 's/reload-sync\([^)]*\)/reload-sync/')"
-eq "the pin reached the shared set" "payments" "$("$BIN" order | head -1 | cut -f2)"
-eq "pin is a toggle" "" "$(
-    "$PICKER" --pin payments >/dev/null
-    "$BIN" order | grep -c '^pinned' | sed 's/^0$//'
+    "$("$PICKER" --band payments pinned | sed -E 's/reload-sync\([^)]*\)/reload-sync/')"
+eq "the band reached the shared set" "payments" "$("$BIN" order | head -1 | cut -f2)"
+eq "pressing it again is a no-op, not a toggle" "1" "$(
+    "$PICKER" --band payments pinned >/dev/null
+    "$BIN" order | grep -c '^pinned'
 )"
-eq "a band header row is never pinned" "" "$("$PICKER" --pin "$BAND_MARK")"
+# a moves a pinned session out: a pin and a forced band are one decision.
+eq "a moves it to active, clearing the pin" "active" "$(
+    "$PICKER" --band payments active >/dev/null
+    "$BIN" order | awk -F'\t' '$2 == "payments" { print $1 }'
+)"
+eq "a band header row is never placed" "" "$("$PICKER" --band "$BAND_MARK" pinned)"
 
 printf '\npicker: list and preview share one state language\n'
 
@@ -174,10 +179,12 @@ repo "$TMP/decoy" decoy-branch
 repo "$TMP/edited" edited-branch
 cp /usr/bin/sleep "$TMP/shim/agentbar" # a pane that reports as the sidebar
 
-# The last word of the row: session names and branches carry no spaces.
+# The branch column, which is the token after the ⎇ glyph. Not the last word of
+# the row any more: that is the title column now.
 branch_of() {
     "$PICKER" --list | sed 's/\x1b\[[0-9;]*m//g' |
-        awk -F'\t' -v n="$1" '$1 == n { print $NF }' | awk '{ print $NF }'
+        awk -F'\t' -v n="$1" '$1 == n { print $2 }' |
+        sed 's/.*⎇ *//; s/ .*//'
 }
 
 tmux new-session -d -s solo -x 200 -y 40 -c "$TMP/work"
@@ -200,6 +207,80 @@ eq "one stray pane cannot outvote the rest" "work-branch" "$(branch_of crowd)"
 # whitespace, so a run of empty fields collapses and shifts the rest left.
 tmux new-session -d -s plain -x 200 -y 40 -c "$TMP/work"
 eq "a session with no agent still gets its branch" "work-branch" "$(branch_of plain)"
+
+# The row shows the same thing the sidebar's agent line does: Claude's title for
+# the session, falling back to the branch for one it has not titled yet.
+# Substring, not a column: a title carries spaces, and an offset would count the
+# current-row marker's bytes rather than its one cell.
+in_row() { # in_row <session> <text>
+    case "$("$PICKER" --list | sed 's/\x1b\[[0-9;]*m//g' |
+        awk -F'\t' -v n="$1" '$1 == n { print $2 }')" in
+        *"$2"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+has() { in_row "$2" "$3" && ok "$1" || no "$1" "row [$2] has no [$3]"; }
+hasnt() { in_row "$2" "$3" && no "$1" "row [$2] still shows [$3]" || ok "$1"; }
+
+# ◐ rather than ✳ on purpose: the marker glyph varies per pane, so the row must
+# strip whichever one Claude used.
+tmux select-pane -t "$pane" -T '◐ Ship the parser'
+has "the row shows Claude's title for the session" solo "Ship the parser"
+has "beside its branch, in its own column" solo edited-branch
+has "an untitled session still shows its branch" plain work-branch
+hasnt "and an em dash where its title would be" plain "Ship the parser"
+
+# ---- several agents in one session ----------------------------------------
+# One agent speaks for the row: the most urgent, which is the one the glyph
+# already describes. "+N" owns up to the rest, and the preview lists them.
+printf '\npicker: several agents in one session\n'
+pane2=$(tmux split-window -d -t solo -c "$TMP/work" -P -F '#{pane_id}' "claude 60")
+printf '{"hook_event_name":"SessionStart","session_id":"t2"}' | TMUX_PANE="$pane2" "$BIN" hook
+printf '{"hook_event_name":"PermissionRequest","tool_name":"Bash"}' | TMUX_PANE="$pane2" "$BIN" hook
+tmux select-pane -t "$pane2" -T '◐ Approve the migration'
+
+has "the row speaks for the agent that wants you" solo "Approve the migration"
+hasnt "not the quieter one" solo "Ship the parser"
+has "and owns up to the rest" solo "+1"
+
+# ---- the preview names the session, not its active pane -------------------
+# The regression: dir/repo/branch came from `display-message -t <session>`, the
+# session's ACTIVE pane - usually the sidebar, whose cwd is only wherever that
+# process started, so every session reported the same repo. The rows already
+# resolved it by majority; the preview must agree.
+printf '\npicker: the preview names the session, not its active pane\n'
+prev() { "$PREVIEW" "$1" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'; }
+field() { prev "$1" | awk -v k="$2:" '$1 == k { print $2 }'; }
+
+eq "an agent's worktree wins, as on the row" "edited-branch" "$(field solo branch)"
+eq "a session with no agent takes its panes' branch" "work-branch" "$(field plain branch)"
+eq "one stray pane cannot outvote the rest" "work-branch" "$(field crowd branch)"
+
+prev_out=$(prev solo)
+for want in "Approve the migration" "Ship the parser"; do
+    case $prev_out in
+        *"$want"*) ok "the preview lists [$want]" ;;
+        *) no "the preview lists [$want]" ;;
+    esac
+done
+
+# An agent lives in a pane, which tmux addresses as window.pane - so that is how
+# the block places it, rather than naming the window it happens to sit in.
+# Index-agnostic: this server runs with -f /dev/null, so base-index is 0 here
+# and 1 under the real config.
+case $prev_out in
+    *"pane "[0-9]*.[0-9]*) ok "each agent is placed by window.pane" ;;
+    *) no "each agent is placed by window.pane" "no 'pane N.N' in the block" ;;
+esac
+
+# The regression: this block iterated panes under a "windows:" heading, so solo's
+# one window appeared once per pane. Panes are the splits inside a window.
+eq "one line per window, not per pane" 1 \
+    "$(prev solo | sed -n '/^windows:/,$p' | grep -c '^  ')"
+case $prev_out in
+    *"4 panes"*) ok "and it counts them" ;;
+    *) no "and it counts them" "no '4 panes'" ;;
+esac
 
 printf '\npicker: no binary means no crash\n'
 

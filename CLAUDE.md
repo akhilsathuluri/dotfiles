@@ -57,9 +57,21 @@ Scripts in `tmux/.local/bin/`:
 
 - `tmux-gitlab.sh` - GitLab status, `#issue !mr CI ✓`. No words: the sigils are GitLab's own notation, and the CI glyph
   is fixed-width so a flipping pipeline never shifts the clock.
-- `tmux-agent-state.sh` - sourced agent-state language: glyphs, colors and state ranking shared by the session picker
-  and its preview, mirroring the sidebar's. Colors come from the theme switcher; the fallbacks for an unswitched machine
-  are ANSI slots, never one flavor's hex.
+- `tmux-session-preview.sh` - the picker's fzf preview: the session's dir, repo, branch, aggregate state, its agents
+  (one line each: glyph, title, state, age, and the `window.pane` it sits in) and its windows (one line each: index,
+  name, pane count, and the flags the status line shows - current, zoomed, bell; never activity, which
+  `monitor-activity on` puts on every window). It resolves the directory the same way the rows do - most of the
+  session's non-sidebar panes, an agent's worktree winning - never the session's active pane. **tmux's own words**: the
+  bottom line is the status line, `1:claude 2:bash` is the window list, and each entry is a window status of index
+  (`#I`), name (`#W`) and flags (`#F`); panes are the splits inside a window and never appear there.
+- `tmux-agent-state.sh` - sourced agent-state language: glyphs, colors, state ranking and `agent_title` (Claude's own
+  title for a session, from its pane title), shared by the session picker and its preview, mirroring the sidebar's.
+  Colors come from the theme switcher; the fallbacks for an unswitched machine are ANSI slots, never one flavor's hex.
+- `tmux-settings.sh` - the `⛭` chip's dialogue: the owning area down the left, its settings beside them, their values
+  down the right, one value per row. No submenu - fzf has one cursor and its preview cannot be focused, so showing every
+  value is what removes the need for two. Add a setting with a `group()` call in `list_rows` and an arm in `do_apply`;
+  areas and settings stay alphabetical. It is also the only home for a setting with no business being a sidebar key -
+  agentbar's Notify lives here, not on the bar.
 - `tmux-reset.sh` - the `prefix + R` UI reset: reload + default geometry, nothing killed.
 - `tmux-mockup.sh` - `task mockup`, previews the whole frame with fake data on a private server.
 - Session picker, resurrect guard, yank.
@@ -79,8 +91,35 @@ Rules:
   `tmux-worktree-picker.sh` (the menu's `W`) and per-window auto-follow (`F`, off by default) re-point a live pane.
 - An amber `◧ changes` chip means the worktree is in no agent's `@agent_workdirs`, and reports nothing else. A click
   only opens the menu.
-- **The footer holds no per-pane facts** - only the work's commit (7-char sha), its CI and the clock. Dropping the
-  git-status plugin took ~72ms of git off every status redraw.
+- **Three keys, three bands.** `p` pins, `a` puts a session in the active band, `d` sends it to dormant now rather than
+  waiting out the window. One key, one destination: pressing it again changes nothing, and pressing another moves it -
+  so `a` on a pinned session unpins and holds it active. A row never says how it got into its band; a hand-placed
+  session looks exactly like one the clock put there. All three keys work in the sidebar and the `Alt-;` picker, which
+  share both stores, so `agentbar order` - what `Alt-h`/`Alt-l` walk - always agrees with what you see. A session nobody
+  has placed is left to the clock; a forced dormant still yields to an agent that needs you, since nothing may hide a
+  permission prompt.
+- **The active band is what you are working on now.** A session with no agents is dormant, and so is one whose agents
+  have all gone quiet for longer than `@agentbar-active-for` (default 1h, a `⛭` row). An agent that is working or
+  blocked on you keeps its session active however long it has been at it. Nothing runs in the background to make this
+  happen: the band is `now - @agent_since` evaluated on the sidebar's existing 1s poll, so there is no timer and nothing
+  to go stale. A pinned session never moves - pins are yours - and a session only sinks on its own; coming back up takes
+  a prompt, a permission or a new agent.
+- **The sidebar nests: session, then its agents.** A session line carries its name and its branch (dim, `⎇` as on the
+  pane rail); each agent under it carries the title Claude gave that session, with its state a step deeper. Both facts
+  are on screen at once, which is why there is no setting choosing between them. A session Claude has not titled yet
+  shows its state line alone, and so does one whose pane title is still the hostname tmux seeded it with.
+- **The `Alt-;` popup says the same things in three fixed columns**: session, branch, title. A row is one line and one
+  session - that is what `agentbar order`, pin, kill and rename all act on - so when a session holds several agents the
+  title shown is the most urgent one's, the same agent the row's glyph describes, and `+N` owns up to the rest. The
+  preview lists them all. Fixed columns are the point: cycling lands your eye in the same place on every row.
+- **Picking a theme is applying it.** The `⛭` chip opens a centred dialogue with every value on screen; a click or Enter
+  applies one and the dialogue stays open, so there is no save step and nothing to drill into. `theme <flavor>` re-skins
+  tmux and ghostty and re-runs the current session's sidebar and diff pane - hunk takes the flavor as a startup flag, so
+  the pane has to be respawned; other sessions recolour on `prefix + R`, because restarting every sidebar at once storms
+  this client.
+- **The footer holds no per-pane facts** - the work's commit (7-char sha), its CI, the clock, and the `⚙` settings chip
+  at the far right, where its fixed width cannot reflow the clock. Dropping the git-status plugin took ~72ms of git off
+  every status redraw.
 
 ## Apps (built from source)
 
@@ -103,8 +142,8 @@ so CI installs with the same code a machine does:
 ./install.sh all             # every tool (bootstrap.sh calls this)
 ./install.sh gate-tools      # just what `task check` needs (CI calls this)
 ./install.sh install_tmux    # one step by name
-./install.sh dictate-deps    # uv + pulseaudio-utils, opt-in
-./install.sh whisper-vulkan  # whisper.cpp built against Vulkan for dictate's GPU backend, opt-in
+./install.sh dictate-deps    # uv + pulseaudio-utils (also part of `all`)
+./install.sh whisper-vulkan  # whisper.cpp built against Vulkan for dictate's GPU backend (also part of `all`)
 ```
 
 `bootstrap.sh` sources it and adds the machine wiring: stow, the shell-rc patch (`~/.bashrc` on Linux, `~/.zshrc` on
@@ -172,9 +211,10 @@ What to read, by symptom:
   the one-command way to spot a stale sidebar.
 - **The diff pane shows the wrong tree.** `src=hook evt=workdir pane=… before=… after=…` is every move of an agent's
   worktree; absent means the agent has only read files, or a hook is not wired - the pane then falls back to its own
-  cwd. `src=tmux evt=diff action=create|respawn target=…` is what the pane was pointed at, and
-  `action=follow from=… to=…` every catch-up; a `to=` you did not expect means `@agent_workdir` is stale, so read the
-  `evt=workdir` line above it. `bg=bg` marks an auto-follow (no focus change), `bg=0` an explicit one.
+  cwd. An empty `after=` is a session boundary dropping it, so a new agent cannot inherit the last one's target.
+  `src=tmux evt=diff action=create|respawn target=…` is what the pane was pointed at, and `action=follow from=… to=…`
+  every catch-up; a `to=` you did not expect means `@agent_workdir` is stale, so read the `evt=workdir` line above it.
+  `bg=bg` marks an auto-follow (no focus change), `bg=0` an explicit one.
 
 Writing to it:
 
@@ -290,6 +330,12 @@ git push origin v0.2.0                  # fires release.yml
 SemVer, `v`-prefixed. **This repo stays on 0.x - do not bump to 1.0.** Pre-1.0 shifts the meanings down one: a release
 needing manual steps bumps the MINOR, everything else bumps the PATCH. `task release-notes` previews what the next
 release would publish; `task changelog` prepends to `CHANGELOG.md` rather than regenerating it.
+
+**A tag with no published Release is not a release.** Before tagging, check the newest tag has one. If it does not, fix
+the failure and ask whether to re-tag that version or bump - never tag over it.
+
+**Green `task check` does not mean the release will publish.** `release.yml` also runs `test/bootstrap-fresh.sh`, which
+the gate does not. Run `task fresh` before tagging.
 
 ## Tasks
 
