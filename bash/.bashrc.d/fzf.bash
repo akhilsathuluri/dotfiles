@@ -11,13 +11,15 @@ fi
 # theme.bash loads after this and overrides BAT_THEME with the selected flavor.
 export BAT_THEME="${BAT_THEME:-Solarized (dark)}"
 
-# Global look + preview toggle. The color block defaults to Solarized Dark; the
-# `theme` switcher overrides it via ~/.config/theme/fzf.sh so new shells follow the flavor.
-_fzf_color='--color=dark --color=fg:#839496,bg:#002b36,hl:#268bd2'
-_fzf_color+=' --color=fg+:#93a1a1,bg+:#073642,hl+:#268bd2'
+# Global look + preview toggle. Content hues only - the surfaces (bg, bg+, border, gutter,
+# and the fg contrasts picked against them) are left to fzf's own `dark` scheme, which
+# inherits the terminal's background. An unswitched machine is on ghostty's built-in dark,
+# so naming Solarized surfaces here painted a blue box in a terminal that is not Solarized.
+# The `theme` switcher reassigns the whole block via ~/.config/theme/fzf.sh, and a switched
+# machine does get the flavor's surfaces - ghostty is wearing them by then.
+_fzf_color='--color=dark --color=hl:#268bd2,hl+:#268bd2'
 _fzf_color+=' --color=info:#586e75,prompt:#268bd2,pointer:#268bd2'
 _fzf_color+=' --color=marker:#859900,spinner:#2aa198,header:#586e75'
-_fzf_color+=' --color=border:#0c3a46,gutter:#002b36'
 # shellcheck source=/dev/null  # written by the `theme` switcher, absent until first run
 [ -f ~/.config/theme/fzf.sh ] && . ~/.config/theme/fzf.sh
 export FZF_DEFAULT_OPTS="

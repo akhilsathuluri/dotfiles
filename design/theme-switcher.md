@@ -18,10 +18,10 @@ switcher never picks a theme from the OS appearance or the time of day, and noth
 one for you.
 
 **The unswitched baseline.** With no flavor applied, every tool falls back to the default in its own tracked config -
-ghostty's built-in dark (`#282c34`), tmux's green status bar, nvim's `vscode`, the fzf `--color` block in `fzf.bash`,
-the sidebar's built-in solarized-dark. That is a coherent look in its own right, not a broken one, and `theme none`
-returns to it: it deletes everything under `~/.config/theme/`, unsets `@agentbar-theme`, reloads ghostty and re-sources
-`~/.tmux.conf`.
+ghostty's built-in dark (`#282c34`), tmux's green status bar, nvim's `vscode`, the hue-only fzf `--color` block in
+`fzf.bash` (its surfaces follow the terminal, so the popup blends into whatever bg ghostty is wearing), the sidebar's
+built-in solarized-dark. That is a coherent look in its own right, not a broken one, and `theme none` returns to it: it
+deletes everything under `~/.config/theme/`, unsets `@agentbar-theme`, reloads ghostty and re-sources `~/.tmux.conf`.
 
 ## Two kinds of tools
 
