@@ -32,40 +32,46 @@ elevated privilege; on the GPU where there is one, on the CPU otherwise (see bel
 
 ## Targeting
 
-The transcript goes to the pane you're focused on if it's running Claude; otherwise a `claude` pane in your current
-session; otherwise the most-recently-active `claude` pane. Check it with `dictate --target`. Force a specific pane with
-`DICTATE_TMUX_TARGET` (a pane id like `%7`, or `session:win.pane`).
+The tmux server whose terminal holds focus, then the pane inside it: the focused pane if it runs Claude, else a `claude`
+pane in your current session, else the most-recently-active one. Focus is the terminal's own report, so a Ghostty tab
+change moves the transcript with nothing to press; with no terminal in front, the most recently typed-in server wins.
 
-## Dictating into a remote tmux
+`dictate --target` prints the pane, the host and which rule chose it. Force a pane with `DICTATE_TMUX_TARGET` (`%7` or
+`session:win.pane`), a host with `DICTATE_REMOTE`.
 
-Set `DICTATE_TMUX_SSH` to an ssh destination and every tmux call goes there - target lookup, `send-keys`, the status
-chips - while the mic stays on the machine you're sitting at:
+## Remote tmux
 
-```bash
-export DICTATE_TMUX_SSH=user@devbox     # or a ~/.ssh/config alias
-dictate --check                         # proves the hop, then reports the target pane
-dictate --toggle                        # records here, types there
-```
+The mic, the model and the GPU stay here; only the transcript crosses, as one `tmux send-keys` over ssh, so it lands in
+the prompt exactly as typed. Nothing is installed on the remote.
 
-**Run dictate on the machine with the microphone, always.** An SSH session splits the two halves - the mic is local, the
-pane is remote - and a remote `dictate` cannot reach your mic, no matter what audio packages the far end has. That is
-why this is a tmux-side option rather than an audio-forwarding one: nothing has to stream, and the far end needs no
-sound server, no `parec`, no `pulseaudio-utils`. It needs `tmux`; this end needs `uv`, `ssh`, and the capture backend.
+**No setup for a machine you are already in:** the ssh sessions open right now are the candidates, so ssh somewhere,
+start tmux, and dictate. `~/.config/dictate/remote` is for what that cannot see - a host you want probed before you
+connect, or one needing options - one ssh argument list per line (`-p 2222 user@host` works).
+
+Then dictate as usual: looking at the remote sends there, looking at a local pane sends here. `dictate --check` reports
+every host, its tmux version and whether that server answered.
+
+Needs key-based ssh auth (a background dictation cannot answer a password prompt) and `focus-events on` at both ends.
+Dictating into this machine opens no ssh at all; into a remote it is one round trip, ~100 ms on a LAN. A host that is
+down costs nothing while any terminal holds focus, and at most `DICTATE_PROBE_WAIT` when none does.
+
+A remote's own status chips cannot work - they run that machine's `dictate`, which has no mic.
 
 Notes:
 
-- **Key auth, no passphrase prompt.** Calls run under `BatchMode=yes` - a key that needs a passphrase must already be in
-  your agent, or the keypress fails silently (`dotfiles-trace show --src dictate` records it as `evt=remote`).
+- **Run dictate on the machine with the microphone, always.** An SSH session splits the two halves - the mic is local,
+  the pane is remote - and a remote `dictate` cannot reach your mic, no matter what audio packages the far end has. That
+  is why the remote is a tmux hop rather than audio forwarding: the far end needs no sound server, no `parec`, no
+  `pulseaudio-utils`. It needs `tmux`; this end needs `uv`, `ssh`, and the capture backend.
 - **Bind the key locally.** Inside a remote tmux, `prefix + m` is the _remote_ server's binding and runs the far end's
   dictate. Use a desktop hotkey on the local machine instead: `dictate --install-shortcut` on GNOME, or Karabiner /
   Hammerspoon / skhd / Raycast on macOS, or your local tmux's own `prefix + m`.
-- **Set the var where the hotkey can see it.** A desktop shortcut sources no shell rc, so `export DICTATE_TMUX_SSH=…` in
-  `~/.bashrc.d/local.bash` or `~/.zshrc` reaches an interactive shell and _not_ the keypress - which then dictates into
-  the local tmux and looks like the option was ignored. Put it in the binding itself
-  (`DICTATE_TMUX_SSH=devbox ~/.local/bin/dictate --toggle`) or in a wrapper script the hotkey runs.
+- **A pin goes in the binding, not a shell rc.** A desktop shortcut sources no shell rc, so `export DICTATE_REMOTE=…` in
+  `~/.bashrc.d/local.bash` reaches an interactive shell and _not_ the keypress. Put it in the binding itself
+  (`DICTATE_REMOTE=devbox ~/.local/bin/dictate --toggle`) or in a wrapper the hotkey runs. Focus routing needs none of
+  this - the pin is for a host you want chosen whatever holds focus.
 - Per-host ssh settings belong in `~/.ssh/config` (port, user, jump host, identity). dictate sets only connection
   multiplexing, which it needs: one dictation makes ~10 tmux calls, and a fresh handshake each would be felt.
-- `DICTATE_SSH_BIN` swaps the ssh binary itself, for a wrapper or an alternate client.
 
 ## Requirements
 
@@ -126,8 +132,9 @@ whether from the key, the `dictate+send` chip, or the `⏎ send` chip.
 | `DICTATE_DUCK`        | `1`            | mute other audio while recording (`0`/`off` disables)       |
 | `DICTATE_TMUX_CMD`    | `claude`       | pane command treated as the target app                      |
 | `DICTATE_TMUX_TARGET` | _(unset)_      | force a pane (pane id or `session:win.pane`)                |
-| `DICTATE_TMUX_SSH`    | _(unset)_      | route every tmux call to this ssh destination               |
-| `DICTATE_SSH_BIN`     | `ssh`          | ssh binary used by `DICTATE_TMUX_SSH`                       |
+| `DICTATE_REMOTE`      | _(unset)_      | force a host, skipping the focus probe (ssh destination)    |
+| `DICTATE_TMUX_SSH`    | _(unset)_      | older name for `DICTATE_REMOTE`, still honoured             |
+| `DICTATE_PROBE_WAIT`  | `2.5`          | seconds to wait for hosts to answer when none holds focus   |
 | `DICTATE_TEST_SECS`   | `5`            | seconds recorded by `--test`                                |
 
 Put per-machine overrides in `~/.bashrc.d/local.bash` (untracked), e.g. `export DICTATE_SOURCE=...`.

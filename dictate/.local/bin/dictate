@@ -21,13 +21,14 @@ later dictations skip the ~1 s model-load. The server self-exits after
 DICTATE_IDLE seconds of inactivity to free its RAM. If it can't be reached, the
 toggle falls back to loading the model in-process.
 
-Targeting: the transcript goes to the pane you're focused on if it runs Claude,
-otherwise a `claude` pane in your current session, otherwise the most-recent
-`claude` pane. Override with DICTATE_TMUX_TARGET (a pane id or session:win.pane).
+Targeting: the transcript goes to the tmux server whose terminal holds focus -
+this machine, or an ssh destination listed in ~/.config/dictate/remote - and
+within it to the pane you're focused on if it runs Claude, otherwise a `claude`
+pane in your current session, otherwise the most-recent `claude` pane. Override
+the pane with DICTATE_TMUX_TARGET (a pane id or session:win.pane).
 
-Remote tmux: set DICTATE_TMUX_SSH=user@host and every tmux call is routed there
-over ssh, while the mic stays local - the arrangement an SSH session forces, and
-the only one in which a remote pane can be dictated into at all.
+Pin that choice with DICTATE_REMOTE=user@host (DICTATE_TMUX_SSH is the older
+name for it); the mic, the model and the GPU stay on this machine either way.
 
 Setup:
   dictate --install-shortcut     # bind the Copilot and Pause keys to `dictate --toggle --send`
@@ -35,7 +36,7 @@ Setup:
 
 Commands: run `dictate --help`. Env-var config (DICTATE_*): see dictate/README.md.
 """
-import os, re, sys, time, signal, shlex, shutil, socket, subprocess
+import os, queue, re, shlex, sys, threading, time, signal, shutil, socket, subprocess
 
 # The gpu backend: whisper.cpp's own server, held resident by ours and spoken to
 # over loopback. Installed by `./install.sh whisper-vulkan`.
@@ -73,14 +74,6 @@ BEAM      = int(os.environ.get("DICTATE_BEAM", "1"))
 LATENCY   = os.environ.get("DICTATE_LATENCY", "50")  # ms; low so parec flushes promptly (linux)
 TMUX_CMD  = os.environ.get("DICTATE_TMUX_CMD", "claude")
 TMUX_TGT  = os.environ.get("DICTATE_TMUX_TARGET", "")
-# Remote tmux. The recorder and the pane need not be the same machine, and over
-# SSH they cannot be: the mic is on the box you are sitting at, the pane is on
-# the box you are working on. Set this to an ssh destination (`user@host` or a
-# ~/.ssh/config alias) and every tmux call goes there instead - target lookup,
-# send-keys and the status chips alike - while capture stays local. Unset = the
-# local tmux server, which is the normal case.
-TMUX_SSH  = os.environ.get("DICTATE_TMUX_SSH", "").strip()
-SSH_BIN   = os.environ.get("DICTATE_SSH_BIN", "ssh")
 # Whisper reads this as the text preceding the clip, so listed words become far
 # likelier to come out - which cuts both ways. Only add a term after hearing it
 # fail, then re-run the sample clips: `worktree` and `dotfiles` earned their
@@ -121,7 +114,10 @@ DUCK_FILE = os.path.join(RUNTIME, "dictate-duck")     # pre-mute sink state, hel
 # Set by `--toggle --send` on the FIRST press and read on the second: a dictation
 # is two invocations, so the intent to submit has to outlive the one that took it.
 SEND_FILE = os.path.join(RUNTIME, "dictate-autosend")
-SSH_CTL  = os.path.join(RUNTIME, "dictate-ssh.sock")  # ssh ControlMaster, shared by one dictation's tmux calls
+# Same shape, same reason: the host picked when recording started is the one
+# whose chip lit up, so it is the one whose chip must be cleared - a tab change
+# mid-clip must not strand it red.
+HOST_FILE = os.path.join(RUNTIME, "dictate-host")
 IDLE     = float(os.environ.get("DICTATE_IDLE", "300"))  # server self-exits after this idle
 SILENCE  = float(os.environ.get("DICTATE_SILENCE", "2.0"))  # auto-stop after this much trailing silence (0 = off)
 MAXSECS  = float(os.environ.get("DICTATE_MAXSECS", "120"))  # hard cap on one recording
@@ -157,14 +153,14 @@ def set_state(state, src=None):
     # @dictate_src names the chip that started it, so only that chip lights up.
     # Colour is the only feedback a status bar has; two chips sharing one state
     # would say "something is recording" where you asked "which button did I hit".
+    # One chained call, not three: on a remote host each one is a round trip.
     if state:
-        tmux("set", "-g", "@dictate", state)
+        args = ["set", "-g", "@dictate", state]
         if src:
-            tmux("set", "-g", "@dictate_src", src)
+            args += [";", "set", "-g", "@dictate_src", src]
     else:
-        tmux("set", "-gu", "@dictate")
-        tmux("set", "-gu", "@dictate_src")
-    tmux("refresh-client", "-S")
+        args = ["set", "-gu", "@dictate", ";", "set", "-gu", "@dictate_src"]
+    tmux(*args, ";", "refresh-client", "-S")
 
 
 def flash(msg):
@@ -182,43 +178,150 @@ def require(cmd):
         sys.exit(1)
 
 
+# ---- pick the tmux server, then the pane to type into ---------------------
+# Each line of ~/.config/dictate/remote is an ssh destination whose tmux joins
+# the candidates. Absent, dictate is exactly what it was: local only.
+REMOTE_FILE = os.path.expanduser("~/.config/dictate/remote")
+# Pin a host and skip the focus probe, as DICTATE_TMUX_TARGET pins a pane.
+# DICTATE_TMUX_SSH is the older name for the same pin, so a binding carrying it keeps working.
+REMOTE_PIN = (os.environ.get("DICTATE_REMOTE", "") or os.environ.get("DICTATE_TMUX_SSH", "")).strip()
+# Bound on waiting for every host to answer; only reached when none holds focus.
+PROBE_WAIT = float(os.environ.get("DICTATE_PROBE_WAIT", "2.5"))
+# Its own ControlPath namespace on purpose - sharing the interactive one would
+# hand an `ssh -X` alias a master with no X forwarding.
+SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=2", "-o", "ControlMaster=auto",
+            "-o", "ControlPersist=10m",
+            "-o", "ControlPath=" + os.path.expanduser("~/.ssh/cm-dictate-%r@%h:%p")]
+# A non-interactive ssh resolves /usr/bin/tmux, which cannot speak to a server
+# built from source: the client dies with "server exited unexpectedly" and says
+# nothing about versions. Prefer the pinned binary, fall back for a stock box.
+REMOTE_TMUX = 't=$HOME/.local/bin/tmux; [ -x "$t" ] || t=tmux; "$t"'
+
+HOST = ""              # ssh destination every tmux() call goes to; "" is this machine
+
+
+def set_host(h):
+    global HOST
+    HOST = h
+
+
 def require_tmux():
-    """In remote mode the tmux that matters is the remote one, reached over ssh -
-    this machine need not have tmux installed at all."""
-    require(SSH_BIN if TMUX_SSH else "tmux")
+    # A remote route needs no local tmux, only the ssh that reaches the other one.
+    require("tmux" if not HOST else "ssh")
 
 
-# ---- pick the tmux pane to type into -------------------------------------
-def ssh_argv(remote_cmd):
-    """ssh argv for one remote tmux call. ControlMaster is what makes this
-    usable: a dictation makes ~10 tmux calls (target lookup, send, chip state),
-    and unmultiplexed each would pay a fresh TCP + auth handshake. BatchMode
-    keeps a key that needs a passphrase from hanging a keypress on a prompt
-    nobody can see."""
-    os.makedirs(RUNTIME, exist_ok=True)          # the control socket lives here
-    return [SSH_BIN, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-            "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CTL}",
-            "-o", "ControlPersist=60", TMUX_SSH, remote_cmd]
+# ssh options that take a separate value, so the destination is not mistaken
+# for one of them while walking a discovered command line.
+SSH_VALUE_OPTS = set("bcDEeFIiJLlmOopQRSWw")
 
 
-def tmux(*args):
-    # The single routing point: local tmux, or the same command over ssh. Every
-    # tmux call in this script goes through here, so remote mode is one branch
-    # rather than a second delivery path to keep in step.
+def ssh_dest(argv):
+    """The destination in an ssh command line, or "" if it is not a session."""
+    if "-N" in argv or "-W" in argv:           # a tunnel, not somewhere to type
+        return ""
+    i = 1
+    while i < len(argv):
+        a = argv[i]
+        if not a.startswith("-"):
+            return "" if "/" in a else a       # a path is a subcommand, not a host
+        i += 2 if len(a) == 2 and a[1] in SSH_VALUE_OPTS else 1
+    return ""
+
+
+def ssh_sessions():
+    """Destinations of the ssh sessions open right now, so a machine you are
+    already sitting in needs no config. A controlling terminal is what separates
+    a session you are typing in from git's ssh, a mux master, or our own probe.
+    Linux only - macOS has no /proc, and there the file is the whole list."""
+    out = []
+    for pid in os.listdir("/proc") if os.path.isdir("/proc") else []:
+        if not pid.isdigit():
+            continue
+        try:
+            if open(f"/proc/{pid}/comm").read().strip() != "ssh":
+                continue
+            # stat field 7 (tty_nr), counted past the parenthesised comm; 0 = none
+            if int(open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[4]) == 0:
+                continue
+            argv = open(f"/proc/{pid}/cmdline").read().split("\0")[:-1]
+        except (OSError, ValueError, IndexError):
+            continue                           # the process went away mid-read
+        dest = ssh_dest(argv)
+        if dest and dest not in out:
+            out.append(dest)
+    return out
+
+
+def hosts():
+    """Local first, then ~/.config/dictate/remote, then the ssh sessions open
+    now. The file is for what discovery cannot see - a host reached through
+    options, or one you want probed before you have connected to it."""
+    out = [""]
     try:
-        if TMUX_SSH:
-            # ssh hands the command to a remote shell as one string - quote here.
-            r = subprocess.run(ssh_argv(" ".join(shlex.quote(a) for a in ("tmux", *args))),
-                               capture_output=True, text=True)
-            if r.returncode != 0:
-                trace("remote", rc=r.returncode, host=TMUX_SSH, cmd=args[0],
-                      err=(r.stderr or "").strip()[:80])
-            return r
+        with open(REMOTE_FILE) as f:
+            out += [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith("#")]
+    except OSError:
+        pass
+    seen = {shlex.split(h)[-1] for h in out if h}
+    for dest in ssh_sessions():
+        if dest not in seen:
+            out.append(dest); seen.add(dest)
+    return out
+
+
+def tmux(*args, host=None):
+    h = HOST if host is None else host
+    if not h:
         return subprocess.run(["tmux", *args], capture_output=True, text=True)
-    except OSError as e:
-        # No tmux (or no ssh) on this machine. Callers read returncode, and the
-        # one that must not raise is flash() - reporting another failure.
-        return subprocess.CompletedProcess(args, 1, "", str(e))
+    argv = " ".join(shlex.quote(a) for a in args)
+    return subprocess.run(["ssh", *SSH_OPTS, *shlex.split(h), "--", f"{REMOTE_TMUX} {argv}"],
+                          capture_output=True, text=True)
+
+
+def clients(h):
+    return tmux("list-clients", "-F", "#{client_flags}\t#{client_activity}", host=h)
+
+
+def pick_host():
+    """(host, why): the tmux server whose client holds focus - the terminal you
+    are actually looking at. tmux learns it from the terminal's own focus
+    reports, so changing tab or window moves the transcript with no key to press
+    and no setting to flip. With none focused (the terminal is not front) the
+    most recently typed-in server wins, which assumes the clocks agree; then
+    local."""
+    if REMOTE_PIN:
+        return REMOTE_PIN, "pinned"
+    hs = hosts()
+    newest, newest_at = "", -1.0
+
+    def scan(h, r):
+        """True if this host holds focus; tracks the activity fallback either way."""
+        nonlocal newest, newest_at
+        if r.returncode != 0:                  # unreachable, or no server - not a candidate
+            return False
+        hit = False
+        for line in r.stdout.splitlines():
+            flags, _, act = line.partition("\t")
+            hit = hit or "focused" in flags.split(",")
+            if float(act or 0) > newest_at:
+                newest, newest_at = h, float(act or 0)
+        return hit
+
+    if scan("", clients("")):                  # asked first and alone, so dictating
+        return "", "focus"                     # into this machine opens no ssh at all
+    q = queue.Queue()
+    for h in hs[1:]:                           # daemon: a host that is off the network
+        threading.Thread(target=lambda h=h: q.put((h, clients(h))),  # must not delay this exit
+                         daemon=True).start()
+    deadline = time.time() + PROBE_WAIT
+    for _ in hs[1:]:
+        try:
+            h, r = q.get(timeout=max(0.0, deadline - time.time()))
+        except queue.Empty:
+            break                              # answered by the reachable ones alone
+        if scan(h, r):
+            return h, "focus"                  # only one host can hold it - stop waiting
+    return (newest, "activity") if newest_at > 0 else ("", "local")
 
 
 def panes():
@@ -231,11 +334,16 @@ def panes():
 
 
 def active_session():
-    """Session shown by the most-recently-active attached client."""
-    r = tmux("list-clients", "-F", "#{client_activity}\t#{client_session}")
-    rows = sorted((l.split("\t") for l in r.stdout.splitlines() if "\t" in l),
-                  key=lambda x: int(x[0] or 0), reverse=True)
-    return rows[0][1] if rows else None
+    """Session shown by the focused client, else by the most-recently-active one.
+    Two terminals attached to one host is the case the flag settles: both are
+    attached, both may be busy, and only one of them is in front of you."""
+    r = tmux("list-clients", "-F", "#{client_flags}\t#{client_activity}\t#{client_session}")
+    rows = [l.split("\t") for l in r.stdout.splitlines() if l.count("\t") == 2]
+    for flags, _, session in rows:
+        if "focused" in flags.split(","):
+            return session
+    rows.sort(key=lambda x: int(x[1] or 0), reverse=True)
+    return rows[0][2] if rows else None
 
 
 def resolve_target():
@@ -646,7 +754,7 @@ def unduck():
 
 
 def cleanup():
-    for p in (PID_FILE, PCM_FILE, WATCH_PID, SEND_FILE):
+    for p in (PID_FILE, PCM_FILE, WATCH_PID, SEND_FILE, HOST_FILE):
         try:
             os.remove(p)
         except OSError:
@@ -666,6 +774,9 @@ def recording_pid():
 
 def start_recording(autosend=False):
     os.makedirs(RUNTIME, exist_ok=True)
+    host, via = pick_host()                    # settled here, not at send time, so
+    set_host(host)                             # the chip and the words agree
+    open(HOST_FILE, "w").write(host)
     if autosend:
         open(SEND_FILE, "w").close()
     duck_mute()                                # silence other audio so the mic hears only you
@@ -674,7 +785,7 @@ def start_recording(autosend=False):
                          start_new_session=True)  # survives this short-lived process
     open(PID_FILE, "w").write(str(p.pid))
     set_state("rec", "dictsend" if autosend else "dictate")
-    trace("rec", action="start")
+    trace("rec", action="start", host=host or "local", via=via)
     if SILENCE > 0:                            # spawn the silence watcher (auto-stop)
         exe = os.path.realpath(shutil.which("dictate") or sys.argv[0])
         subprocess.Popen([exe, "--watch", str(p.pid)], stdout=subprocess.DEVNULL,
@@ -685,6 +796,10 @@ def start_recording(autosend=False):
 
 
 def stop_and_send(pid):
+    try:
+        set_host(open(HOST_FILE).read().strip())   # the host this clip started on
+    except OSError:
+        set_host(pick_host()[0])
     set_state("work")                          # amber: mic stopping, then transcribing
     t_start = time.time()
     autosend = os.path.exists(SEND_FILE)       # read before cleanup() removes it
@@ -905,21 +1020,20 @@ def gnome_bindings():
 
 
 def check():
-    require(CAPTURE_BIN); require_tmux()
-    where = f"remote tmux at {TMUX_SSH}" if TMUX_SSH else "tmux"
-    if TMUX_SSH:
-        # Prove the hop before reporting on panes: an unreachable host and an
-        # empty tmux both yield no panes, and they need different fixes.
-        r = tmux("display-message", "-p", "#{version}")
-        if r.returncode != 0:
-            log(f"{where} unreachable: {(r.stderr or '').strip() or 'ssh failed'}")
-            log(f"try: {SSH_BIN} {TMUX_SSH} tmux list-panes -a")
-            sys.exit(1)
-        log(f"{where}: tmux {r.stdout.strip()}")
+    require(CAPTURE_BIN)
+    host, via = pick_host(); set_host(host)
+    for h in hosts():
+        # The client version is the thing that has to match the server it talks
+        # to, so print it beside whether that server answered at all.
+        ver = tmux("-V", host=h).stdout.strip() or "?"
+        r = tmux("list-sessions", "-F", "#{session_name}", host=h)
+        err = (r.stderr.strip().splitlines() or ["no server"])[0]
+        log(f"tmux {h or 'local'}: {ver} {'✓' if r.returncode == 0 else '✗ ' + err}")
+    where = f"tmux at {host}" if host else "tmux"
     if not panes():
         log(f"{where} has no panes - start tmux first."); sys.exit(1)
     _, lbl = resolve_target()
-    log(f"OK - {CAPTURE_BIN} + {where} present. Transcript would go to: {lbl}")
+    log(f"OK - {CAPTURE_BIN} + tmux present. Transcript would go to: {lbl} @ {host or 'local'} ({via})")
     log(f"model server: {'up' if server_up() else 'down (spawns on first dictation)'}")
     if BACKEND == "gpu":
         # Report the pieces before a dictation needs them: a missing binary or
@@ -974,7 +1088,7 @@ USAGE = """dictate - toggle-key local speech-to-text into tmux (local, zero priv
   dictate --toggle [--send]            start/stop (--send also presses Enter)
   dictate --target                     show which pane the transcript goes to
   dictate --install-shortcut [KEYS…]   bind GNOME keys to dictate+send (default: Copilot + Pause)
-  dictate --check                      verify capture backend + tmux (local or DICTATE_TMUX_SSH)
+  dictate --check                      verify capture backend + tmux (every host, and which one wins)
   dictate --test                       record & print a transcript, with its backend and ms
   dictate --serve-stop                 stop the model server (to pick up new config)
 
@@ -987,11 +1101,13 @@ def main():
     if arg == "--toggle":
         toggle(autosend="--send" in sys.argv[2:])
     elif arg == "--target":
-        require_tmux(); print(resolve_target()[1] or "(no tmux target found)")
+        host, via = pick_host(); set_host(host); require_tmux()
+        print(f"{resolve_target()[1] or '(no tmux target found)'} @ {host or 'local'} ({via})")
     elif arg == "--send":
-        require_tmux(); send_enter()
+        set_host(pick_host()[0]); require_tmux(); send_enter()
     elif arg == "--type":
-        require_tmux(); send_text(sys.argv[2] if len(sys.argv) > 2 else "")
+        set_host(pick_host()[0]); require_tmux()
+        send_text(sys.argv[2] if len(sys.argv) > 2 else "")
     elif arg == "--test":
         self_test()
     elif arg == "--serve":

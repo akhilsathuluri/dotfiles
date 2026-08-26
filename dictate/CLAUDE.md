@@ -68,23 +68,6 @@ values still resolve.
 - The first macOS recording raises the mic prompt for the **terminal**, not for dictate. Denied or undecided, capture
   yields silence with no error - the failure looks like a bad mic, not a permission.
 
-## Remote tmux (`DICTATE_TMUX_SSH`)
-
-- **One routing point: `tmux()`.** Set the var and that function runs the same argv over ssh instead of locally, so the
-  target lookup, `send-keys` and the `@dictate` chips all land on the remote server. Do not grow a second delivery
-  path - a remote-only send would drift from the local one, and the chips would stop reporting.
-- **The mic never moves.** dictate runs where the microphone is; only tmux is remote. Audio forwarding was the
-  alternative and lost: it needs a sound server on the far end, adds latency, and dies with the tunnel, where this needs
-  nothing but `tmux` there.
-- **Quote at the boundary.** ssh joins its command into one string for a remote shell, so every arg goes through
-  `shlex.quote`. The tab-separated `-F` formats and a transcript containing quotes, `$`, backticks or `;` all depend on
-  it.
-- **ControlMaster is not optional.** One dictation makes ~10 tmux calls; unmultiplexed, each pays a TCP + auth
-  handshake. `BatchMode=yes` is the other half - a passphrase prompt nobody can see would hang a keypress.
-- Known edge: if `ssh` itself is missing, `flash()` has nowhere to land (the remote status line is what it addresses),
-  so that one failure is stderr + `evt=remote` in the trace only. `--check` names it plainly; keep the single routing
-  point.
-
 ## Process model
 
 - The **toggle client** never imports faster-whisper. It ships raw PCM to a model server and reads text back.
@@ -93,6 +76,44 @@ values still resolve.
   readiness signal (connect == ready).
 - **`--watch PID`**: a silence-watcher subprocess that auto-stops recording after trailing silence / the cap.
 - If the server is unreachable the client falls back to loading the model **in-process**, so dictation always works.
+
+## Remote tmux (`~/.config/dictate/remote`)
+
+Every tmux call funnels through `tmux()`, so a remote is an `ssh` wrap there and nothing else moves: the mic, the model
+and the GPU stay local and only the transcript crosses.
+
+- **One routing point: `tmux()`.** Never grow a second delivery path - a remote-only send would drift from the local
+  one, and the `@dictate` chips would stop reporting.
+- **The mic never moves.** dictate runs where the microphone is; only tmux is remote. Audio forwarding was the
+  alternative and lost: it needs a sound server on the far end, adds latency, and dies with the tunnel.
+- **Multiplexing is not optional, and `BatchMode=yes` is its other half.** One dictation makes ~10 tmux calls, each
+  otherwise paying a TCP + auth handshake, and a passphrase prompt nobody can see would hang a keypress.
+- **`DICTATE_TMUX_SSH` is an accepted alias for `DICTATE_REMOTE`**, so a hotkey binding written against the old pin
+  keeps working. One env read, not a second code path.
+- **Discovery reads `/proc`, which macOS has not** - there `~/.config/dictate/remote` is the whole candidate list.
+- **The remote tmux path is absolute on purpose.** A non-interactive ssh resolves `/usr/bin/tmux`, which cannot speak to
+  a server built from source - the client dies with `server exited unexpectedly` and names no version. `REMOTE_TMUX`
+  prefers `~/.local/bin/tmux` and falls back for a stock box; `--check` prints each host's client version beside whether
+  that server answered, which is the whole diagnosis.
+- **Its own ControlPath namespace** (`cm-dictate-…`), because sharing the interactive one would hand an `ssh -X` alias a
+  master with no X forwarding.
+- **The host is stamped at record-start, not resolved at send.** The chip that lit has to be the chip that clears, so a
+  tab change mid-clip cannot strand one red. The pane within that host is still resolved at send time, as before.
+- **Routing is the terminal's own focus report, not a guess.** `#{client_flags}` carries `focused` because
+  `focus-events` is on; last-typed-in is the fallback for when no terminal is in front, and it assumes the clocks agree.
+  The same flag picks the session when two terminals are attached to one host.
+- **Hosts are discovered, not configured** - the same rule as the backend. An ssh process with a controlling terminal is
+  a session you type in; that test is what excludes git's ssh, a mux master and our own probes, and `-N`/`-W` excludes
+  tunnels. The file remains for what discovery cannot see, and its lines are ssh argument lists, not bare destinations.
+- **Local is probed first, synchronously, and wins alone.** Focus is exclusive, so a focused local client is the answer
+  and no ssh is opened at all - dictating into this machine must not touch the network.
+- **The remote probes are daemon threads read through a queue, and the first `focused` wins.** Waiting for every host
+  would charge a down one its full timeout on every dictation (measured: 106 ms to 2.17 s from one dead entry). Only the
+  no-focus fallback waits, bounded by `PROBE_WAIT`.
+- **`shlex.quote` on every argument**, so a transcript reaches the remote tmux as one argv element and never the remote
+  shell.
+- A remote's own status-bar chips cannot work - they run that machine's `dictate`, which has no mic. Fixing that needs a
+  trigger socket reverse-forwarded over the ssh connection; the key and this machine's chips are unaffected.
 
 ## tmux coupling (change both sides together)
 

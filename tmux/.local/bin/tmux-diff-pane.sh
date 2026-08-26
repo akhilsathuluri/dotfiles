@@ -346,7 +346,7 @@ cmd_menu() {
     # At the chip for a click, centred for a key press - there is no pointer to sit under.
     [ "${2:-}" = mouse ] && x=M y=S
     tmux display-menu -c "$tty" -O -x "$x" -y "$y" \
-        -T "#[align=centre,fg=magenta]◧ diff pane#{?@diff_target, · #{b:@diff_target},}" \
+        -T "#{T:@diff_menu_title}" \
         "Working tree - watch" w "run-shell -b '$SELF work'" \
         "Staged" s "run-shell -b '$SELF staged'" \
         "Vs main" m "run-shell -b '$SELF main'" \

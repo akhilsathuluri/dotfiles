@@ -16,7 +16,8 @@ see "Platform support" in README.md for the per-layer detail.
   consumers on every Claude lifecycle event: the agentbar hook, which stamps `@agent_*` pane options for the tmux
   sidebar, and the local `hooks/` scripts, which write `/tmp/claude-sessions/` for the GNOME `claude-indicator`. Claude
   Code does not load a user-level `~/.claude/settings.local.json`, so anything that must take effect goes in
-  `settings.json`.
+  `settings.json`. Its TUI theme is the exception: the flavor's light/dark mode is patched into `~/.claude.json` by the
+  theme switcher, because `settings.json` is tracked and a switch must not dirty it.
 - `claude-indicator/` → `~/.local/bin/claude-indicator`, `~/.config/autostart/` (Linux only - GNOME top-bar indicator,
   fed by the `claude/.claude/hooks/` state files)
 - `clip/` → `~/.local/bin/clip` (copy stdin to the clipboard; picks wl-copy, xclip or pbcopy). Every copy path - tmux
@@ -27,9 +28,10 @@ see "Platform support" in README.md for the per-layer detail.
   the terminal. The `--install-shortcut` GNOME binding is Linux-only; on macOS use `prefix + m`. Two transcription
   backends, named for the hardware and picked by what is installed rather than an env var: `gpu` (whisper.cpp via
   Vulkan, on an AMD or Intel iGPU or NVIDIA) once `./install.sh whisper-vulkan` has run, else `cpu` (faster-whisper).
-  Same `small.en`, measured 2.7× faster on the GPU. Vulkan is Linux-only, so macOS is always `cpu`.
-  `DICTATE_TMUX_SSH=user@host` routes every tmux call over ssh, so a laptop can dictate into a headless box's pane -
-  dictate runs where the mic is, never on the remote (no mic there to reach).
+  Same `small.en`, measured 2.7× faster on the GPU. Vulkan is Linux-only, so macOS is always `cpu`. Dictating into a
+  tmux on another machine needs no setup - the ssh sessions open now are the candidates, it routes to whichever tmux
+  holds focus, and only the transcript crosses, never the audio. `DICTATE_REMOTE` (older name: `DICTATE_TMUX_SSH`) pins
+  one host. dictate runs where the mic is, never on the remote (no mic there to reach).
 - `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
 - `git/` → `~/.config/git/config` (delta pager, merge settings)
 - `hunk/` → `~/.config/hunk/` (hunk diff viewer config, Ayu Dark default; the `hunk()` wrapper in
@@ -96,8 +98,12 @@ Rules:
   so `a` on a pinned session unpins and holds it active. A row never says how it got into its band; a hand-placed
   session looks exactly like one the clock put there. All three keys work in the sidebar and the `Alt-;` picker, which
   share both stores, so `agentbar order` - what `Alt-h`/`Alt-l` walk - always agrees with what you see. A session nobody
-  has placed is left to the clock; a forced dormant still yields to an agent that needs you, since nothing may hide a
-  permission prompt.
+  has placed is left to the clock.
+- **`d` is a one-shot, and work is what ends it.** A session being worked in - an agent working, or blocked on you - is
+  never buried by a placement: it comes straight back up and the forced dormant is dropped, so it obeys the clock from
+  there rather than sinking again every time it falls quiet. So `d` on a session you are working in moves nothing, and a
+  stray `d` heals itself the moment you go back to that session. A pin is not a one-shot - `p` is yours until you press
+  another key.
 - **The active band is what you are working on now.** A session with no agents is dormant, and so is one whose agents
   have all gone quiet for longer than `@agentbar-active-for` (default 1h, a `⛭` row). An agent that is working or
   blocked on you keeps its session active however long it has been at it. Nothing runs in the background to make this
