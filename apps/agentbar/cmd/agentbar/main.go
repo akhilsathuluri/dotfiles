@@ -36,7 +36,8 @@ commands:
   hook                          Claude Code hook entry: stdin JSON -> pane options
   doctor                        audit Claude panes vs the hook trace for state desync
 
-themes: solarized-dark (default), solarized-light, catppuccin-latte, catppuccin-mocha
+themes: solarized-dark (default), solarized-light, catppuccin-latte, catppuccin-mocha,
+        catppuccin-mocha-black
 `
 
 func main() {

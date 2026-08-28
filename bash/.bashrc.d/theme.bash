@@ -9,10 +9,13 @@
 # path-invoked hunk (bootstrap) are untouched.
 # Read the flavor per call, not from $THEME: a shell captures that once at
 # startup, so every shell older than the last switch launched hunk on the old
-# theme - and looked like the switch had not worked.
+# theme - and looked like the switch had not worked. HUNK_THEME (same file) is the
+# switcher's own mapping, for a flavor whose name hunk does not know.
 hunk() {
     local flavor
-    flavor=$(cat ~/.config/theme/current 2>/dev/null)
+    # shellcheck source=/dev/null  # written by the `theme` switcher
+    flavor=$(. ~/.config/theme/env.sh 2>/dev/null && echo "${HUNK_THEME:-}")
+    [ -n "$flavor" ] || flavor=$(cat ~/.config/theme/current 2>/dev/null)
     if [ -n "$flavor" ] && [ "${1:-}" = diff ]; then
         command hunk "$@" --theme "$flavor"
     else

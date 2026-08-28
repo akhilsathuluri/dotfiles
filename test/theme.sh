@@ -14,7 +14,7 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 THEME="$REPO/theme/.local/bin/theme"
 PALETTE="$REPO/design/palette.toml"
-FLAVORS="solarized-light solarized-dark catppuccin-latte catppuccin-mocha"
+FLAVORS="solarized-light solarized-dark catppuccin-latte catppuccin-mocha catppuccin-mocha-black"
 pass=0 fail=0
 
 ok() {
@@ -101,6 +101,17 @@ for flavor in $FLAVORS; do
     has "delta carries the remove tint" "$S/delta.gitconfig" "$remove"
     has "nvim carries the background" "$S/nvim.lua" "$mode"
     has "env exports the flavor" "$S/env.sh" "THEME=\"$flavor\""
+    # ghostty gets a built-in theme name plus the palette ground after it, so a flavor
+    # whose bg is not that theme's (catppuccin-mocha-black) still lands on its own.
+    has "ghostty overrides the ground" "$S/ghostty.conf" "background = $bg"
+    # The catppuccin schemes take the four surface roles through color_overrides;
+    # without it the black flavor would paint nvim on Mocha's indigo.
+    case "$flavor" in
+        catppuccin-*) has "nvim carries the ground" "$S/nvim.lua" "base = \"$bg\"" ;;
+    esac
+    # hunk ships no theme by that name and silently drops to its own default, so the
+    # switcher must hand it a name hunk knows rather than the flavor id.
+    hasnt "hunk never gets a name it lacks" "$S/env.sh" 'HUNK_THEME="catppuccin-mocha-black"'
 
     # No generated file may still carry another flavor's ground.
     for other in $FLAVORS; do

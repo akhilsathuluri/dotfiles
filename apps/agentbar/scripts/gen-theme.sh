@@ -15,7 +15,8 @@ OUT="${THEME_GEN_OUT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/internal/
 FLAVORS="solarized-light:SolarizedLight
 solarized-dark:SolarizedDark
 catppuccin-latte:CatppuccinLatte
-catppuccin-mocha:CatppuccinMocha"
+catppuccin-mocha:CatppuccinMocha
+catppuccin-mocha-black:CatppuccinMochaBlack"
 
 # The default flavor is palette.toml's [meta] default, never a name repeated here -
 # a fork shipping a different default must not have to patch this script.

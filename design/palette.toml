@@ -14,10 +14,15 @@
 #
 # Solarized Light/Dark share the eight accent hues and only swap base tones, so accent + the four
 # state colors are identical across the two - the mood change lives in bg/surface/text.
+#
+# Catppuccin Mocha Black is Mocha with the indigo taken out of the ground: identical content and
+# accent hues, but bg/surface/selection/border are neutral greys (R=G=B). Mocha's #1e1e2e carries
+# blue 16 points above red/green, and it is already Catppuccin's darkest - Macchiato and Frappe are
+# lighter AND bluer - so a black Catppuccin has to come from here rather than from another flavor.
 
 [meta]
 default = "solarized-dark"
-order = ["solarized-dark", "solarized-light", "catppuccin-latte", "catppuccin-mocha"]
+order = ["solarized-dark", "solarized-light", "catppuccin-latte", "catppuccin-mocha", "catppuccin-mocha-black"]
 
 [themes.solarized-light]
 name      = "Solarized Light"
@@ -94,3 +99,22 @@ blocked   = "#f38ba8"
 done      = "#a6e3a1"
 add       = "#24372c"
 remove    = "#3a2531"
+
+[themes.catppuccin-mocha-black]
+name      = "Catppuccin Mocha Black"
+mode      = "dark"
+bg        = "#121212"
+surface   = "#1a1a1a"
+selection = "#2a2a2a"
+border    = "#333333"
+fg        = "#cdd6f4"
+emphasis  = "#eef1fb"
+muted     = "#6c7086"
+accent    = "#89b4fa"
+changes   = "#cba6f7"
+working   = "#94e2d5"
+asking    = "#fab387"
+blocked   = "#f38ba8"
+done      = "#a6e3a1"
+add       = "#14251a"
+remove    = "#2a161c"

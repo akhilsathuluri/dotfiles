@@ -99,7 +99,7 @@ applied() { tr -d '\n' <"$TMP/applied"; }
 in_span() { snap | sed -n "$2,${3}p" | grep -n -- "$1" | head -1 | cut -d: -f1; }
 arow() { in_span "$1" 2 4; }  # agentbar · Active for
 nrow() { in_span "$1" 5 6; }  # agentbar · Notify
-trow() { in_span "$1" 7 10; } # theme · Theme
+trow() { in_span "$1" 7 11; } # theme · Theme
 
 # ---- the list ---------------------------------------------------------------
 printf '\nlist\n'
@@ -108,7 +108,7 @@ out=$(snap)
 for want in agentbar theme "Active for" Notify Theme; do
     grep -qF "$want" <<<"$out" && ok "names $want" || no "missing $want"
 done
-for want in 30m 1h 4h Off On "Solarized Light" "Catppuccin Mocha"; do
+for want in 30m 1h 4h Off On "Solarized Light" "Catppuccin Mocha" "Catppuccin Mocha Black"; do
     grep -qF "$want" <<<"$out" && ok "shows $want" || no "missing $want"
 done
 eq "the window defaults to an hour" 2 "$(arow '●')"

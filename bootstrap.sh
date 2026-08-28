@@ -131,11 +131,11 @@ stow_packages() {
 }
 
 # Bootstrap deliberately applies no theme flavor. The tracked configs carry their own
-# defaults (ghostty's dark background, tmux's green status bar, nvim's vscode), so a
-# fresh machine looks like every other unswitched machine; `theme <flavor>` is opt-in
-# per machine and `theme none` comes back here. Seeding a flavor here instead made two
-# boxes on the same commit look different, depending on which had been bootstrapped
-# since the seeding landed.
+# defaults (ghostty's dark background, tmux's green status bar, nvim's catppuccin-mocha
+# ground-matched to that background), so a fresh machine looks like every other
+# unswitched machine; `theme <flavor>` is opt-in per machine and `theme none` comes back
+# here. Seeding a flavor here instead made two boxes on the same commit look different,
+# depending on which had been bootstrapped since the seeding landed.
 
 enable_tmux_resurrect_timer() {
     # tmux-continuum only autosaves while a client is attached (its save hook

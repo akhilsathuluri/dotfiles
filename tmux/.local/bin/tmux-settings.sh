@@ -22,7 +22,7 @@ STATE="${XDG_CONFIG_HOME:-$HOME/.config}/theme"
 # Absolute, because a tmux popup inherits the server's minimal PATH. Overridable
 # so the interaction test can stand a recorder in for the real switcher.
 THEME_BIN="${THEME_BIN:-$HOME/.local/bin/theme}"
-FLAVORS="solarized-light solarized-dark catppuccin-latte catppuccin-mocha"
+FLAVORS="solarized-light solarized-dark catppuccin-latte catppuccin-mocha catppuccin-mocha-black"
 # Ascending, not default-first: it is a scale, so it reads in order.
 ACTIVE_FORS="30m 1h 4h"
 # The cursor must land back on the row just applied, so the dialogue never jumps

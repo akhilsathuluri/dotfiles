@@ -44,10 +44,16 @@ see "Platform support" in README.md for the per-layer detail.
 - `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (Linux only - auto-copy screenshots
   to the clipboard)
 - `tex/` → `~/.local/bin/` (`tex-dev`, `texpeek`, `texpage` - LaTeX build/preview helpers)
-- `theme/` → `~/.local/bin/theme` (theme switcher; re-skins the terminal stack across the four flavors from
+- `theme/` → `~/.local/bin/theme` (theme switcher; re-skins the terminal stack across the five flavors from
   `design/palette.toml`, writing per-tool files into `~/.config/theme/`. **Opt-in per machine** - nothing applies a
-  flavor for you, so an unswitched machine keeps the defaults in the tracked configs (ghostty's own dark bg, tmux's
-  green status bar, nvim's `vscode`); `theme none` clears the state and returns there)
+  flavor for you, so an unswitched machine keeps the defaults in the tracked configs: ghostty's own dark `#282c34`,
+  tmux's green status bar, and nvim's Catppuccin Mocha re-grounded to that same `#282c34` (an unswitched nvim must match
+  the terminal, since it paints its own ground); `theme none` clears the state and returns there.
+  `catppuccin-mocha-black` is Mocha's content and accent hues over a neutral (R=G=B) ground, so it needs three adapters
+  the others do not, all no-ops for them - ghostty takes `theme = Catppuccin Mocha` then a `background =` override, nvim
+  takes the palette's four surface roles through catppuccin's `color_overrides`, and `HUNK_THEME` in `env.sh` maps it
+  back to `catppuccin-mocha` because hunk ships no theme by that name. `[meta] default` feeds only the sidebar's
+  compiled fallback; change it in `palette.toml` alone, then `make -C apps/agentbar gen`)
 - `tmux/` → `~/.tmux.conf`, `~/.local/bin/` scripts - see [tmux](#tmux) below
 - `trace/` → `~/.local/bin/dotfiles-trace` (shared always-on trace log for the tmux/agent stack; see "Debugging")
 

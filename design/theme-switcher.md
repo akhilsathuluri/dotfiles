@@ -12,16 +12,24 @@ theme <flavor>             # re-skin the whole stack
 theme none                 # clear the state - back to the tracked defaults
 ```
 
-Flavors: `solarized-dark` · `solarized-light` · `catppuccin-latte` · `catppuccin-mocha`. The choice **persists** (via
-`~/.config/theme/`) and applies to new shells, new windows, and the running tmux/ghostty. It is **explicit** - the
-switcher never picks a theme from the OS appearance or the time of day, and nothing (`bootstrap.sh` included) applies
-one for you.
+Flavors: `catppuccin-mocha-black` (the default) · `catppuccin-mocha` · `catppuccin-latte` · `solarized-dark` ·
+`solarized-light`. The choice **persists** (via `~/.config/theme/`) and applies to new shells, new windows, and the
+running tmux/ghostty. It is **explicit** - the switcher never picks a theme from the OS appearance or the time of day.
 
 **The unswitched baseline.** With no flavor applied, every tool falls back to the default in its own tracked config -
-ghostty's built-in dark (`#282c34`), tmux's green status bar, nvim's `vscode`, the hue-only fzf `--color` block in
-`fzf.bash` (its surfaces follow the terminal, so the popup blends into whatever bg ghostty is wearing), the sidebar's
-built-in solarized-dark. That is a coherent look in its own right, not a broken one, and `theme none` returns to it: it
-deletes everything under `~/.config/theme/`, unsets `@agentbar-theme`, reloads ghostty and re-sources `~/.tmux.conf`.
+ghostty's built-in dark (`#282c34`), tmux's green status bar, nvim's Catppuccin Mocha **on that ghostty ground**, the
+hue-only fzf `--color` block in `fzf.bash` (its surfaces follow the terminal, so the popup blends into whatever bg
+ghostty is wearing), the sidebar's compiled-in default. That is a coherent look in its own right, not a broken one, and
+`theme none` returns to it: it deletes everything under `~/.config/theme/`, unsets `@agentbar-theme`, reloads ghostty
+and re-sources `~/.tmux.conf`.
+
+**nvim's baseline is the one that had to be built.** Every other tool's tracked default either follows the terminal
+(fzf, the popup's ANSI slots) or is the terminal (ghostty). nvim paints its own ground, so `vscode`'s did not match
+ghostty's `#282c34` and the editor read as a rectangle pasted into the terminal. The fallback in
+`nvim/.config/nvim/lua/plugins/colorscheme.lua` is therefore Catppuccin Mocha with `base`/`mantle`/`surface0`/`surface1`
+overridden to One Dark's tones - which is where ghostty's default background comes from - so Catppuccin's hues sit on
+the terminal's own ground. `[meta] default` (`solarized-dark`) is unrelated to this: it feeds only the sidebar's
+compiled-in fallback, since nothing applies a flavor on an unswitched machine.
 
 ## Two kinds of tools
 
@@ -45,6 +53,7 @@ tracked config.
 | tmux frame     | hex → generated | `tmux.conf` (status/window/pane + the dictate/submit/push/diff/⛭ chips)                    | `tmux source-file` (immediate)           |
 | fzf            | hex → export    | `fzf.sh` (`_fzf_color` `--color` block, sourced by fzf.bash)                               | new shells                               |
 | bat / `$THEME` | named           | `env.sh` (`export THEME`, `export BAT_THEME`)                                              | new shells                               |
+| hunk name map  | named           | `env.sh` (`export HUNK_THEME`) - the flavor id unless hunk has no theme by that name       | next `hunk diff` / diff-pane re-run      |
 | leaf           | named           | `env.sh` (`export LEAF_THEME`)                                                             | next `leaf` launch                       |
 | git-delta      | hex + named     | `delta.gitconfig` (a `[delta]` block, git-included)                                        | next `git` invocation                    |
 | nvim           | named           | `nvim.lua` (`colorscheme` + `background`)                                                  | live `:colorscheme` / next launch        |
@@ -79,6 +88,20 @@ Tools that follow the flavor **without** being driven by the switcher:
 unhandled SIGUSR2 kills the terminal - so the switcher drives the same `reload_config` action through Ghostty's
 scripting interface (`osascript … perform action "reload_config" on terminal 1`, declared in `Ghostty.sdef`). Both are
 skipped unless Ghostty is already running, since `tell application` would otherwise launch it.
+
+**Catppuccin Mocha Black** is Mocha with the indigo taken out of the ground - same content and accent hues,
+`bg`/`surface`/`selection`/`border` as neutral greys. Mocha's `#1e1e2e` runs blue 16 points above red/green, and it is
+already Catppuccin's darkest (Macchiato and Frappe are lighter _and_ bluer), so black has to be built rather than
+picked. Three adapters differ from the other flavors, and all three are no-ops for them:
+
+- **ghostty** writes `theme = Catppuccin Mocha` and then `background = <palette bg>`. Keys after `theme` override it.
+  The other four flavors take their `bg` from that same ghostty theme, so the extra line changes nothing for them.
+- **nvim** gets a `ground` table (`base`/`mantle`/`surface0`/`surface1`, from the palette's `bg`/`surface`/`selection`/
+  `border`) that `colorscheme.lua` feeds to catppuccin's `color_overrides`. For latte and mocha every value already
+  equals upstream's, so only the black variant moves.
+- **hunk** ships `catppuccin-mocha` but nothing by the black name, and `--theme` on a name it lacks drops it to its own
+  default. `env.sh` therefore exports `HUNK_THEME`, which both callers (the `hunk()` wrapper and the diff pane) prefer
+  over the flavor id.
 
 **Known limitation:** leaf ships no Catppuccin, so those two flavors get its closest light/dark built-in (`arctic` /
 `ocean`) instead. Its Solarized Light is not upstream either: leaf ships only `solarized-dark`, so the light half is a

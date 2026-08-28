@@ -7,7 +7,8 @@
 #   theme <flavor>        switch everything to <flavor>
 #   theme none            clear the state - every tool back to its tracked default
 #
-# Flavors: solarized-dark · solarized-light · catppuccin-latte · catppuccin-mocha
+# Flavors: catppuccin-mocha-black · catppuccin-mocha · catppuccin-latte · solarized-dark ·
+#          solarized-light
 #
 # Nothing applies a flavor for you, bootstrap included: an unswitched machine stays on
 # the defaults baked into the tracked configs - ghostty's own dark background, tmux's
@@ -23,7 +24,7 @@ _root=$(cd "$(dirname "$_self")/../../.." 2>/dev/null && pwd) || _root="$HOME/do
 PALETTE="${THEME_PALETTE:-$_root/design/palette.toml}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/theme"
 
-FLAVORS="solarized-dark solarized-light catppuccin-latte catppuccin-mocha"
+FLAVORS="solarized-dark solarized-light catppuccin-latte catppuccin-mocha catppuccin-mocha-black"
 
 # ghostty's built-in theme name per flavor (from `ghostty +list-themes`).
 ghostty_name() {
@@ -31,7 +32,7 @@ ghostty_name() {
         solarized-light) echo "iTerm2 Solarized Light" ;;
         solarized-dark) echo "iTerm2 Solarized Dark" ;;
         catppuccin-latte) echo "Catppuccin Latte" ;;
-        catppuccin-mocha) echo "Catppuccin Mocha" ;;
+        catppuccin-mocha | catppuccin-mocha-black) echo "Catppuccin Mocha" ;;
     esac
 }
 
@@ -59,8 +60,14 @@ apply_sidebar() {
 # Ghostty applies a built-in theme by name. Write it to a non-repo file that the main
 # config includes (config-file = ?~/.config/theme/ghostty.conf), so switching never edits
 # the tracked config.
+# Keys after `theme =` override it, so the palette's ground always wins. A no-op for
+# the flavors whose bg was taken from that ghostty theme; for catppuccin-mocha-black it
+# is the whole point - Mocha's hues on a neutral ground.
 apply_ghostty() {
-    printf 'theme = %s\n' "$(ghostty_name "$1")" >"$STATE_DIR/ghostty.conf"
+    {
+        printf 'theme = %s\n' "$(ghostty_name "$1")"
+        printf 'background = %s\n' "$(palette_get "$1" bg)"
+    } >"$STATE_DIR/ghostty.conf"
     reload_ghostty
 }
 
@@ -245,22 +252,28 @@ EOF
 # leaf/.config/leaf/config.toml.
 apply_env() {
     local f="$STATE_DIR/env.sh"
-    local bat leaf
+    local bat hunk leaf
+    # hunk ships catppuccin-mocha but not our black variant, and `--theme` on a name it
+    # lacks drops it to its own default - so map the name rather than pass the flavor.
+    hunk="$1"
+    [ "$1" = catppuccin-mocha-black ] && hunk=catppuccin-mocha
     case "$1" in
         solarized-light) bat="Solarized (light)" leaf="solarized-light" ;;
         solarized-dark) bat="Solarized (dark)" leaf="solarized-dark" ;;
         catppuccin-latte) bat="Catppuccin Latte" leaf="arctic" ;;
-        catppuccin-mocha) bat="Catppuccin Mocha" leaf="ocean" ;;
+        catppuccin-mocha | catppuccin-mocha-black) bat="Catppuccin Mocha" leaf="ocean" ;;
     esac
     cat >"$f" <<EOF
 export THEME="$1"
 export BAT_THEME="$bat"
+export HUNK_THEME="$hunk"
 export LEAF_THEME="$leaf"
 EOF
     # tmux froze its global environment when the server started, so panes created
     # after a switch still inherit the flavor that was current back then.
     tmux set-environment -g THEME "$1" 2>/dev/null || true
     tmux set-environment -g BAT_THEME "$bat" 2>/dev/null || true
+    tmux set-environment -g HUNK_THEME "$hunk" 2>/dev/null || true
     tmux set-environment -g LEAF_THEME "$leaf" 2>/dev/null || true
 }
 
@@ -273,7 +286,7 @@ apply_delta() {
         solarized-light) light=true stheme="Solarized (light)" ;;
         solarized-dark) light=false stheme="Solarized (dark)" ;;
         catppuccin-latte) light=true stheme="Catppuccin Latte" ;;
-        catppuccin-mocha) light=false stheme="Catppuccin Mocha" ;;
+        catppuccin-mocha | catppuccin-mocha-black) light=false stheme="Catppuccin Mocha" ;;
     esac
     add=$(palette_get "$1" add)
     rem=$(palette_get "$1" remove)
@@ -331,7 +344,14 @@ apply_hunk() {
     "$HOME/.local/bin/tmux-diff-pane.sh" retint >/dev/null 2>&1 || true
 }
 
-# nvim reads the flavor at startup from ~/.config/theme/nvim.lua (colorscheme + background).
+# nvim reads the flavor at startup from ~/.config/theme/nvim.lua (colorscheme, background
+# and, for the catppuccin schemes, a `ground` table fed to the plugin's color_overrides).
+#
+# The ground carries the palette's four surface roles onto catppuccin's own names. For
+# latte and mocha every value already equals the upstream one, so it changes nothing;
+# catppuccin-mocha-black is the case it exists for - it borrows Mocha's whole palette and
+# then neutralises the four greys, which is the only way to get Mocha hues on black
+# without forking the colorscheme.
 apply_nvim() {
     local scheme bg
     case "$1" in
@@ -339,10 +359,19 @@ apply_nvim() {
         solarized-dark) scheme=solarized bg=dark ;;
         catppuccin-latte) scheme=catppuccin-latte bg=light ;;
         catppuccin-mocha) scheme=catppuccin-mocha bg=dark ;;
+        catppuccin-mocha-black) scheme=catppuccin-mocha bg=dark ;;
     esac
-    cat >"$STATE_DIR/nvim.lua" <<EOF
-return { colorscheme = "$scheme", background = "$bg" }
-EOF
+    {
+        printf 'return { colorscheme = "%s", background = "%s"' "$scheme" "$bg"
+        case "$scheme" in
+            catppuccin-*)
+                printf ', ground = { base = "%s", mantle = "%s", surface0 = "%s", surface1 = "%s" }' \
+                    "$(palette_get "$1" bg)" "$(palette_get "$1" surface)" \
+                    "$(palette_get "$1" selection)" "$(palette_get "$1" border)"
+                ;;
+        esac
+        printf ' }\n'
+    } >"$STATE_DIR/nvim.lua"
 }
 
 # theme none - drop the generated state so every tool falls back to the default in its
@@ -353,7 +382,7 @@ EOF
 clear_theme() {
     rm -f "$STATE_DIR/current" "$STATE_DIR/ghostty.conf" "$STATE_DIR/tmux.conf" \
         "$STATE_DIR/fzf.sh" "$STATE_DIR/agent-state.sh" "$STATE_DIR/env.sh" \
-        "$STATE_DIR/delta.gitconfig" "$STATE_DIR/nvim.lua"
+        "$STATE_DIR/delta.gitconfig" "$STATE_DIR/nvim.lua" "$STATE_DIR/colors.sh"
     reload_ghostty
     if command -v tmux >/dev/null; then
         tmux set -gu @agentbar-theme 2>/dev/null || true

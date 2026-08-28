@@ -62,6 +62,21 @@ func CatppuccinMocha() Theme {
 	}
 }
 
+// CatppuccinMochaBlack is the catppuccin-mocha-black flavor.
+func CatppuccinMochaBlack() Theme {
+	return Theme{
+		Fg:       "#cdd6f4",
+		Muted:    "#6c7086",
+		Emphasis: "#eef1fb",
+		Accent:   "#89b4fa",
+		SelBg:    "#2a2a2a",
+		Working:  "#94e2d5",
+		Asking:   "#fab387",
+		Blocked:  "#f38ba8",
+		Done:     "#a6e3a1",
+	}
+}
+
 // ThemeByName resolves a flavor name, falling back to the default flavor.
 func ThemeByName(name string) Theme {
 	switch name {
@@ -71,6 +86,8 @@ func ThemeByName(name string) Theme {
 		return CatppuccinLatte()
 	case "catppuccin-mocha":
 		return CatppuccinMocha()
+	case "catppuccin-mocha-black":
+		return CatppuccinMochaBlack()
 	default:
 		return SolarizedDark()
 	}

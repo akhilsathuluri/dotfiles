@@ -202,7 +202,7 @@ It renders like `⚠2 ●3` (attention / working) and disappears entirely when n
 ```tmux
 set -g @agentbar-key 'e'                # toggle key (after prefix)
 set -g @agentbar-width '30'             # sidebar width in columns
-set -g @agentbar-theme 'solarized-light' # or 'dark'
+set -g @agentbar-theme 'solarized-dark'  # default; or -light, catppuccin-latte/-mocha/-mocha-black
 set -g @agentbar-focus 'off'            # 'on' focuses sidebar on open
 set -g @agentbar-autostart 'on'         # 'off' starts with the sidebar closed
 set -g @agentbar-active-for '1h'        # how long a quiet session stays in the active band

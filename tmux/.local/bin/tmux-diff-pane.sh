@@ -286,7 +286,8 @@ cmd_run() {
     [ -f "$HOME/.config/theme/env.sh" ] && . "$HOME/.config/theme/env.sh"
     set_mode_args "$mode" || exec bash -i
     [ "$layout" != '-' ] && MARGS+=(--mode "$layout")
-    [ -n "${THEME:-}" ] && MARGS+=(--theme "$THEME")
+    # HUNK_THEME is the switcher's map for a flavor hunk has no name for; else the flavor.
+    [ -n "${HUNK_THEME:-${THEME:-}}" ] && MARGS+=(--theme "${HUNK_THEME:-$THEME}")
     hunk=$(hunk_bin)
     [ -n "$hunk" ] && "$hunk" "${MARGS[@]}"
     exec bash -i
