@@ -21,10 +21,13 @@ fail() { # fail <what> <matching lines>
     exit 1
 }
 
-check() { # check <what> <ere>
-    local hits
+check() { # check <what> <ere> [exempt-ere]
+    local hits text="$added"
+    # Blank out exempt tokens rather than whole lines, so a real hit sharing a line
+    # with one is still reported.
+    [ $# -ge 3 ] && text=$(printf '%s\n' "$text" | sed -E "s/$3//g")
     # -e: a pattern starting with "-" (a PEM header) is otherwise read as options.
-    hits=$(printf '%s\n' "$added" | grep -inE -e "$2" || true)
+    hits=$(printf '%s\n' "$text" | grep -inE -e "$2" || true)
     [ -z "$hits" ] || fail "$1" "$hits"
 }
 
@@ -45,9 +48,12 @@ o='[0-9]{1,3}'
 ip="\\b(10\\.$o\\.$o\\.$o|192\\.168\\.$o\\.$o|172\\.(1[6-9]|2[0-9]|3[01])\\.$o\\.$o)\\b"
 check 'private IP staged' "$ip"
 
-# Nobody's address belongs here, including the author's.
+# Nobody's address belongs here, including the author's. RFC 2606 reserves example.com
+# /.net/.org and the .example/.invalid/.test/.localhost TLDs so they can never resolve to
+# a real mailbox - docs and test fixtures use them as placeholders.
 check 'email address staged' \
-    '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
+    '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' \
+    '[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)*(example\.(com|net|org)|(example|invalid|test|localhost))\b'
 
 # Credentials, same shape as the vault guard's list.
 creds='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}'

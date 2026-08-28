@@ -16,8 +16,11 @@ see "Platform support" in README.md for the per-layer detail.
   consumers on every Claude lifecycle event: the agentbar hook, which stamps `@agent_*` pane options for the tmux
   sidebar, and the local `hooks/` scripts, which write `/tmp/claude-sessions/` for the GNOME `claude-indicator`. Claude
   Code does not load a user-level `~/.claude/settings.local.json`, so anything that must take effect goes in
-  `settings.json`. Its TUI theme is the exception: the flavor's light/dark mode is patched into `~/.claude.json` by the
-  theme switcher, because `settings.json` is tracked and a switch must not dirty it.
+  `settings.json`. **Its TUI theme is deliberately not switched by `theme`** - Claude owns that setting and `/theme`
+  writes it into `settings.json` itself, so a switcher write is a second writer that fights it and every `/theme`
+  dirties this tracked file. This repo pins `dark`; the `light-ansi` / `dark-ansi` variants paint from the terminal's
+  own 16 colours, so pick one of those to have the TUI follow the flavor. Plain `light`/`dark` are built-in hexes
+  nothing here can reach, and no theme at all leaves every accent faded on Solarized cream.
 - `claude-indicator/` → `~/.local/bin/claude-indicator`, `~/.config/autostart/` (Linux only - GNOME top-bar indicator,
   fed by the `claude/.claude/hooks/` state files)
 - `clip/` → `~/.local/bin/clip` (copy stdin to the clipboard; picks wl-copy, xclip or pbcopy). Every copy path - tmux
@@ -139,10 +142,80 @@ Buildable projects live under `apps/` - these are **not** stow packages and are 
 own `Makefile` with a uniform `build` target, so `bootstrap.sh` builds any language the same way and the toolchain gets
 a pinned `install_*` step. Add one by dropping a project with a `Makefile` under `apps/`.
 
-- `apps/agentbar/` → Go tmux plugin (the Claude agent sidebar). Loaded by a `run-shell` line at the end of
-  `tmux/.tmux.conf`, so it builds and runs straight from the repo. The Claude lifecycle hooks in
-  `claude/.claude/settings.json` invoke its binary at `$HOME/dotfiles/apps/agentbar/bin/agentbar`. It has its own nested
-  `CLAUDE.md` - read that before touching the code.
+- `apps/agentbar/` → **two binaries from one Go module.** `bin/agentbar` is the tmux plugin (the Claude agent sidebar);
+  `bin/workdesk` is the GitLab work inbox. Separate commands, not subcommands: agentbar runs on every Claude lifecycle
+  event and must not carry a forge client, so a GitLab failure can never be a sidebar failure. One module, because Go
+  forbids importing another module's `internal/`, and a second module would mean a **third** trace writer (see
+  "Debugging") plus a second copy of the tmux reader that already resolves agent → worktree → branch.
+  - `workdesk` mirrors the GitLab work you own into `~/.local/state/dotfiles/workdesk/`: `sync` fetches, `open` is the
+    Bubble Tea UI (inbox · issues · merge requests · agents, `1`-`4` and tab, `?` for help), `board` is the whole queue,
+    `mr <iid>` is one merge request end to end, `matrix` is one row per MR and one column per gate with a totals row,
+    and `ready` prints the actionable rows for an agent. `bootstrap.sh` links it into `~/.local/bin` - the one app
+    binary that does get a link, because it is a CLI you type.
+  - **`Alt+n`** opens it (`tmux/.tmux.conf`), invoked by absolute path like the agentbar bindings - `apps/` binaries are
+    not stow packages, so there is no `~/.local/bin` symlink to rely on inside tmux. Bare `workdesk` opens it too.
+  - **The todo feed is filtered, and the count says so.** GitLab never marks todos done, so the pending list is an
+    accumulating log: measured on a real account, 427 of 453 were `review_submitted`, `build_failed`, `unmergeable` or
+    `merge_train_removed` - machine notifications about state `mergeabilityChecks` and the pipeline already report for a
+    merge request you own, and noise for the far larger number you do not. Not one was a mention. So only the actions
+    the bands cannot derive are kept (`assigned`, `mentioned`, `directly_addressed`, `marked`), nothing older than
+    `TodoMaxAge`, and the band header reports how many were left out. Unfiltered, the inbox opened with 469 rows; it
+    opens with 61.
+  - **Bubble Tea, not fzf, and the difference is structural.** fzf re-invoked a process per cursor movement, so previews
+    had to be markdown pre-rendered at sync time and cat'd, band headers had to be smuggled into the row list as fake
+    items the cursor was taught to skip, and the key hints had to fit ~52 columns or fzf truncated them silently. Here
+    the model is held: headers are derived at render time so the cursor is always on a real row, previews are built from
+    the snapshot with colour on the gates and a real table for the approval rules, the preview scrolls, and `?` renders
+    the keymap so no hint can go missing. The palette is `internal/ui`, generated from `design/palette.toml`, so it
+    matches tmux rather than approximating it.
+  - **The pointer does what the keys do, and a click is how you look.** The wheel walks whichever pane it is over - the
+    list by a row, the preview by lines - and stops at the ends, where `j`/`k` deliberately wrap. A click selects a row;
+    the second click on it opens the sheet. The sidebar jumps on the first click because it has no preview; here the
+    preview is the reason to click at all. The tabs and the `synced` marker are clickable, a band header answers with
+    the first row under it, and everything fires on release - terminals eat the press of a click that also focuses their
+    window. `listItems` is the one pass the renderer, the scroll window and the hit test share.
+  - **The UI never acts.** It records which key was pressed on which row and quits; the caller runs the action. That is
+    what keeps every action a plain function `workdesk act <key> <ref>` can run with no terminal, and it is why the
+    write confirms do not live inside the render loop.
+  - **The view ring follows the work, not the volume.** `1` inbox, `2` issues, `3` merge requests, `4` agents: not
+    started, then in flight, then who is doing it, with the inbox first because it cuts across all three. The `View`
+    const block is the only place that order lives - the tab bar, the digits, their help text, `tab` and `shift+tab` all
+    derive from it, so a reorder is one line. It was encoded in five places before, which is how three views came to
+    sort one way and three the other.
+  - **Newest first inside a band, in all six places that sort.** The band is already the priority signal, so within one
+    the useful order is what you touched most recently. Oldest-first was the first attempt - the longest-waiting item is
+    the most forgotten - but it opened a band with a merge request from seven months ago, and it silently disagreed with
+    the issue, todo and agent views, which were newest-first all along. **The index is a stored artifact, so changing a
+    sort needs `workdesk render`** (no network) before `list` reflects it.
+  - **The model holds no presentation.** Titles are stored unpadded and ages not at all - only an epoch. A pre-padded
+    title looks harmless until a UI sizes the column to the terminal and re-pads it, at which point every row grows an
+    ellipsis it never earned. `Row.TSV()` is the one place a fixed column belongs, because its consumer is not this
+    program.
+  - **Band names are GitLab's own**, from the merge request homepage that has shipped by default since 18.2, so this
+    view and the web UI say the same words. Its active/inactive split is modelled too: the picker draws a line where the
+    bands stop asking anything of you.
+  - **"Can I merge it" comes from `mergeabilityChecks`, never inferred.** `detailedMergeStatus` names one blocker and is
+    computed lazily (`UNCHECKED` for much of any real queue); `mergeabilityChecks` returns every gate with its own
+    state, so an MR with three problems says so instead of revealing them one at a time. The identifier→message map is
+    deliberately open: GitLab adds checks and does not document the set, so an unknown one degrades to a readable label.
+  - **`approvalState.rules` is the one that explains a stuck MR.** An approval count can read as satisfied while GitLab
+    refuses the merge, because the approver was not eligible for the rule that gates it.
+  - **The mirror has two tiers, and that is what makes the popup instant.** `index.json` is a few kilobytes and holds
+    only what rows need; the full snapshot and the pre-rendered documents are read by nothing interactive. fzf re-runs
+    the preview command on every cursor movement, so decoding the snapshot per keystroke would cost ~7ms against ~0.2ms.
+    Ages are stored as epochs and formatted at read time - a baked-in "3d" is wrong by morning.
+  - A full snapshot every sync, so a merged MR disappears with no cursor state to drift, and the mirror is derived, so
+    deleting it costs nothing. It lives outside any repo because MR bodies can carry credentials. Project comes from the
+    git remote and identity from glab's token, so nothing here holds a host, group or username.
+  - **A null `project` is not an empty project.** GitLab answers `project(fullPath:)` for a path it cannot see with a
+    null rather than an error - once read as zero rows that silently replaced a good board with an empty one. A remote
+    whose host is not glab's is refused for the same reason. `workdesk schema-check` validates the query against the
+    live schema by probing a path that cannot exist, so a GitLab upgrade that moves a field is one command.
+  - Three keys write to GitLab - `a` assign, `e` auto-merge, `M` merge - each behind a typed confirm. `WORKDESK_DRY=1`
+    prints the command and stops, which is what the mockup sets. Everything else is read-only.
+- `apps/agentbar/` (the sidebar itself) is loaded by a `run-shell` line at the end of `tmux/.tmux.conf`, so it builds
+  and runs straight from the repo. The Claude lifecycle hooks in `claude/.claude/settings.json` invoke its binary at
+  `$HOME/dotfiles/apps/agentbar/bin/agentbar`. It has its own nested `CLAUDE.md` - read that before touching the code.
 
 ## Installing software
 
@@ -231,8 +304,8 @@ What to read, by symptom:
 Writing to it:
 
 - **Two writers, one format:** the `dotfiles-trace` CLI (`trace/`, used by all shell/tmux callers) and the Go
-  `apps/agentbar/internal/trace` package (used by the sidebar + hook). Keep them in sync on timestamp, escaping, and
-  rotation.
+  `apps/agentbar/internal/trace` package (used by the sidebar, the hook and workdesk). Keep them in sync on timestamp,
+  escaping, and rotation.
 - **Log edges only, never hot loops** (mouse motion, ticks, status redraws, the dictate silence poll, fzf preview/list,
   statusline) - that keeps it free.
 - **Toggles:** `tmux set -g @agentbar-trace-verbose on` adds the noisy sidebar events for a live hunt (effect within
@@ -258,7 +331,9 @@ here - this repo is public.
 ## Rules
 
 - **Never commit personal info**: no names, emails, IP addresses, work-specific paths, or employer / product / project
-  names
+  names. This includes anything read out of a work forge - **no ticket or MR numbers, branch names, CODEOWNERS paths, or
+  queue statistics** (counts of open MRs, ages, approval numbers). Those are findings about the employer's codebase, not
+  facts about these dotfiles; they belong in the work vault. Tool docs describe behaviour, never the data it returned.
 - **The commit guard enforces this, not a habit.** `.githooks/pre-commit` (wired by `bootstrap.sh` via `core.hooksPath`)
   refuses a staged private IP, email address, credential shape, Claude `autoMode` block, or anything matching the
   machine-local pattern file - and runs `gitleaks git --staged`. `task audit` is the same checks on demand; `task check`
@@ -317,8 +392,8 @@ notes are generated from these, so the type and scope are the machine-readable p
 - **Types**: `feat` · `fix` · `docs` · `refactor` · `perf` · `test` · `build` · `ci` · `chore`
 - **Scope** is the area, matching a stow package, an app, or a repo concern: `agentbar`, `bash`, `bat`, `bootstrap`,
   `claude`, `clip`, `design`, `dictate`, `ghostty`, `git`, `hunk`, `indicator`, `install`, `leaf`, `lint`, `nvim`,
-  `release`, `screenshot`, `task`, `tex`, `theme`, `tmux`, `trace`, `vault`. Omit it only when a change genuinely spans
-  everything.
+  `release`, `screenshot`, `task`, `tex`, `theme`, `tmux`, `trace`, `vault`, `workdesk`. Omit it only when a change
+  genuinely spans everything.
 - **Breaking = needs manual steps on the machine.** A `!` after the scope (`feat(tmux)!:`) or a `BREAKING CHANGE:`
   footer marks a release that can't just be pulled - a re-login, a re-stow, a GNOME shortcut, a systemd unit. It renders
   as "needs manual steps" in the changelog and, pre-1.0, drives the MINOR bump.
