@@ -47,6 +47,139 @@ func TestViewShowsTheThingsItIsFor(t *testing.T) {
 	}
 }
 
+// The issues view is the board: GitLab's own columns as bands, in its order, with the
+// labels and the sprint on the row.
+func TestIssuesViewIsTheBoard(t *testing.T) {
+	t.Parallel()
+	m := testModel(t)
+	m.setView(workdesk.ViewIssues)
+	out := stripANSI(m.View())
+	for _, want := range []string{
+		"Backlog", "To do", "In progress", "In review", // GitLab's columns, as bands
+		"no status",                          // an issue outside the workflow still gets a row
+		"nothing below asks anything of you", // done and cancelled are below the line
+		"high", "bug",                        // scoped labels, as their values
+		sprintMark, // in the current sprint
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the issues view does not show %q", want)
+		}
+	}
+	// Furthest along at the top, the backlog at the bottom - a list is read top down,
+	// and the backlog is the biggest band there is.
+	if backlog, todo := strings.Index(out, "▌ Backlog"), strings.Index(out, "▌ To do"); backlog < todo {
+		t.Error("Backlog sorts above To do; the bands are not flipped")
+	}
+	if review, dev := strings.Index(out, "▌ In review"), strings.Index(out, "▌ In progress"); review > dev {
+		t.Error("In review sorts below In progress; the bands are not in GitLab's order reversed")
+	}
+	// Grouped by status, never by label: a label is a column on the row.
+	if strings.Contains(out, "▌ high") {
+		t.Error("priority is still a band header")
+	}
+}
+
+// A preview that shows only a URL is a row with a link on it. The issue's own body and
+// the argument about it are the reason to look at it at all.
+func TestIssuePreviewCarriesTheTicket(t *testing.T) {
+	t.Parallel()
+	m := testModel(t)
+	m.setView(workdesk.ViewIssues)
+	for i, r := range m.rows {
+		if r.Ref == "#128" {
+			m.cursor = i
+		}
+	}
+	m.syncPreview()
+	// Whitespace-flattened: the body is rendered markdown now, so where a line breaks
+	// depends on the pane and a phrase can straddle two of them.
+	out := flatten(stripANSI(m.renderPreview(m.rows[m.cursor])))
+	for _, want := range []string{
+		"Description",
+		"Cold start walks the whole registry", // the body, not a link to it
+		"index the registry by name at load",  // and all of it, not the first line
+		"Comments 2",                          // what was said, system notes dropped
+		"dana", "Reproduced on a cold pod",
+		"assignees", "status", "sprint",
+		"[ ] index the registry", // a task list, rendered as one
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the issue preview does not show %q", want)
+		}
+	}
+	if strings.Contains(out, "assigned to @you") {
+		t.Error("a system note reached the preview")
+	}
+	// The syntax itself is what a renderer removes.
+	if strings.Contains(out, "- [ ]") || strings.Contains(out, "## Summary") {
+		t.Error("markdown source is showing through: the body was not rendered")
+	}
+}
+
+// flatten collapses every run of whitespace, so an assertion is about the words rather
+// than about where the wrap happened to fall.
+func flatten(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// The viewport truncates what it cannot fit, so a body has to be wrapped to the pane
+// rather than left to run off the edge.
+func TestPreviewWrapsBodiesToThePane(t *testing.T) {
+	t.Parallel()
+	m := testModel(t)
+	m.setView(workdesk.ViewIssues)
+	for i, r := range m.rows {
+		if r.Ref == "#128" {
+			m.cursor = i
+		}
+	}
+	for _, width := range []int{80, 100, 140} {
+		m.resize(width, 40)
+		for _, line := range strings.Split(stripANSI(m.renderPreview(m.rows[m.cursor])), "\n") {
+			if w := len([]rune(line)); w > m.preview.Width {
+				t.Errorf("at %d cols a preview line is %d wide, over the %d-wide pane: %q",
+					width, w, m.preview.Width, line)
+			}
+		}
+	}
+}
+
+// Reading the diff applies to a merge request, and says so on a row that is not one.
+func TestDiffKeyOnlyAppliesToMergeRequests(t *testing.T) {
+	t.Parallel()
+	m0 := testModel(t)
+	m0.setView(workdesk.ViewIssues)
+	next0, _ := m0.request("D")
+	if got := next0.(Model); got.Pending != nil {
+		t.Errorf("D asked for %v on an issue", got.Pending)
+	} else if !strings.Contains(got.notice, "merge request") {
+		t.Errorf("D on an issue said %q", got.notice)
+	}
+	// And on a merge request it records the action for the caller to run.
+	m := testModel(t)
+	m.setView(workdesk.ViewMRs)
+	next, _ := m.request("D")
+	got := next.(Model)
+	if got.Pending == nil || got.Pending.Key != "D" || !strings.HasPrefix(got.Pending.Ref, "mrs:") {
+		t.Errorf("D on a merge request recorded %+v, want D on an mrs: reference", got.Pending)
+	}
+}
+
+// The two moves apply to an issue, and say so on a row that is not one.
+func TestStatusAndSprintOnlyApplyToIssues(t *testing.T) {
+	t.Parallel()
+	for _, key := range []string{"s", "i"} {
+		m := testModel(t)
+		m.setView(workdesk.ViewMRs)
+		next, _ := m.request(key)
+		got := next.(Model)
+		if got.Pending != nil {
+			t.Errorf("%q asked for %v on a merge request", key, got.Pending)
+		}
+		if !strings.Contains(got.notice, "issue") {
+			t.Errorf("%q on a merge request said %q", key, got.notice)
+		}
+	}
+}
+
 // Nothing may run off the edge: a line wider than the terminal wraps and shears the
 // whole layout.
 func TestViewNeverExceedsItsWidth(t *testing.T) {

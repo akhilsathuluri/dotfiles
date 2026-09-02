@@ -93,13 +93,14 @@ reload_ghostty() {
 apply_tmux() {
     command -v tmux >/dev/null || return 0
     local f="$STATE_DIR/tmux.conf"
-    local bg surface fg muted accent chg block ask grn work
+    local bg surface fg muted accent chg flt block ask grn work
     bg=$(palette_get "$1" bg)
     surface=$(palette_get "$1" surface)
     fg=$(palette_get "$1" fg)
     muted=$(palette_get "$1" muted)
     accent=$(palette_get "$1" accent)
     chg=$(palette_get "$1" changes)
+    flt=$(palette_get "$1" float)
     block=$(palette_get "$1" blocked)
     ask=$(palette_get "$1" asking)
     grn=$(palette_get "$1" "done")
@@ -141,13 +142,16 @@ apply_tmux() {
     # accent, so the rail reads as chrome instead of blending into the log
     # scrolling under it. Each zone is given the pane's width and its share of
     # it, so the branch is cut only when the pane has no room (see .tmux.conf).
+    # A floating pane names itself rather than repeating the folder and branch
+    # every other pane's rail already carries (see .tmux.conf).
     local border rail
     rail="#($HOME/.local/bin/tmux-rail.sh '#{pane_current_path}' '#{pane_width}'"
     rail="$rail '#{?#{E:@rail_agent},2,1}')"
-    border="#{?#{==:#{pane_current_command},agentbar},,"
+    border="#{?pane_floating_flag, #[fg=$flt]≡ workdesk ,"
+    border="$border#{?#{==:#{pane_current_command},agentbar},,"
     border="$border #[fg=$accent]$rail "
     border="$border#{?#{E:@rail_agent},#[align=right fg=$accent]→ "
-    border="$border#($HOME/.local/bin/tmux-rail.sh '#{@agent_workdir}' '#{pane_width}' 2) , }}"
+    border="$border#($HOME/.local/bin/tmux-rail.sh '#{@agent_workdir}' '#{pane_width}' 2) , }}}"
     # The footer: branch, the work's sha, GitLab, clock. Rebuilt here because a
     # value only set in .tmux.conf keeps its Solarized hex in every other flavor.
     local right
@@ -161,15 +165,15 @@ set -g status-style "fg=$fg,bg=$surface"
 set -g window-style "fg=$fg,bg=$bg"
 set -g window-active-style "fg=$fg,bg=$bg"
 set -g pane-border-style "fg=$muted,bg=$bg"
-set -g pane-active-border-style "fg=$accent,bg=$bg"
+set -g pane-active-border-style "#{?pane_floating_flag,fg=$flt#,bold,fg=$accent},bg=$bg"
 set -g status-left "$left"
 set -g window-status-current-format "#[fg=$bg,bg=$accent,bold] #I:#W#{?window_zoomed_flag, Z,} "
 set -g window-status-format "#{?window_bell_flag,#[fg=$bg bg=$block bold],#[fg=$muted bg=$surface]} #I:#W "
 set -g @dictate_seg "$dseg"
 set -g @dictsend_seg "$dsend"
-set -g @submit_seg "#{?@submit_flash,#[fg=$bg bg=$grn] ⏎ send ,#[fg=$muted bg=$surface] ⏎ send }"
 set -g @push_seg "#{?@push_flash,#[fg=$bg bg=$grn] ⇡ commit+push ,#[fg=$accent bg=$surface] ⇡ commit+push }"
 set -g @diff_seg "$diffseg"
+set -g @workdesk_seg "#[fg=$muted bg=$surface] ≡ workdesk "
 set -g @settings_seg "#[fg=$muted bg=$surface]⛭ "
 set -g @theme_flavor "$1"
 set -g pane-border-format "$border"
@@ -187,7 +191,9 @@ apply_colors() {
     local f="$STATE_DIR/colors.sh"
     : >"$f"
     local tok
-    for tok in bg surface selection border fg emphasis muted accent changes working asking blocked 'done' add remove; do
+    local toks="bg surface selection border fg emphasis muted accent changes float"
+    toks="$toks working asking blocked done add remove"
+    for tok in $toks; do
         printf '_theme_%s="%s"\n' "$tok" "$(palette_get "$1" "$tok")" >>"$f"
     done
 }

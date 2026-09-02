@@ -34,6 +34,9 @@ type keyMap struct {
 	Assign   key.Binding
 	Auto     key.Binding
 	Merge    key.Binding
+	Status   key.Binding
+	Sprint   key.Binding
+	MRDiff   key.Binding
 	Promote  key.Binding
 	Sync     key.Binding
 	Help     key.Binding
@@ -63,7 +66,7 @@ func defaultKeys() keyMap {
 		PrevView: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("⇧tab", "previous view")),
 		Views:    viewBindings(),
 		Filter:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-		Accept:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("↵", "open detail")),
+		Accept:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("↵", "jump to that agent")),
 		ScrollUp: key.NewBinding(key.WithKeys("ctrl+u", "pgup"), key.WithHelp("^u", "scroll preview up")),
 		ScrollDn: key.NewBinding(key.WithKeys("ctrl+d", "pgdown"), key.WithHelp("^d", "scroll preview down")),
 		Open:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open in browser")),
@@ -74,10 +77,17 @@ func defaultKeys() keyMap {
 		Assign:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign a reviewer")),
 		Auto:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "set auto-merge")),
 		Merge:    key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
-		Promote:  key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "promote to a pane")),
-		Sync:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "re-sync")),
-		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Quit:     key.NewBinding(key.WithKeys("q", "esc", "ctrl+c"), key.WithHelp("q", "close")),
+		Status:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "move to a status")),
+		MRDiff:   key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "read the diff")),
+		// One key both ways: the row's ◆ already says which way it will go.
+		Sprint:  key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "in/out of the sprint")),
+		Promote: key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "promote to a pane")),
+		Sync:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "re-sync")),
+		Help:    key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		// alt+n is the key tmux opens this with. While the popup is up that key reaches
+		// here instead of tmux, so quitting on it is what makes the opener a toggle -
+		// the status chip cannot do it, because a popup swallows the click.
+		Quit: key.NewBinding(key.WithKeys("q", "esc", "ctrl+c", "alt+n"), key.WithHelp("q/alt+n", "close")),
 	}
 }
 
@@ -87,17 +97,21 @@ func defaultKeys() keyMap {
 func mouseHints() [][2]string {
 	return [][2]string{
 		{"click", "select a row"},
-		{"click again", "open it"},
+		{"click again", "jump to that agent's pane"},
+		{"click a link", "open it in the browser - a url, or a #1234 or !1234"},
 		{"click a tab", "switch view"},
+		{"click ✕", "close"},
 		{"click \"synced\"", "re-sync"},
 		{"wheel", "walk the list, or scroll the preview under the pointer"},
 	}
 }
 
 // ShortHelp is the footer strip: moving around, and the actions that apply to the row
-// under the cursor.
+// under the cursor. Enter is not among them - it belongs to the agents view alone, and a
+// strip that is always on screen should not advertise a key that does nothing on three
+// views out of four. The overlay still documents it.
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Accept, k.Open, k.Copy, k.NextView, k.Filter, k.Help, k.Quit}
+	return []key.Binding{k.Open, k.Copy, k.NextView, k.Filter, k.Help, k.Quit}
 }
 
 // FullHelp is the overlay, grouped the way the work is: navigate, act, write.
@@ -105,7 +119,8 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Top, k.Bottom, k.ScrollUp, k.ScrollDn},
 		append(k.Views, k.NextView, k.PrevView, k.Filter),
-		{k.Accept, k.Open, k.Copy, k.Tree, k.Diff, k.Matrix},
-		{k.Assign, k.Auto, k.Merge, k.Promote, k.Sync, k.Quit},
+		{k.Open, k.Copy},
+		{k.Accept, k.MRDiff, k.Tree, k.Diff, k.Matrix},
+		{k.Assign, k.Auto, k.Merge, k.Status, k.Sprint, k.Promote, k.Sync, k.Quit},
 	}
 }

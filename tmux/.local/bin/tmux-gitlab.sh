@@ -20,15 +20,8 @@
 # (status-interval, 5s) - so this is most of the "why is my MR not showing yet".
 # Lower costs more `glab` calls, which take ~2.6s each but run detached.
 TTL=${TMUX_GITLAB_TTL:-15}
+# No md5sum or stat: the key is parameter expansion, the age $EPOCHSECONDS - no GNU/BSD split.
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tmux-gitlab"
-
-# GNU/BSD differences, resolved once. The cache key is parameter expansion and the
-# age comes from $EPOCHSECONDS, so neither md5sum nor stat is reached for at all.
-open_url() { # xdg-open on Linux, open on macOS
-    if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "$1" >/dev/null 2>&1 &
-    else open "$1" >/dev/null 2>&1 & fi
-}
 
 # Terminal-palette styles (match .tmux.conf): the bar is green, so a green fg
 # would be invisible - only attention-worthy states get a chip, success stays plain.
@@ -285,13 +278,30 @@ cmd_open() {
         return 0
     }
 
+    open_url "$url"
+}
+
+# open_url <url> - the one place a GitLab link leaves this machine, for the chips and for
+# workdesk's o. Over ssh the browser is at the other end, so the link goes to the local
+# clipboard through OSC 52 instead.
+open_url() {
+    local url="$1"
+    [ -n "$url" ] || return 1
     if [ "$(tmux show -gv @is_ssh 2>/dev/null)" = "1" ]; then
         tmux set-buffer -w -- "$url" # OSC 52 -> local clipboard
         tmux display-message "Copied: $url"
-    else
-        open_url "$url"
-        tmux display-message "Opening: $url"
+        return 0
     fi
+    # Checked, not assumed: the opener is backgrounded, so its own failure is invisible
+    # here and the caller would read the whole thing as opened.
+    local opener=xdg-open # macOS carries `open` instead
+    command -v "$opener" >/dev/null 2>&1 || opener=open
+    if ! command -v "$opener" >/dev/null 2>&1; then
+        tmux display-message "No opener for: $url"
+        return 1
+    fi
+    "$opener" "$url" >/dev/null 2>&1 &
+    tmux display-message "Opening: $url"
 }
 
 case "${1:-render}" in
@@ -303,9 +313,17 @@ case "${1:-render}" in
         shift
         cmd_open "$@"
         ;;
+    open-url)
+        shift
+        open_url "$1"
+        ;;
     render)
         shift
         cmd_render "$@"
         ;;
-    *) cmd_render "$@" ;; # tolerate a bare path
+    /*) cmd_render "$@" ;; # tolerate a bare path
+    *)
+        printf 'tmux-gitlab.sh: no such command: %s\n' "$1" >&2
+        exit 2
+        ;;
 esac

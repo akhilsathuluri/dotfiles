@@ -14,6 +14,9 @@ import (
 const (
 	bandMark = "▌"
 	sep      = " · "
+	// The close button, in the corner every window puts one. A popup swallows a click
+	// on the tmux chip that opened it, so this is the only pointer that can close it.
+	closeMark = "✕"
 	// The list gets slightly less than half, because a merge request sheet is the wider
 	// of the two things on screen.
 	listShare = 0.46
@@ -98,9 +101,9 @@ func (m Model) tabBar() string {
 	return m.spread(left, right) + "\n" + rule
 }
 
-// tabBarRight is the right-hand group - what is asking for you, then how stale the mirror
-// is. Returned styled and plain, because the hit test needs its width and escape
-// sequences do not have one.
+// tabBarRight is the right-hand group - what is asking for you, how stale the mirror is,
+// then the close button hard against the edge. Returned styled and plain, because the hit
+// test needs its width and escape sequences do not have one.
 func (m Model) tabBarRight() (styled, plain string) {
 	idle := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	plain = m.staleness()
@@ -110,7 +113,25 @@ func (m Model) tabBarRight() (styled, plain string) {
 		styled = lipgloss.NewStyle().Foreground(m.theme.Asking).Render(flag) + idle.Render(sep) + styled
 		plain = flag + sep + plain
 	}
+	// Muted like every other control with no state to report.
+	plain += "  " + closeMark
+	styled += idle.Render("  " + closeMark)
 	return styled, plain
+}
+
+// rightSpans locates the two clickable things in the tab bar's right-hand group. ok is
+// false when the bar is too narrow to draw that group at all - the same condition spread
+// applies, so a click cannot land on text that was never rendered.
+func (m Model) rightSpans() (staleStart, staleEnd, closeStart int, ok bool) {
+	_, plain := m.tabBarRight()
+	spans := tabSpans()
+	if m.width-spans[len(spans)-1].end-lipgloss.Width(plain) < 1 {
+		return 0, 0, 0, false
+	}
+	closeStart = m.width - lipgloss.Width(closeMark)
+	staleEnd = closeStart - 2
+	staleStart = staleEnd - lipgloss.Width(m.staleness())
+	return staleStart, staleEnd, closeStart, true
 }
 
 // spread puts left at the margin and right against the far edge, so nothing reflows as
@@ -270,7 +291,7 @@ func (m Model) bandHeader(r workdesk.Row, w int) string {
 	// silently reads as complete when it is not.
 	if r.Label == workdesk.TodoBand && m.idx.TodosDropped > 0 {
 		count += lipgloss.NewStyle().Foreground(t.Muted).
-			Render(fmt.Sprintf("   +%d the bands already cover", m.idx.TodosDropped))
+			Render(fmt.Sprintf("   +%d with no row to show them in", m.idx.TodosDropped))
 	}
 	return truncate(mark+" "+label+count, w)
 }
@@ -287,7 +308,22 @@ func (m Model) dividerLine(w int) string {
 		Render(strings.Repeat("─", left) + text + strings.Repeat("─", rule-left))
 }
 
-// rowLine is reference, title, age and - where it earns the room - the note.
+// sprintMark is the current iteration, on the rows that are in it. Two cells are
+// reserved on every issue row, marked or not, so the column does not move as the sprint
+// changes under it.
+const sprintMark = "◆"
+
+// The room the labels get, and the title they may not eat into. The labels are the
+// second thing a row says, so they take what is left over a readable title and are given
+// up entirely on a narrow pane - a truncated title says nothing at all.
+const (
+	maxTagW  = 22
+	minTitle = 28
+	minTagW  = 8
+)
+
+// rowLine is reference, title, labels, sprint, age and - where it earns the room - the
+// note.
 func (m Model) rowLine(r workdesk.Row, w int, selected bool) string {
 	t := m.theme
 	refW, ageW := 6, 6
@@ -311,23 +347,45 @@ func (m Model) rowLine(r workdesk.Row, w int, selected bool) string {
 		}
 	}
 
+	// The two columns an issue row carries. Keyed off the reference rather than off
+	// whether this particular row has labels or a sprint, so every issue row reserves
+	// the same width and the age column stays where it was.
+	tags, sprint := "", ""
+	if strings.HasPrefix(r.Ref, "#") {
+		sprint = " "
+		if r.Sprint {
+			sprint = sprintMark
+		}
+		sprint = " " + sprint
+		titleW -= lipgloss.Width(sprint)
+		if w := min(maxTagW, titleW-2-minTitle); w >= minTagW {
+			titleW -= w + 2
+			tags = "  " + workdesk.Pad(strings.Join(r.Tags, sep), w)
+		}
+		// The same floor the width started at, so an issue row never gets a shorter
+		// title than a merge request row on the same pane.
+		if titleW < 10 {
+			titleW = 10
+		}
+	}
+
 	ref := lipgloss.NewStyle().Foreground(t.Accent).Render(workdesk.Pad(r.Ref, refW))
 	titleColour := t.Fg
 	if selected {
 		titleColour = t.Emphasis
 	}
 	title := lipgloss.NewStyle().Foreground(titleColour).Render(workdesk.Pad(r.Title, titleW))
-	age := lipgloss.NewStyle().Foreground(t.Muted).Render(fmt.Sprintf("%*s", ageW, r.Age))
-	noteStyled := lipgloss.NewStyle().Foreground(t.Muted).Render(note)
+	dim := lipgloss.NewStyle().Foreground(t.Muted)
+	age := dim.Render(fmt.Sprintf("%*s", ageW, r.Age))
+	body := title + dim.Render(tags) + lipgloss.NewStyle().Foreground(t.Accent).Render(sprint) +
+		age + dim.Render(note)
 
-	line := "  " + ref + " " + title + age + noteStyled
 	if selected {
 		// A full-width band, so the selection reads as a row rather than as coloured
 		// text - the sidebar and the pickers all mark selection the same way.
-		return lipgloss.NewStyle().Width(w).Background(t.SelBg).Render(
-			"▸ " + ref + " " + title + age + noteStyled)
+		return lipgloss.NewStyle().Width(w).Background(t.SelBg).Render("▸ " + ref + " " + body)
 	}
-	return truncate(line, w)
+	return truncate("  "+ref+" "+body, w)
 }
 
 func (m Model) dividerPane() string {
@@ -436,16 +494,17 @@ func (m Model) tabAt(x int) (workdesk.View, bool) {
 	return m.view, false
 }
 
-// overStaleness reports whether a column is on the "synced ..." tail of the tab bar - the
-// one thing up there you would click to refresh. False when the bar is too narrow to draw
-// its right-hand group, which is the condition spread already applies.
+// overStaleness reports whether a column is on the "synced ..." text - the one thing up
+// there you would click to refresh.
 func (m Model) overStaleness(x int) bool {
-	_, plain := m.tabBarRight()
-	spans := tabSpans()
-	if m.width-spans[len(spans)-1].end-lipgloss.Width(plain) < 1 {
-		return false
-	}
-	return x >= m.width-lipgloss.Width(m.staleness())
+	start, end, _, ok := m.rightSpans()
+	return ok && x >= start && x < end
+}
+
+// overClose reports whether a column is on the ✕.
+func (m Model) overClose(x int) bool {
+	_, _, start, ok := m.rightSpans()
+	return ok && x >= start
 }
 
 func truncate(s string, w int) string {

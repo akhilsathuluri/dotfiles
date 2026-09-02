@@ -118,30 +118,31 @@ and the GPU stay local and only the transcript crosses.
 ## tmux coupling (change both sides together)
 
 - The script sets `@dictate` to `"rec"` (red) / `"work"` (amber) / unset (idle grey). `tmux/.tmux.conf` renders that via
-  `@dictate_seg`, and its status bar defines the mouse ranges `dictate` -> `dictate --toggle`, `submit` ->
-  `dictate --send` (⏎ send), `dictsend` -> `dictate --toggle --send` (records, types, then presses Enter), and `push` ->
-  `dictate --type 'commit and push'` (types the phrase + Enter). Renaming a state string or a range means editing
-  `tmux.conf` too. Every chip also has a key, bound in `tmux.conf` beside the ranges: `prefix + m` (dictate),
-  `prefix + M` (dictate+send), `prefix + Enter` (send), `prefix + p` (push), `prefix + D` (the diff menu) - same
-  commands, so change them together. The `@*_seg` chips are also regenerated per-flavor by `theme/.local/bin/theme`
-  (`apply_tmux`), so relabel/recolor a chip in both. Chip colors also appear in `design/*.md`.
+  `@dictate_seg`, and its status bar defines the mouse ranges `dictate` -> `dictate --toggle`, `dictsend` ->
+  `dictate --toggle --send` (records, types, then presses Enter), and `push` -> `dictate --type 'commit and push'`
+  (types the phrase + Enter). Renaming a state string or a range means editing `tmux.conf` too. The `@*_seg` chips are
+  also regenerated per-flavor by `theme/.local/bin/theme` (`apply_tmux`), so relabel/recolor a chip in both. Chip colors
+  also appear in `design/*.md`. Every chip also has a key, bound in `tmux.conf` beside the ranges: `prefix + m`
+  (dictate), `prefix + M` (dictate+send), `prefix + p` (push), `prefix + D` (the diff menu), `Alt+n` (the workdesk
+  float) - same commands, so change them together. `prefix + Enter` (send) is the one key with no chip, since the
+  toolbar retired `⏎ send`.
 - **`--send` / `--type` are tmux-only paths.** They touch no audio, so they work anywhere dictate runs, and they are
-  what the ⏎ send / ⇡ commit+push chips call. Before the macOS port those two chips were dead on macOS purely because
-  the package was not stowed there - which is why the port stows dictate on both platforms rather than reimplementing
-  the send half somewhere cross-platform.
+  what `prefix + Enter` and the ⇡ commit+push chip call. Before the macOS port those two paths were dead on macOS purely
+  because the package was not stowed there - which is why the port stows dictate on both platforms rather than
+  reimplementing the send half somewhere cross-platform.
 
 ## Footer chips
 
-- Five ranges, in this order: `dictate` · `submit` · `dictsend` · `push` · `diff`. **One space of padding inside every
+- Five ranges, in this order: `workdesk` · `dictate` · `dictsend` · `push` · `diff`. **One space of padding inside every
   chip and one between them** - every gap is the same three columns. The old row mixed one- and two-space padding and
   read as ragged; keep it uniform when editing a label.
-- **Labels name the effect, not the key.** `⏎ send` rather than "enter", `◧ changes` rather than "diff", because a
+- **Labels name the effect, not the key.** `⇡ commit+push` rather than "push", `◧ changes` rather than "diff", because a
   status bar has no tooltips and a first-time reader gets one chance. Glyphs alone were rejected: a bare glyph is a 2-3
   column click target, too small to hit.
 - `dictate+send` is one press-pair, not a second recorder: the first press drops `SEND_FILE` beside the PCM buffer and
   the second reads it _before_ `cleanup()` removes it, then presses Enter once the transcript is in the pane. Only the
   chip you clicked lights up - both read `@dictate`, but each colours itself only when `@dictate_src` names it.
-- **One chip rests lit, and it is `dictate+send`**; `dictate` and `⏎ send` rest plain. It is the one used most, and
+- **One chip rests lit, and it is `dictate+send`**; `dictate` and `≡ workdesk` rest plain. It is the one used most, and
   plain reads as unavailable. Never a warm hue: the chip's own states are red (recording) and amber (transcribing), so
   orange blurs idle into busy. To recolor, move the highlight - do not add a second.
 - **Hover is impossible** - tmux 3.7b rejects `MouseMoveStatus`; only Down/Up/Drag/Wheel exist for the status line.

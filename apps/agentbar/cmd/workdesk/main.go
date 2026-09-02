@@ -34,15 +34,17 @@ commands:
   board              the whole queue, bucketed by what is blocking it
   mr <iid>           one merge request end to end
   issue <iid>        one issue
+  diff <iid> [--patch] the merge request's diff in hunk; --patch skips the fetch
   matrix             one row per merge request, one column per gate, and totals
   preview <ref>      the preview for one row (mrs:412, issues:128, agents:%3)
-  act <key> <ref>    run one action without a terminal
+  act <key> <ref>    run one action without a terminal (s takes a status name)
   ready              the rows asking something of you, one per line, for agents
   fixture <dir>      write the invented mirror the mockup and the tests share
   schema-check       validate the query against the live GitLab schema
   path               print the mirror directory
 
 environment:
+  WORKDESK_CONFIG    the accounts file (default ~/.config/workdesk/config.toml)
   WORKDESK_MIRROR    where the mirror lives
   WORKDESK_AGENTS    read agents from a file instead of tmux
   WORKDESK_DRY       print what a write would run, and stop
@@ -79,6 +81,8 @@ func main() {
 		err = runDoc("mr", args)
 	case "issue":
 		err = runDoc("issue", args)
+	case "diff":
+		err = runDiff(args)
 	case "matrix":
 		err = runMatrix()
 	case "preview":
@@ -123,6 +127,20 @@ func mirrorDir() string {
 	return filepath.Join(state, "dotfiles", "workdesk")
 }
 
+// configPath is where the accounts are configured. Outside this repository, like the
+// mirror: a username is exactly what must never be committed here, and the file is
+// per-machine anyway.
+func configPath() string {
+	if p := os.Getenv("WORKDESK_CONFIG"); p != "" {
+		return p
+	}
+	dir := os.Getenv("XDG_CONFIG_HOME")
+	if dir == "" {
+		dir = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+	return filepath.Join(dir, "workdesk", "config.toml")
+}
+
 func runSync() error {
 	dir := mirrorDir()
 	repo, err := os.Getwd()
@@ -133,21 +151,60 @@ func runSync() error {
 	defer cancel()
 
 	client := gitlab.New()
-	project, err := gitlab.ProjectFor(ctx, client, repo)
+	project, via, err := syncProject(ctx, client, dir, repo)
 	if err != nil {
 		return err
 	}
-	res, err := workdesk.Sync(ctx, client, dir, project, time.Now())
+	cfg, err := workdesk.LoadConfig(configPath())
+	if err != nil {
+		return err
+	}
+	line := newProgressLine(project)
+	res, err := workdesk.SyncWithProgress(ctx, client, dir, project, cfg, time.Now(), line.leg)
+	line.close()
 	if err != nil {
 		trace.Log("workdesk", "sync", "project", project, "rc", 1, "err", trace.Err(err))
 		return err
 	}
-	trace.Log("workdesk", "sync", "project", res.Project, "user", res.User,
+	trace.Log("workdesk", "sync", "project", res.Project, "via", via, "user", res.User,
+		"accounts", len(res.Users),
 		"mrs", res.MRs, "issues", res.Issues, "todos", res.Todos,
+		"fetched", res.MRsFetched+res.IssuesFetched,
 		"ms", res.Took.Milliseconds(), "rc", 0)
-	fmt.Printf("synced %d mrs, %d issues, %d todos in %s -> %s\n",
-		res.MRs, res.Issues, res.Todos, res.Took.Round(time.Millisecond), dir)
+	// The fetched count is the interesting number now: the rest of the queue was already
+	// on disk and GitLab said it had not changed.
+	fmt.Printf("synced %d mrs, %d issues, %d todos in %s (%d refreshed) -> %s\n",
+		res.MRs, res.Issues, res.Todos, res.Took.Round(time.Millisecond),
+		res.MRsFetched+res.IssuesFetched, dir)
 	return nil
+}
+
+// syncProject is the project a resync refreshes.
+//
+// The working directory wins when it names a GitLab project, which is what lets a cd
+// point the board at another one. It usually does not: the float inherits the cwd of the
+// pane it was opened from and a shell is wherever you were, so r used to refuse from any
+// repo that is not on GitLab. The mirror knows which project it holds, and refreshing
+// what is on screen is what r means.
+func syncProject(ctx context.Context, c *gitlab.Client, dir, repo string) (project, via string, err error) {
+	project, err = gitlab.ProjectFor(ctx, c, repo)
+	if err == nil {
+		return project, "cwd", nil
+	}
+	if held := mirrorProject(dir); held != "" {
+		return held, "mirror", nil
+	}
+	return "", "", err
+}
+
+// mirrorProject is the project the mirror on disk already holds, or "" if there is no
+// mirror to read.
+func mirrorProject(dir string) string {
+	idx, err := workdesk.LoadIndex(dir)
+	if err != nil {
+		return ""
+	}
+	return idx.Project
 }
 
 func runRender() error {

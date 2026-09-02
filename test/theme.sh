@@ -113,6 +113,14 @@ for flavor in $FLAVORS; do
     # switcher must hand it a name hunk knows rather than the flavor id.
     hasnt "hunk never gets a name it lacks" "$S/env.sh" 'HUNK_THEME="catppuccin-mocha-black"'
 
+    # Every status chip the conf defines must also be repainted here. A @*_seg set
+    # only in .tmux.conf keeps its Solarized hex in every other flavor - the bug the
+    # switcher's own comment warns about, and one no per-file colour check can see,
+    # since the other lines still carry the right ground.
+    for seg in $(grep -o 'set -g @[a-z_]*_seg' "$REPO/tmux/.tmux.conf" | awk '{print $3}' | sort -u); do
+        has "$seg is repainted" "$S/tmux.conf" "set -g $seg "
+    done
+
     # No generated file may still carry another flavor's ground.
     for other in $FLAVORS; do
         [ "$other" = "$flavor" ] && continue

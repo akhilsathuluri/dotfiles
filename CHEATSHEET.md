@@ -74,12 +74,13 @@ launch hunk's native interactive reviewer directly. delta also colors `git add -
 ### workdesk (GitLab work inbox)
 
 Reads a local mirror, so every command below is instant and offline. `workdesk sync` is the only one that touches the
-network.
+network. `Alt+n` opens it in a float from anywhere in tmux, and so does the `≡ workdesk` chip on the status bar. Either
+one closes it again, as do `q` and the `✕` in its corner.
 
 | Command             | Action                                                             |
 | ------------------- | ------------------------------------------------------------------ |
 | `workdesk sync`     | refresh the mirror from GitLab                                     |
-| `workdesk open`     | the popup: inbox, merge requests, issues, agents                   |
+| `workdesk open`     | the float: inbox, issues, merge requests, agents                   |
 | `workdesk board`    | the whole queue, grouped by what is blocking it                    |
 | `workdesk mr <iid>` | one merge request end to end: gates, approvals, reviewers, threads |
 | `workdesk matrix`   | one row per MR, one column per gate, plus a totals row             |
@@ -87,16 +88,18 @@ network.
 
 Inside the popup:
 
-| Key             | Action                                                     |
-| --------------- | ---------------------------------------------------------- |
-| `1`-`4`, `tab`  | inbox · merge requests · issues · agents                   |
-| `↵`             | full detail; on an agent row, jump to that pane            |
-| `/`             | filter                                                     |
-| `o` / `y`       | open in the browser / copy the URL                         |
-| `c` / `d`       | add a worktree for the branch / open a diff pane           |
-| `m`             | the gate matrix                                            |
-| `a` / `e` / `M` | assign a reviewer / set auto-merge / merge (each confirms) |
-| `P` / `r` / `q` | promote to a pane / re-sync / close                        |
+| Key             | Action                                                                                        |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| `1`-`4`, `tab`  | inbox · issues · merge requests · agents                                                      |
+| `↵`             | full detail; on an agent row, jump to that pane                                               |
+| `/`             | filter                                                                                        |
+| `o` / `y`       | open in the browser / copy the URL                                                            |
+| `c` / `d`       | add a worktree for the branch / open a diff pane                                              |
+| `m`             | the gate matrix                                                                               |
+| `a` / `e` / `M` | assign a reviewer / set auto-merge / merge (each confirms)                                    |
+| `P` / `r` / `q` | promote to a pane / re-sync / close                                                           |
+| `?`             | every binding, mouse included                                                                 |
+| mouse           | click a row to select, again to open; click tabs; `✕` closes; wheel scrolls the pane under it |
 
 ---
 
@@ -160,16 +163,17 @@ open so you can try another. `j`/`k` move, `q` closes.
 ### Status bar - the centred chips
 
 The five centred chips are clickable, and each has a key - worth knowing, because a status click has to survive the
-terminal's mouse encoding and Ghostty drops them often enough to notice. All five act on the **agent pane**: the focused
-pane if it runs Claude, else the most recently active Claude pane.
+terminal's mouse encoding and Ghostty drops them often enough to notice. The four dictation and agent chips act on the
+**agent pane**: the focused pane if it runs Claude, else the most recently active Claude pane.
 
 | Key            | Chip             | Action                                                      |
 | -------------- | ---------------- | ----------------------------------------------------------- |
+| `Alt+n`        | `≡ workdesk`     | open the work float, and close it again                     |
 | `prefix m`     | `● dictate`      | toggle dictation (records, then types the transcript)       |
 | `prefix M`     | `● dictate+send` | the same, then presses Enter once the transcript lands      |
-| `prefix Enter` | `⏎ send`         | press Enter in the agent pane - submit what's already typed |
 | `prefix p`     | `⇡ commit+push`  | type "commit and push" + Enter there                        |
 | `prefix D`     | `◧ changes`      | the diff-pane menu (`prefix d` is still detach)             |
+| `prefix Enter` | -                | press Enter in the agent pane - submit what's already typed |
 
 ### Status bar - the ◧ changes chip
 

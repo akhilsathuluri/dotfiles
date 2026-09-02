@@ -20,6 +20,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 
 	"github.com/abhishekrana/agentbar/internal/ui"
 	"github.com/abhishekrana/agentbar/internal/workdesk"
@@ -29,7 +30,7 @@ import (
 // worktree, writing to GitLab. Returned rather than performed: the model stays pure, and
 // the caller owns every side effect and every confirm.
 type Action struct {
-	Key string // the binding that asked for it: o, y, c, d, a, e, M, P, r
+	Key string // the binding that asked for it: o, y, c, d, D, a, e, M, s, i, P, r
 	Ref string // kind:id, the same handle `workdesk act` takes
 }
 
@@ -59,6 +60,15 @@ type Model struct {
 	cursor  int
 	preview viewport.Model
 	filter  textinput.Model
+	// md renders the markdown bodies. Held rather than built per render, because what it
+	// wraps to is the pane width - so both are rebuilt on resize and nowhere else.
+	// mdIndented is the same renderer one indent narrower, for a comment body that sits
+	// under the line naming its author.
+	md         *glamour.TermRenderer
+	mdIndented *glamour.TermRenderer
+	// links is what is clickable in the preview as it stands, indexed when its content
+	// is set rather than hunted for on every click.
+	links []link
 
 	width, height int
 	showHelp      bool
@@ -112,6 +122,37 @@ func (m Model) Init() tea.Cmd { return nil }
 // lands you back where you were. Not named View: that is Bubble Tea's renderer.
 func (m Model) CurrentView() workdesk.View { return m.view }
 
+// CurrentRef and PreviewOffset are the rest of where you were: which row, and how far
+// down its preview. Every action tears the UI down and the caller builds a new one, so
+// without these an action taken on the fortieth line of a description put you back at the
+// top of the list - which is a long way from a link you clicked to read something.
+func (m Model) CurrentRef() string {
+	row, ok := m.current()
+	if !ok {
+		return ""
+	}
+	return workdesk.RefFor(row)
+}
+
+func (m Model) PreviewOffset() int { return m.preview.YOffset }
+
+// Restore puts the cursor and the preview back. A reference no longer in the view - a
+// merge request that merged since - leaves both alone rather than guessing.
+func (m *Model) Restore(ref string, offset int) {
+	if ref == "" {
+		return
+	}
+	for i, r := range m.rows {
+		if workdesk.RefFor(r) != ref {
+			continue
+		}
+		m.cursor = i
+		m.syncPreview()
+		m.preview.SetYOffset(offset)
+		return
+	}
+}
+
 // reload rebuilds the current view's rows. Called on a view switch, a filter change and
 // after a sync - never during a render, so View stays free of side effects.
 func (m *Model) reload() {
@@ -147,6 +188,21 @@ func matching(rows []workdesk.Row, q string) []workdesk.Row {
 	return out
 }
 
+// linkUnder is the link at a point on screen, mapped through the preview's own scroll
+// position and the columns its pane starts at.
+func (m Model) linkUnder(x, y int) (string, bool) {
+	if y < bodyTop || y >= bodyTop+bodyHeight(m.height) {
+		return "", false
+	}
+	lw, _ := paneWidths(m.width)
+	// The divider is one column, and the preview pane is padded by one more.
+	col := x - lw - 2
+	if col < 0 {
+		return "", false
+	}
+	return linkAt(m.links, m.preview.YOffset+y-bodyTop, col)
+}
+
 func (m *Model) clampCursor() {
 	if m.cursor >= len(m.rows) {
 		m.cursor = len(m.rows) - 1
@@ -169,10 +225,58 @@ func (m *Model) syncPreview() {
 	row, ok := m.current()
 	if !ok {
 		m.preview.SetContent("")
+		m.links = nil
 		return
 	}
-	m.preview.SetContent(m.renderPreview(row))
+	content := m.renderPreview(row)
+	m.preview.SetContent(content)
+	m.links = findLinks(content, m.resolveRef)
 	m.preview.GotoTop()
+}
+
+// resolveRef turns a GitLab reference into the URL it points at.
+//
+// From the mirror when the row is in it, which is the usual case and needs no knowledge
+// of the host. Otherwise from the shape of a URL the mirror already holds - a description
+// routinely mentions a merge request that is nobody's here - which is also what keeps
+// this program free of a host, a group or a project name.
+func (m Model) resolveRef(sigil, iid string) string {
+	for i := range m.deps.Mirror.Issues {
+		if sigil == "#" && m.deps.Mirror.Issues[i].IID == iid {
+			return m.deps.Mirror.Issues[i].WebURL
+		}
+	}
+	for i := range m.deps.Mirror.MRs {
+		if sigil == "!" && m.deps.Mirror.MRs[i].IID == iid {
+			return m.deps.Mirror.MRs[i].WebURL
+		}
+	}
+	base := m.projectURL()
+	if base == "" {
+		return ""
+	}
+	if sigil == "#" {
+		return base + "/-/issues/" + iid
+	}
+	return base + "/-/merge_requests/" + iid
+}
+
+// projectURL is the project's own address, cut from any row's url. Read rather than
+// configured: the mirror holds no host of its own, and this is the only place that needs
+// one.
+func (m Model) projectURL() string {
+	known := ""
+	switch {
+	case len(m.deps.Mirror.MRs) > 0:
+		known = m.deps.Mirror.MRs[0].WebURL
+	case len(m.deps.Mirror.Issues) > 0:
+		known = m.deps.Mirror.Issues[0].WebURL
+	}
+	base, _, found := strings.Cut(known, "/-/")
+	if !found {
+		return ""
+	}
+	return base
 }
 
 func (m *Model) resize(w, h int) {
@@ -181,6 +285,8 @@ func (m *Model) resize(w, h int) {
 	_, pw := paneWidths(w)
 	m.preview.Width = previewWidth(pw)
 	m.preview.Height = bodyHeight(h)
+	m.md = newMarkdown(m.theme, m.preview.Width)
+	m.mdIndented = newMarkdown(m.theme, m.preview.Width-commentIndent)
 	m.syncPreview()
 }
 
@@ -240,12 +346,20 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.setView(v)
 			return m, nil
 		}
+		// Checked before the staleness beside it: ✕ is the hard-right cell.
+		if m.overClose(msg.X) {
+			return m, tea.Quit
+		}
 		if m.overStaleness(msg.X) {
 			return m.request("r")
 		}
 		return m, nil
 	}
 	if m.overPreview(msg.X) {
+		if url, ok := m.linkUnder(msg.X, msg.Y); ok {
+			m.Pending = &Action{Key: "o", Ref: "url:" + url}
+			return m, tea.Quit
+		}
 		return m, nil
 	}
 	row := m.rowAt(msg.Y)
@@ -341,6 +455,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.request("e")
 	case key.Matches(msg, k.Merge):
 		return m.request("M")
+	case key.Matches(msg, k.Status):
+		return m.request("s")
+	case key.Matches(msg, k.Sprint):
+		return m.request("i")
+	case key.Matches(msg, k.MRDiff):
+		return m.request("D")
 	case key.Matches(msg, k.Promote):
 		return m.request("P")
 	case key.Matches(msg, k.Sync):
@@ -380,9 +500,21 @@ func (m Model) request(k string) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	// Enter is the agents view's jump, and nothing anywhere else: the preview beside the
+	// list already holds everything the sheet used to open in a pager. Dropped here
+	// rather than in the caller so a second click on a ticket leaves the UI up - a
+	// pending action tears it down and rebuilds it, which would flash and lose the
+	// cursor to open nothing.
+	if k == "enter" && !strings.HasPrefix(row.Ref, "%") {
+		return m, nil
+	}
 	// Views without a write to make say so rather than silently doing nothing.
-	if (k == "a" || k == "e" || k == "M") && !strings.HasPrefix(row.Ref, "!") {
+	if (k == "a" || k == "e" || k == "M" || k == "D") && !strings.HasPrefix(row.Ref, "!") {
 		m.notice = "that only applies to a merge request"
+		return m, nil
+	}
+	if (k == "s" || k == "i") && !strings.HasPrefix(row.Ref, "#") {
+		m.notice = "that only applies to an issue"
 		return m, nil
 	}
 	m.Pending = &Action{Key: k, Ref: workdesk.RefFor(row)}

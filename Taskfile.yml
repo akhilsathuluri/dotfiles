@@ -37,6 +37,7 @@ tasks:
       - task: secrets
       - task: audit
       - task: perms
+      - task: conf
       - task: clipboard
       - task: gwtm
       - task: picker
@@ -44,6 +45,7 @@ tasks:
       - task: diff-target
       - task: theme
       - task: settings
+      - task: workdesk-toggle
       - task: test
 
   lint:
@@ -84,6 +86,26 @@ tasks:
     desc: Run the pre-commit guard against the staged diff (same checks, on demand)
     cmds:
       - .githooks/pre-commit
+
+  conf:
+    desc: No tmux option is run as a command by if-shell (it silently does nothing)
+    cmds:
+      # if-shell does not expand #{} in its command argument: it reports success
+      # and runs nothing at all, so the binding looks wired and the click is dead.
+      # run-shell does expand it. This is the whole difference, and it is invisible
+      # in a config that parses, in `list-keys`, and in the trace - the click even
+      # logs its range before doing nothing.
+      - |
+        bad=$(grep -nE 'if(-shell)? +-F +[^ ]+ +"#\{@' tmux/.tmux.conf || true)
+        [ -z "$bad" ] || { printf '%s\n' "$bad" \
+          "  ^ a tmux option run by if-shell never runs; use: run-shell -b \"tmux #{@opt}\"" >&2; exit 1; }
+      # A float with no -X/-Y is not centred: tmux cascades them, stepping 4 columns
+      # right and 2 rows down per open, so the fifth lands half off the screen.
+      - |
+        grep -qE 'new-pane .*-X [0-9]+% .*-Y [0-9]+%' tmux/.tmux.conf || {
+          echo "@workdesk_open needs -X/-Y, or tmux cascades the float down the screen" >&2
+          exit 1
+        }
 
   perms:
     desc: Every script under a .local/bin must be executable (tmux runs them directly)
@@ -193,6 +215,11 @@ tasks:
     desc: The ⛭ dialogue applies the row you picked and leaves the cursor on it
     cmds:
       - bash test/settings.sh
+
+  workdesk-toggle:
+    desc: One command opens the ≡ workdesk float and closes it - the chip is a toggle
+    cmds:
+      - bash test/workdesk.sh
 
   fresh:
     desc: Full bootstrap in a clean container, twice (needs docker, ~10 min). IMAGE=debian:13 for Debian

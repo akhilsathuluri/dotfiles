@@ -240,10 +240,11 @@ func screenY(m Model, item int) int {
 	return bodyTop + item - start
 }
 
-// A click is how you look at a row; the second click on it is how you act. That is the
-// one place this differs from the sidebar, which jumps on the first click - here the
-// preview beside the list is the reason to click at all.
-func TestClickSelectsThenOpens(t *testing.T) {
+// A click is how you look at a row, and on a ticket looking is all it does. The preview
+// beside the list is the detail now, so there is nothing left for a second click to open
+// - and it must not record an action either, since a pending one tears the UI down and
+// rebuilds it, which would flash and lose the cursor to do nothing.
+func TestClickSelectsAndDoesNotOpen(t *testing.T) {
 	t.Parallel()
 	m := testModel(t)
 	items := m.listItems()
@@ -268,8 +269,99 @@ func TestClickSelectsThenOpens(t *testing.T) {
 	}
 
 	m = click(m, 2, y)
+	if m.Pending != nil {
+		t.Errorf("the second click on a ticket acted: %+v", m.Pending)
+	}
+	if m.cursor != target {
+		t.Errorf("the second click moved the cursor to %d, want %d", m.cursor, target)
+	}
+}
+
+// The agents view is the exception, because an agent row is a place rather than a
+// document: enter and the second click both go to its pane.
+func TestSecondClickOnAnAgentJumps(t *testing.T) {
+	t.Parallel()
+	m := press(testModel(t), "4")
+	y := -1
+	for i, it := range m.listItems() {
+		if !it.header && it.row == m.cursor {
+			y = screenY(m, i)
+		}
+	}
+	if y < 0 {
+		t.Fatal("no agent row on screen to click")
+	}
+	m = click(m, 2, y)
 	if m.Pending == nil || m.Pending.Key != "enter" {
-		t.Errorf("the second click recorded %+v, want an enter", m.Pending)
+		t.Errorf("the second click on an agent recorded %+v, want an enter", m.Pending)
+	}
+}
+
+// tmux owns the mouse while this is up, so the terminal never gets to make a URL
+// clickable itself - the click arrives here, and the preview has to answer it.
+func TestClickOnALinkInThePreviewOpensIt(t *testing.T) {
+	t.Parallel()
+	m := press(testModel(t), "2")
+	if len(m.links) == 0 {
+		t.Fatal("the preview indexed no links at all")
+	}
+	target := m.links[0]
+	lw, _ := paneWidths(m.width)
+	x := lw + 2 + target.start
+	y := bodyTop + target.line - m.preview.YOffset
+
+	got := click(m, x, y)
+	if got.Pending == nil {
+		t.Fatal("a click on a link did nothing")
+	}
+	if got.Pending.Key != "o" || got.Pending.Ref != "url:"+target.url {
+		t.Errorf("the click recorded %+v, want o on url:%s", got.Pending, target.url)
+	}
+}
+
+// Only the link is clickable: the rest of the preview is text to read, and a click on it
+// must not tear the UI down.
+func TestClickOnPlainPreviewTextDoesNothing(t *testing.T) {
+	t.Parallel()
+	m := press(testModel(t), "2")
+	lw, _ := paneWidths(m.width)
+	// The far right of the first line: past the title, and no link is there.
+	got := click(m, lw+2+m.preview.Width-1, bodyTop)
+	if got.Pending != nil {
+		t.Errorf("a click on plain preview text recorded %+v", got.Pending)
+	}
+}
+
+// An action rebuilds the UI, so where you were has to survive it - otherwise a link
+// clicked deep in a description puts you back at the top of the list.
+func TestRestorePutsTheCursorAndPreviewBack(t *testing.T) {
+	t.Parallel()
+	m := press(testModel(t), "2")
+	m = press(m, "j")
+	m = press(m, "j")
+	ref, offset := m.CurrentRef(), 3
+	if ref == "" {
+		t.Fatal("no row under the cursor to remember")
+	}
+
+	fresh := testModel(t)
+	// Short enough that the preview has somewhere to scroll to: a viewport holding
+	// content shorter than its own height stays at the top, correctly.
+	fresh.resize(140, 12)
+	fresh.setView(m.CurrentView())
+	fresh.Restore(ref, offset)
+	if got := fresh.CurrentRef(); got != ref {
+		t.Errorf("restored to %q, want %q", got, ref)
+	}
+	if fresh.preview.YOffset != offset {
+		t.Errorf("preview restored to line %d, want %d", fresh.preview.YOffset, offset)
+	}
+
+	// A row that is gone leaves the cursor where it was rather than guessing.
+	before := fresh.CurrentRef()
+	fresh.Restore("issues:999999", 0)
+	if fresh.CurrentRef() != before {
+		t.Error("restoring a row that is no longer in the view moved the cursor")
 	}
 }
 
@@ -346,9 +438,60 @@ func TestClickOnATabSwitchesView(t *testing.T) {
 func TestClickOnSyncedRequestsASync(t *testing.T) {
 	t.Parallel()
 	m := testModel(t)
-	got := click(m, m.width-1, 0)
+	start, end, _, ok := m.rightSpans()
+	if !ok {
+		t.Fatal("the tab bar's right group does not fit")
+	}
+	got := click(m, (start+end)/2, 0)
 	if got.Pending == nil || got.Pending.Key != "r" {
 		t.Errorf("clicking the staleness recorded %+v, want a re-sync", got.Pending)
+	}
+}
+
+// A popup swallows a click on the tmux chip that opened it, so the ✕ is the only pointer
+// that can close this - it has to be on the hard-right cell and it has to quit.
+func TestClickOnCloseQuits(t *testing.T) {
+	t.Parallel()
+	m := testModel(t)
+	_, _, closeStart, ok := m.rightSpans()
+	if !ok {
+		t.Fatal("the tab bar's right group does not fit")
+	}
+	if closeStart != m.width-1 {
+		t.Errorf("✕ starts at %d, want the last cell %d", closeStart, m.width-1)
+	}
+	if !strings.Contains(stripANSI(m.View()), closeMark) {
+		t.Error("the tab bar does not draw a ✕")
+	}
+	// The model quits by command, so assert on the command rather than on state.
+	next, cmd := m.Update(tea.MouseMsg{
+		X: m.width - 1, Y: 0, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft,
+	})
+	if cmd == nil {
+		t.Fatal("clicking ✕ issued no command, want quit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Errorf("clicking ✕ issued %T, want tea.QuitMsg", cmd())
+	}
+	if next.(Model).Pending != nil {
+		t.Errorf("clicking ✕ recorded an action: %+v", next.(Model).Pending)
+	}
+}
+
+// alt+n is the key tmux opens this with, so it has to close it too - that is the whole
+// toggle, and the status chip cannot provide one.
+func TestAltNClosesSoTheOpenerToggles(t *testing.T) {
+	t.Parallel()
+	m := testModel(t)
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n"), Alt: true})
+	if cmd == nil {
+		t.Fatal("alt+n issued no command, want quit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Errorf("alt+n issued %T, want tea.QuitMsg", cmd())
+	}
+	if next.(Model).Pending != nil {
+		t.Errorf("alt+n recorded an action: %+v", next.(Model).Pending)
 	}
 }
 

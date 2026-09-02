@@ -13,6 +13,61 @@
           "title": "type::bug"
         }
       ]
+    },
+    "id": "gid://gitlab/Issue/9128",
+    "status": {
+      "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/2",
+      "name": "To do",
+      "category": "to_do"
+    },
+    "iteration": {
+      "id": "gid://gitlab/Iteration/7",
+      "title": "",
+      "startDate": "2026-08-24",
+      "dueDate": "2026-09-06",
+      "iterationCadence": {
+        "title": "Fortnightly"
+      }
+    },
+    "description": "Cold start walks the whole registry before the first request is served.\n\nThe lookup is O(n) over every entry and the cache is only populated on the second\nrequest, so the first one after a deploy pays for all of them.\n\n- [ ] index the registry by name at load\n- [ ] warm the cache on boot",
+    "assignees": {
+      "nodes": [
+        {
+          "username": "you"
+        }
+      ]
+    },
+    "discussions": {
+      "nodes": [
+        {
+          "resolved": false,
+          "notes": {
+            "nodes": [
+              {
+                "body": "Reproduced on a cold pod: 4.2s to first byte, 40ms after that.",
+                "system": false,
+                "author": {
+                  "username": "dana"
+                }
+              },
+              {
+                "body": "assigned to @you",
+                "system": true,
+                "author": {
+                  "username": "gitlab"
+                }
+              },
+              {
+                "body": "Warming on boot moves the cost rather than removing it - can we index instead?",
+                "system": false,
+                "author": {
+                  "username": "you"
+                }
+              }
+            ]
+          }
+        }
+      ]
     }
   },
   {
@@ -29,6 +84,32 @@
           "title": "type::bug"
         }
       ]
+    },
+    "id": "gid://gitlab/Issue/9126",
+    "status": {
+      "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/3",
+      "name": "In progress",
+      "category": "in_progress"
+    },
+    "iteration": {
+      "id": "gid://gitlab/Iteration/7",
+      "title": "",
+      "startDate": "2026-08-24",
+      "dueDate": "2026-09-06",
+      "iterationCadence": {
+        "title": "Fortnightly"
+      }
+    },
+    "description": "A 404 from the export endpoint is retried forever: the retry policy treats every\nnon-2xx as transient, so a deleted target keeps a worker busy until it is killed.",
+    "assignees": {
+      "nodes": [
+        {
+          "username": "you"
+        }
+      ]
+    },
+    "discussions": {
+      "nodes": []
     }
   },
   {
@@ -40,6 +121,39 @@
       "nodes": [
         {
           "title": "prio::mid"
+        }
+      ]
+    },
+    "id": "gid://gitlab/Issue/9121",
+    "status": {
+      "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/1",
+      "name": "Backlog",
+      "category": "triage"
+    },
+    "iteration": null,
+    "description": "The ingest suite fails about one run in five, always in the same two specs.",
+    "assignees": {
+      "nodes": [
+        {
+          "username": "you"
+        }
+      ]
+    },
+    "discussions": {
+      "nodes": [
+        {
+          "resolved": true,
+          "notes": {
+            "nodes": [
+              {
+                "body": "Both specs share a fixture that is not reset between runs.",
+                "system": false,
+                "author": {
+                  "username": "dana"
+                }
+              }
+            ]
+          }
         }
       ]
     }
@@ -55,6 +169,32 @@
           "title": "prio::mid"
         }
       ]
+    },
+    "id": "gid://gitlab/Issue/9117",
+    "status": {
+      "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/4",
+      "name": "In review",
+      "category": "in_progress"
+    },
+    "iteration": {
+      "id": "gid://gitlab/Iteration/7",
+      "title": "",
+      "startDate": "2026-08-24",
+      "dueDate": "2026-09-06",
+      "iterationCadence": {
+        "title": "Fortnightly"
+      }
+    },
+    "description": "",
+    "assignees": {
+      "nodes": [
+        {
+          "username": "you"
+        }
+      ]
+    },
+    "discussions": {
+      "nodes": []
     }
   },
   {
@@ -68,6 +208,24 @@
           "title": "prio::low"
         }
       ]
+    },
+    "id": "gid://gitlab/Issue/9114",
+    "status": {
+      "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/5",
+      "name": "Done",
+      "category": "done"
+    },
+    "iteration": null,
+    "description": "",
+    "assignees": {
+      "nodes": [
+        {
+          "username": "you"
+        }
+      ]
+    },
+    "discussions": {
+      "nodes": []
     }
   },
   {
@@ -76,6 +234,16 @@
     "updatedAt": "2026-07-27T10:00:00Z",
     "webUrl": "https://gitlab.example.com/acme/platform/-/issues/98",
     "labels": {
+      "nodes": []
+    },
+    "id": "gid://gitlab/Issue/998",
+    "status": null,
+    "iteration": null,
+    "description": "",
+    "assignees": {
+      "nodes": []
+    },
+    "discussions": {
       "nodes": []
     }
   }

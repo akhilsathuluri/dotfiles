@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +37,10 @@ func runOpen(args []string) error {
 	view := workdesk.ParseView(first(args))
 	trace.Log("workdesk", "open", "view", view.String())
 
+	// Where the last pass was, so the next one opens there. The UI is rebuilt after every
+	// action, and landing back at the top of the list is a poor answer to having clicked
+	// a link forty lines into a description.
+	at, offset := "", 0
 	for {
 		mirror, err := workdesk.Load(mirrorDir())
 		if err != nil {
@@ -52,6 +57,7 @@ func runOpen(args []string) error {
 			},
 			Now: time.Now,
 		}, ui.ThemeByName(themeName()), view)
+		model.Restore(at, offset)
 
 		final, err := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
 		if err != nil {
@@ -61,17 +67,13 @@ func runOpen(args []string) error {
 		if !ok || done.Pending == nil {
 			return nil
 		}
-		view = done.CurrentView()
+		view, at, offset = done.CurrentView(), done.CurrentRef(), done.PreviewOffset()
 
 		switch done.Pending.Key {
 		case "P":
 			return promote(view)
-		case "enter":
-			if err := viewDoc(done.Pending.Ref); err != nil {
-				say(err.Error())
-			}
 		default:
-			if err := act(done.Pending.Key, done.Pending.Ref); err != nil {
+			if err := act(done.Pending.Key, done.Pending.Ref, ""); err != nil {
 				say(err.Error())
 			}
 		}
@@ -106,17 +108,31 @@ func selfPath() string {
 	return "workdesk"
 }
 
-// promote puts the current view in an ordinary pane. A popup is always fresh but always
-// transient; this is for a long triage sitting beside your code.
+// promote puts the current view in an ordinary pane. The float is always fresh but
+// always transient; this is for a long triage sitting beside your code.
+//
+// tmux refuses to split a floating pane ("size or position can't split a floating
+// pane"), so from inside one the split targets {last} - the pane you were in when you
+// opened it, and the one whose directory you want.
 func promote(v workdesk.View) error {
-	_, err := tmux.Exec{}.Run("split-window", "-h", "-c", "#{pane_current_path}",
-		selfPath()+" open "+v.String())
+	args := []string{"split-window", "-h", "-c", "#{pane_current_path}"}
+	if floating() {
+		args = append(args, "-t", "{last}")
+	}
+	args = append(args, selfPath()+" open "+v.String())
+	_, err := tmux.Exec{}.Run(args...)
 	trace.Log("workdesk", "promote", "view", v.String(), "rc", rc(err))
 	return err
 }
 
-// say reports something with nowhere better to go. In a popup there is no status line, so
-// it prints and waits - the popup is the terminal here.
+// floating reports whether this program is running in a floating pane.
+func floating() bool {
+	out, err := tmux.Exec{}.Run("display-message", "-p", "#{pane_floating_flag}")
+	return err == nil && strings.TrimSpace(out) == "1"
+}
+
+// say reports something with nowhere better to go. In the float there is no status line,
+// so it prints and waits - the pane is the terminal here.
 func say(msg string) {
 	fmt.Println(msg)
 	if isTTY() {
@@ -205,37 +221,6 @@ func agentPreview(pane string) error {
 	return nil
 }
 
-// viewDoc opens the full document in a pager. An agent row is a place rather than a
-// document, so the useful thing is to go there.
-func viewDoc(ref string) error {
-	kind, id := refKind(ref)
-	if kind == "agents" {
-		return jump(id)
-	}
-	var buf strings.Builder
-	stdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		return err
-	}
-	os.Stdout = w
-	err = runPreview([]string{ref})
-	os.Stdout = stdout
-	w.Close()
-	if err != nil {
-		r.Close()
-		return err
-	}
-	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	for sc.Scan() {
-		buf.WriteString(sc.Text())
-		buf.WriteByte('\n')
-	}
-	r.Close()
-	return page(buf.String())
-}
-
 // page shows markdown in whatever this box has. leaf already carries the flavour; bat and
 // less are the fallbacks.
 func page(text string) error {
@@ -274,18 +259,25 @@ func jump(pane string) error {
 
 func runAct(args []string) error {
 	if len(args) < 2 {
-		return errors.New("usage: workdesk act <key> <ref>")
+		return errors.New("usage: workdesk act <key> <ref> [status]")
 	}
-	return act(args[0], args[1])
+	// The status a move goes to, named rather than picked, so `s` is one command for an
+	// agent as well as a keypress for a person.
+	return act(args[0], args[1], first(args[2:]))
 }
 
 // act is one keypress. Every action is an ordinary function reachable without a terminal,
 // which is what lets the suite exercise them all.
-func act(key, ref string) error {
+func act(key, ref, choice string) error {
 	if ref == "" {
 		return nil
 	}
 	kind, id := refKind(ref)
+	// A link clicked in the preview carries its target rather than a row: the thing it
+	// points at is routinely not in the mirror at all.
+	if kind == "url" {
+		return open(id)
+	}
 	if kind == "agents" {
 		if key == "d" {
 			return diffFor(agentBranch(id))
@@ -326,8 +318,92 @@ func act(key, ref string) error {
 			return errors.New("that only applies to a merge request")
 		}
 		return write(key, id, strings.TrimSpace(it.Title))
+	case "s", "i":
+		if kind != "issues" {
+			return errors.New("that only applies to an issue")
+		}
+		return move(key, id, choice)
+	case "D":
+		if kind != "mrs" {
+			return errors.New("that only applies to a merge request")
+		}
+		return diffWindow(id)
 	}
 	return nil
+}
+
+// move is the status change and the sprint toggle: the two writes that act on an issue.
+//
+// The full snapshot rather than the index, because both need what a row does not carry -
+// the issue's global ID, the lifecycle to choose from, and the sprint to move it to or
+// from. It is one decode on a keypress that is about to make a network call.
+func move(key, iid, choice string) error {
+	m, err := workdesk.Load(mirrorDir())
+	if err != nil {
+		return err
+	}
+	var is *workdesk.Issue
+	for i := range m.Issues {
+		if m.Issues[i].IID == iid {
+			is = &m.Issues[i]
+		}
+	}
+	if is == nil {
+		return fmt.Errorf("#%s is not in the mirror", iid)
+	}
+	title := strings.TrimSpace(is.Title)
+
+	if key == "i" {
+		sprint := m.Meta.Iteration
+		if sprint == nil {
+			return errors.New("this project has no current sprint")
+		}
+		// The row already says which way this goes, so the key is one key: in the
+		// sprint means out of it, and out means in.
+		id := sprint.ID
+		if is.InSprint(sprint) {
+			id = ""
+		}
+		return confirm(key, iid, gitlab.SetIteration(iid, title, is.ID, id, sprint.Label()))
+	}
+
+	to, ok := pickStatus(m.Meta.Statuses, is.StatusName(), choice)
+	if !ok {
+		return nil
+	}
+	return confirm(key, iid, gitlab.SetStatus(iid, title, is.ID, to.ID, to.Name))
+}
+
+// pickStatus asks which column to move to, listing the lifecycle in GitLab's own order
+// and marking where the issue is now. The UI never acts, so this is the terminal it quit
+// to - and the same list an agent gets by number from `workdesk act`.
+func pickStatus(statuses []workdesk.Status, now, choice string) (workdesk.Status, bool) {
+	if len(statuses) == 0 {
+		fmt.Println("no statuses in the mirror - run 'workdesk sync'")
+		return workdesk.Status{}, false
+	}
+	if choice != "" {
+		for _, st := range statuses {
+			if strings.EqualFold(st.Name, choice) {
+				return st, true
+			}
+		}
+		fmt.Printf("no status named %q in this project\n", choice)
+		return workdesk.Status{}, false
+	}
+	for i, st := range statuses {
+		here := ""
+		if st.Name == now {
+			here = "  ← now"
+		}
+		fmt.Printf("  %d  %s%s\n", i+1, st.Name, here)
+	}
+	n, err := strconv.Atoi(prompt("move to: "))
+	if err != nil || n < 1 || n > len(statuses) {
+		say("left alone")
+		return workdesk.Status{}, false
+	}
+	return statuses[n-1], true
 }
 
 func findItem(kind, id string) (workdesk.Item, bool) {
@@ -365,8 +441,7 @@ func agentBranch(pane string) string {
 	return ""
 }
 
-// write is the confirm gate in front of the only three calls that change GitLab.
-// WORKDESK_DRY stops before running, which is how the mockup stays harmless.
+// write is the three merge request calls that change GitLab.
 func write(key, iid, title string) error {
 	var w gitlab.Write
 	switch key {
@@ -381,7 +456,13 @@ func write(key, iid, title string) error {
 	case "M":
 		w = gitlab.Merge(iid, title)
 	}
+	return confirm(key, iid, w)
+}
 
+// confirm is the gate in front of every call that changes GitLab: what it will do, the
+// command that will do it, and a yes. WORKDESK_DRY stops before running, which is how the
+// mockup stays harmless.
+func confirm(key, iid string, w gitlab.Write) error {
 	fmt.Printf("%s\n\n  %s\n\n", w.Label, w.Command())
 	if os.Getenv("WORKDESK_DRY") != "" {
 		say("WORKDESK_DRY is set - not run.")
@@ -394,7 +475,7 @@ func write(key, iid, title string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), glabTimeout)
 	defer cancel()
 	out, err := gitlab.New().Do(ctx, w)
-	trace.Log("workdesk", "write", "key", key, "mr", iid, "rc", rc(err))
+	trace.Log("workdesk", "write", "key", key, "ref", iid, "rc", rc(err))
 	if err != nil {
 		return err
 	}
@@ -420,10 +501,12 @@ func open(url string) error {
 	if url == "" {
 		return errors.New("no url for that row")
 	}
+	// via= is the point of this line: the helper used to answer 0 for a subcommand it
+	// did not have, so `o` reported success and opened nothing.
 	helper := os.ExpandEnv("$HOME/.local/bin/tmux-gitlab.sh")
 	if _, err := os.Stat(helper); err == nil {
 		if err := exec.Command(helper, "open-url", url).Run(); err == nil {
-			trace.Log("workdesk", "open", "rc", 0)
+			trace.Log("workdesk", "open", "via", "gitlab-helper", "rc", 0)
 			return nil
 		}
 	}
@@ -432,7 +515,7 @@ func open(url string) error {
 	}
 	if _, err := exec.LookPath("xdg-open"); err == nil {
 		if err := exec.Command("xdg-open", url).Start(); err == nil {
-			trace.Log("workdesk", "open", "rc", 0)
+			trace.Log("workdesk", "open", "via", "xdg-open", "rc", 0)
 			return nil
 		}
 	}
@@ -484,6 +567,12 @@ func worktreeFor(it workdesk.Item) error {
 	return nil
 }
 
+// diffFor points the diff pane at the worktree that holds a branch.
+//
+// The pane's helper takes a DIRECTORY. It was being handed the branch, so it answered
+// "<branch> is not a git repo" - and answered 0 while doing it, so the fallback below it
+// never fired either and `d` on a merge request row did nothing and said nothing. A branch
+// with no worktree now says so, and says which key does want it.
 func diffFor(branch string) error {
 	if branch == "" {
 		return nil
@@ -492,9 +581,39 @@ func diffFor(branch string) error {
 	if _, err := os.Stat(helper); err != nil {
 		return errors.New("no diff pane helper")
 	}
-	if err := exec.Command(helper, "main", branch).Run(); err != nil {
-		_ = exec.Command(helper, "main").Run()
+	dir := worktreeOn(branch)
+	if dir == "" {
+		return fmt.Errorf("no worktree on %s - c adds one, D reads the diff", branch)
 	}
-	trace.Log("workdesk", "diff", "branch", branch, "rc", 0)
-	return nil
+	err := exec.Command(helper, "main", dir).Run()
+	trace.Log("workdesk", "diff", "branch", branch, "dir", dir, "rc", rc(err))
+	return err
+}
+
+// worktreeOn finds the checkout a branch is on, or empty when nothing holds it.
+func worktreeOn(branch string) string {
+	out, err := exec.Command("git", "worktree", "list", "--porcelain").Output()
+	if err != nil {
+		return ""
+	}
+	return worktreeIn(string(out), branch)
+}
+
+// worktreeIn is the parse, split out so it can be tested without a repo. Porcelain lists
+// a worktree's path first and its branch after, so the path is carried forward until the
+// branch that matches names it; a detached worktree has no branch line at all.
+func worktreeIn(porcelain, branch string) string {
+	dir := ""
+	for _, line := range strings.Split(porcelain, "\n") {
+		if path, ok := strings.CutPrefix(line, "worktree "); ok {
+			dir = path
+			continue
+		}
+		if ref, ok := strings.CutPrefix(line, "branch "); ok {
+			if strings.TrimPrefix(ref, "refs/heads/") == branch {
+				return dir
+			}
+		}
+	}
+	return ""
 }

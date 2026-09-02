@@ -50,7 +50,7 @@ tracked config.
 | -------------- | --------------- | ------------------------------------------------------------------------------------------ | ----------------------------------- |
 | agent sidebar  | hex → generated | `@agentbar-theme`; colors from `theme_gen.go` (built from the palette)                     | this session's, immediate           |
 | ghostty        | named           | `theme = <Name>` then a `background =` override → `ghostty.conf` (a `config-file` include) | SIGUSR2 · macOS: `reload_config`    |
-| tmux frame     | hex → generated | `tmux.conf` (status/window/pane + the dictate/submit/push/diff/⛭ chips)                    | `tmux source-file` (immediate)      |
+| tmux frame     | hex → generated | `tmux.conf` (status/window/pane + the workdesk/dictate/push/diff/⛭ chips)                  | `tmux source-file` (immediate)      |
 | fzf            | hex → export    | `fzf.sh` (`_fzf_color` `--color` block, sourced by fzf.bash)                               | new shells                          |
 | bat / `$THEME` | named           | `env.sh` (`export THEME`, `export BAT_THEME`)                                              | new shells                          |
 | hunk name map  | named           | `env.sh` (`export HUNK_THEME`) - the flavor id unless hunk has no theme by that name       | next `hunk diff` / diff-pane re-run |
