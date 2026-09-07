@@ -57,7 +57,7 @@ values still resolve.
   the same raw s16le mono PCM, so the watcher, the model and the tmux send never learn which ran), **pid identity**
   (`/proc/<pid>/comm|cmdline` vs `ps -o comm=|command=`, behind `proc_name()` / `proc_cmdline()`), and
   **`--install-shortcut`** (GNOME `gsettings` only - macOS has no user-level global-hotkey API that skips the
-  Accessibility prompt, so it exits telling you to bind `dictate --toggle` yourself or use `prefix + m`).
+  Accessibility prompt, so it exits with the Shortcuts.app recipe for binding `dictate --toggle --send` yourself).
 - `CAPTURE_BIN` is the name both the liveness checks and `require()` compare against - add a backend and it is the only
   string to teach them.
 - Audio **ducking is Linux-only in practice**: `_pactl()` swallows the `OSError` when `pactl` is absent, so macOS simply
@@ -83,7 +83,8 @@ Every tmux call funnels through `tmux()`, so a remote is an `ssh` wrap there and
 and the GPU stay local and only the transcript crosses.
 
 - **One routing point: `tmux()`.** Never grow a second delivery path - a remote-only send would drift from the local
-  one, and the `@dictate` chips would stop reporting.
+  one, and the `@dictate` chips would stop reporting. A machine with no tmux binary at all (a laptop that only ever
+  dictates into remotes) is a failed local probe there, never a crash.
 - **The mic never moves.** dictate runs where the microphone is; only tmux is remote. Audio forwarding was the
   alternative and lost: it needs a sound server on the far end, adds latency, and dies with the tunnel.
 - **Multiplexing is not optional, and `BatchMode=yes` is its other half.** One dictation makes ~10 tmux calls, each
@@ -91,6 +92,9 @@ and the GPU stay local and only the transcript crosses.
 - **`DICTATE_TMUX_SSH` is an accepted alias for `DICTATE_REMOTE`**, so a hotkey binding written against the old pin
   keeps working. One env read, not a second code path.
 - **Discovery reads `/proc`, which macOS has not** - there `~/.config/dictate/remote` is the whole candidate list.
+- **The macOS hotkey is Shortcuts.app, and it starts from a bare `PATH`.** `install_shortcut`'s message carries the brew
+  prefixes for that reason: without them the shebang finds no `uv` and `require()` no `ffmpeg`, and the key reads as
+  dead. The mic grant lands on Shortcuts, the process that launched the capture, as it lands on the terminal for a chip.
 - **The remote tmux path is absolute on purpose.** A non-interactive ssh resolves `/usr/bin/tmux`, which cannot speak to
   a server built from source - the client dies with `server exited unexpectedly` and names no version. `REMOTE_TMUX`
   prefers `~/.local/bin/tmux` and falls back for a stock box; `--check` prints each host's client version beside whether
@@ -112,8 +116,11 @@ and the GPU stay local and only the transcript crosses.
   no-focus fallback waits, bounded by `PROBE_WAIT`.
 - **`shlex.quote` on every argument**, so a transcript reaches the remote tmux as one argv element and never the remote
   shell.
-- A remote's own status-bar chips cannot work - they run that machine's `dictate`, which has no mic. Fixing that needs a
-  trigger socket reverse-forwarded over the ssh connection; the key and this machine's chips are unaffected.
+- **A remote's own status-bar chips cannot work** - they run that machine's `dictate`, which has no mic - so
+  `mic_here()` makes that click say so (`outcome=no-mic`) instead of recording a dead stream. `pactl info` failing is a
+  headless box, never a quiet room; `pactl` absent is unknown, and the recording is left to try. Driving the mic from
+  that chip would take a trigger socket reverse-forwarded over the ssh session and a listener at the mic end; a hotkey
+  on the machine with the mic does the same with none of it, and is the answer.
 
 ## tmux coupling (change both sides together)
 

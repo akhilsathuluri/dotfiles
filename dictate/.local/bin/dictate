@@ -272,7 +272,10 @@ def hosts():
 def tmux(*args, host=None):
     h = HOST if host is None else host
     if not h:
-        return subprocess.run(["tmux", *args], capture_output=True, text=True)
+        try:
+            return subprocess.run(["tmux", *args], capture_output=True, text=True)
+        except OSError as e:                   # no tmux on this machine: not a candidate,
+            return subprocess.CompletedProcess(["tmux", *args], 127, "", str(e))  # not a crash
     argv = " ".join(shlex.quote(a) for a in args)
     return subprocess.run(["ssh", *SSH_OPTS, *shlex.split(h), "--", f"{REMOTE_TMUX} {argv}"],
                           capture_output=True, text=True)
@@ -920,10 +923,25 @@ def watch(pid):
         except OSError: pass
 
 
+def mic_here():
+    """False on a linux box with no audio server at all - a headless machine
+    whose tmux you reached over ssh. Its chips run this dictate, which would
+    record nothing and report "no speech"; the answer is the key on the machine
+    with the mic. pactl absent is unknown, not no: let the recording try."""
+    if IS_MAC:
+        return True
+    r = _pactl("info")
+    return r is None or r.returncode == 0
+
+
 def toggle(autosend=False):
     require(CAPTURE_BIN)
     pid = recording_pid()
     if not pid:
+        if not mic_here():
+            log("no audio server here - dictate from the machine with the microphone")
+            flash("no microphone here - use the key on the machine that has one")
+            trace("result", outcome="no-mic"); return
         trace("toggle", branch="start", autosend=int(autosend))
         start_recording(autosend); return
     wpid = watch_pid()
@@ -953,9 +971,12 @@ def install_shortcut(bindings):
         # No gsettings, and macOS has no user-level API for a global hotkey that
         # doesn't need Accessibility permission. Bind it by hand instead - the
         # toggle is just a command, so anything that can run one will do.
-        log("--install-shortcut is linux/GNOME only.")
-        log("On macOS bind `dictate --toggle` in Karabiner-Elements, Raycast or")
-        log("Shortcuts.app, or use the ● dictate chip / prefix + m inside tmux.")
+        log("--install-shortcut is linux/GNOME only. On macOS, Shortcuts.app needs no install:")
+        log("  New Shortcut > Run Shell Script (input: none), then Add Keyboard Shortcut. Script:")
+        log('  PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH" '
+            '"$HOME/.local/bin/dictate" --toggle --send')
+        log("Shortcuts starts with a bare PATH, hence the prefix: uv and ffmpeg live under brew.")
+        log("Karabiner-Elements, skhd or Raycast can run the same command.")
         sys.exit(1)
     require("gsettings")
     import ast

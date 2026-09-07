@@ -45,7 +45,9 @@ the prompt exactly as typed. Nothing is installed on the remote.
 
 **No setup for a machine you are already in:** the ssh sessions open right now are the candidates, so ssh somewhere,
 start tmux, and dictate. `~/.config/dictate/remote` is for what that cannot see - a host you want probed before you
-connect, or one needing options - one ssh argument list per line (`-p 2222 user@host` works).
+connect, or one needing options - one ssh argument list per line (`-p 2222 user@host` works). That discovery reads
+`/proc`, so **on macOS the file is the whole list**: one line naming the server, and a hotkey in Ghostty lands the
+transcript in that server's tmux.
 
 Then dictate as usual: looking at the remote sends there, looking at a local pane sends here. `dictate --check` reports
 every host, its tmux version and whether that server answered.
@@ -54,7 +56,8 @@ Needs key-based ssh auth (a background dictation cannot answer a password prompt
 Dictating into this machine opens no ssh at all; into a remote it is one round trip, ~100 ms on a LAN. A host that is
 down costs nothing while any terminal holds focus, and at most `DICTATE_PROBE_WAIT` when none does.
 
-A remote's own status chips cannot work - they run that machine's `dictate`, which has no mic.
+A remote's own status chips cannot work - they run that machine's `dictate`, which has no mic. A click there says so in
+the status line instead of transcribing a dead stream; the key on the machine with the mic is the answer.
 
 Notes:
 
@@ -63,8 +66,17 @@ Notes:
   is why the remote is a tmux hop rather than audio forwarding: the far end needs no sound server, no `parec`, no
   `pulseaudio-utils`. It needs `tmux`; this end needs `uv`, `ssh`, and the capture backend.
 - **Bind the key locally.** Inside a remote tmux, `prefix + m` is the _remote_ server's binding and runs the far end's
-  dictate. Use a desktop hotkey on the local machine instead: `dictate --install-shortcut` on GNOME, or Karabiner /
-  Hammerspoon / skhd / Raycast on macOS, or your local tmux's own `prefix + m`.
+  dictate. Use a desktop hotkey on the local machine instead: `dictate --install-shortcut` on GNOME. On macOS,
+  Shortcuts.app needs nothing installed: New Shortcut ▸ Run Shell Script (input: none) ▸ Add Keyboard Shortcut, with
+  this script. Shortcuts starts from a bare `PATH`, so the prefix is what finds `uv` and `ffmpeg` under brew, and the
+  first run asks you to grant Shortcuts the microphone.
+
+  ```sh
+  PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH" "$HOME/.local/bin/dictate" --toggle --send
+  ```
+
+  Karabiner-Elements, skhd or Raycast can run the same command; so can your local tmux's own `prefix + m`.
+
 - **A pin goes in the binding, not a shell rc.** A desktop shortcut sources no shell rc, so `export DICTATE_REMOTE=…` in
   `~/.bashrc.d/local.bash` reaches an interactive shell and _not_ the keypress. Put it in the binding itself
   (`DICTATE_REMOTE=devbox ~/.local/bin/dictate --toggle`) or in a wrapper the hotkey runs. Focus routing needs none of
