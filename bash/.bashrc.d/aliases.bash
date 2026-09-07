@@ -12,6 +12,14 @@ set -o vi
 #     sequence matched. Up/Down have no word-motion meaning on one line, so they are
 #     bound to nothing rather than left to fire vi-add-eol. \eb / \ef cover terminals
 #     that send Option+arrow as meta-b / meta-f instead of the CSI form.
+#   - Home/End arrive as CSI H / CSI F (or SS3 H/F in application-cursor mode, or
+#     CSI 1~ / CSI 4~ from older terminals and some tmux setups) and only the SS3
+#     pair was bound, so the CSI form hit the same ESC-falls-through trap: End ran
+#     vi-find-prev-char in the command keymap and swallowed the next keypress.
+#     All three encodings are bound line-wise here to match the GUI mapping in
+#     ~/Library/KeyBindings/DefaultKeyBinding.dict. A prompt has no "document", so
+#     Ctrl+Home/End go to the ends of the whole buffer - the closest analogue when
+#     editing a multi-line command.
 if [ -n "${BASH_VERSION:-}" ]; then
     bind -m vi-insert '"\C-l": clear-screen'
     bind -m vi-command -x '"\C-l": printf "\033[2J\033[H"'
@@ -23,6 +31,14 @@ if [ -n "${BASH_VERSION:-}" ]; then
         bind -m "$_keymap" '"\e\C-?": backward-kill-word'
         bind -m "$_keymap" '"\e[1;3A": ""'
         bind -m "$_keymap" '"\e[1;3B": ""'
+        bind -m "$_keymap" '"\e[H": beginning-of-line'
+        bind -m "$_keymap" '"\e[F": end-of-line'
+        bind -m "$_keymap" '"\eOH": beginning-of-line'
+        bind -m "$_keymap" '"\eOF": end-of-line'
+        bind -m "$_keymap" '"\e[1~": beginning-of-line'
+        bind -m "$_keymap" '"\e[4~": end-of-line'
+        bind -m "$_keymap" '"\e[1;5H": beginning-of-history'
+        bind -m "$_keymap" '"\e[1;5F": end-of-history'
     done
     unset _keymap
 elif [ -n "${ZSH_VERSION:-}" ]; then
@@ -34,6 +50,14 @@ elif [ -n "${ZSH_VERSION:-}" ]; then
         bindkey -M "$_keymap" '^[^?' backward-kill-word
         bindkey -M "$_keymap" '^[[1;3A' undefined-key
         bindkey -M "$_keymap" '^[[1;3B' undefined-key
+        bindkey -M "$_keymap" '^[[H' beginning-of-line
+        bindkey -M "$_keymap" '^[[F' end-of-line
+        bindkey -M "$_keymap" '^[OH' beginning-of-line
+        bindkey -M "$_keymap" '^[OF' end-of-line
+        bindkey -M "$_keymap" '^[[1~' beginning-of-line
+        bindkey -M "$_keymap" '^[[4~' end-of-line
+        bindkey -M "$_keymap" '^[[1;5H' beginning-of-buffer-or-history
+        bindkey -M "$_keymap" '^[[1;5F' end-of-buffer-or-history
     done
     unset _keymap
 fi
