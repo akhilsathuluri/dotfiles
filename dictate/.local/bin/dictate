@@ -1108,6 +1108,7 @@ USAGE = """dictate - toggle-key local speech-to-text into tmux (local, zero priv
 
   dictate --toggle [--send]            start/stop (--send also presses Enter)
   dictate --target                     show which pane the transcript goes to
+  dictate --route                      print just that host ("" = this machine), for a sibling tool
   dictate --install-shortcut [KEYS…]   bind GNOME keys to dictate+send (default: Copilot + Pause)
   dictate --check                      verify capture backend + tmux (every host, and which one wins)
   dictate --test                       record & print a transcript, with its backend and ms
@@ -1124,6 +1125,12 @@ def main():
     elif arg == "--target":
         host, via = pick_host(); set_host(host); require_tmux()
         print(f"{resolve_target()[1] or '(no tmux target found)'} @ {host or 'local'} ({via})")
+    elif arg == "--route":
+        # The destination alone, unadorned, so another tool can ship a file to the
+        # same host before asking --type to put its path in the pane. Read-only:
+        # it resolves a route, it never delivers on one - the rule that there is a
+        # single delivery path is untouched. Empty line means this machine.
+        print(pick_host()[0])
     elif arg == "--send":
         set_host(pick_host()[0]); require_tmux(); send_enter()
     elif arg == "--type":

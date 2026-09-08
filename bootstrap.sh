@@ -93,7 +93,7 @@ backup_pkg_files() {
 }
 
 stow_packages() {
-    local packages=(bash bat claude clip dictate ghostty git hunk leaf nvim tex theme tmux trace)
+    local packages=(bash bat claude clip dictate ghostty git hunk leaf nvim shot tex theme tmux trace)
     if is_linux; then
         # Linux-only: the GNOME indicator and the screenshot watcher (inotify)
         # have no macOS counterpart.

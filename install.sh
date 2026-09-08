@@ -192,13 +192,14 @@ brew_install() {
 
 # The macOS counterpart of install_apt_packages plus every pinned Linux tool
 # that brew ships. Names differ from the Linux binaries in two places:
-# git-delta provides `delta`, go-task provides `task`. fswatch stands in for
+# pngpaste reads an image off the clipboard, which pbpaste cannot - it is what
+# `shot` sends. git-delta provides `delta`, go-task provides `task`. fswatch stands in for
 # inotify-tools and poppler for poppler-utils (both used by the tex previews).
 install_brew_packages() {
     brew_install \
         bat chafa coreutils direnv fd fswatch fzf git-cliff git-delta gitleaks \
-        go go-task imagemagick jq lazydocker lazygit neovim node poppler \
-        ripgrep ruff shellcheck shfmt stow tmux tree wget zoxide
+        go go-task imagemagick jq lazydocker lazygit neovim node pngpaste \
+        poppler ripgrep ruff shellcheck shfmt stow tmux tree wget zoxide
 
     # Casks: the Nerd Font and Ghostty (the Linux side gets these from a tarball
     # and a PPA). Font Book picks the font up; there is no fc-cache to run.

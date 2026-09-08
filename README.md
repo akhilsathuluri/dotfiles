@@ -33,6 +33,7 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 | `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                     | `~/.config/hunk/`                       |
 | `leaf`               | leaf markdown previewer config, carrying a full Solarized Light palette (leaf ships only `solarized-dark`) | `~/.config/leaf/`                       |
 | `nvim`               | Neovim config (LazyVim, LSP, plugins)                                                                      | `~/.config/nvim/`                       |
+| `shot`               | Send a local screenshot to the machine your agent is on, and type its path into the pane                   | `~/.local/bin/shot`                     |
 | `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                        | `~/.local/bin/`, `~/.config/autostart/` |
 | `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                              | `~/.local/bin/`                         |
 | `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)                   | `~/.local/bin/theme`                    |
@@ -106,6 +107,7 @@ release assets and `apt`; macOS takes Homebrew, which resolves arm64 vs x86_64 i
 | `agentbar`                                    | Go, built from source          | same Go build; the e2e suite is Linux-only                       |
 | `trace`                                       | GNU `date`/`stat`/`flock`      | BSD fallbacks in `dotfiles-trace`                                |
 | `dictate`                                     | parec/pactl, GPU via Vulkan    | ffmpeg (avfoundation); no ducking, manual mic grant, CPU backend |
+| `shot`                                        | wl-paste / xclip, inotifywait  | `pngpaste`, `fswatch`; bash 3.2 clean, since it runs here        |
 | `claude-indicator`, `screenshot-watcher`      | GNOME / inotify                | not stowed                                                       |
 | Ghostty                                       | Ubuntu PPA (skipped on Debian) | brew cask                                                        |
 

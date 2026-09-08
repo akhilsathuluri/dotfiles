@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+# shot - put a local screenshot where the agent you are typing to can read it.
+#
+#   shot                  the clipboard image, else the newest screenshot
+#   shot FILE             that file
+#   shot --clip           the clipboard image only (never the folder)
+#   shot --send           ... and press Enter once the path is in the pane
+#   shot --watch          stay up; send every screenshot as it lands
+#   shot --check          what it would send, and where
+#
+# The problem: the screen is on this machine and the agent is at the far end of
+# an ssh session. A terminal carries no image the other way - OSC 52 is text, and
+# outbound only - so the file is shipped over ssh and only its *path* is typed
+# into the pane. Claude reads a path; that is the whole trick.
+#
+# It runs where the screen is, never on the far end. Same rule as dictate's
+# microphone: capture stays local and only the small text result crosses. A
+# `shot` on the remote would have no clipboard to read, exactly as its dictate
+# has no mic.
+#
+# ONE host, for both halves. The file must land on the machine whose pane gets
+# the path, or the agent is handed a path to a file that is not there - so the
+# route is resolved once, here, and pinned for the typing (DICTATE_REMOTE).
+# dictate owns the resolving and the typing; this owns the transport.
+#
+# Config (all optional):
+#   SHOT_REMOTE       ssh destination of the machine the agent runs on. Beats
+#                     everything below. Empty string forces local-only.
+#   SHOT_DIR          where the file lands, as a shell expression evaluated ON
+#                     that machine. Default: $HOME/.cache/dotfiles/shots
+#   SHOT_KEEP_DAYS    prune sent images older than this, there. Default: 7
+#   SHOT_SOURCE_DIR   the screenshot folder to watch/scan. Default: the OS one.
+set -euo pipefail
+
+DICTATE="${DICTATE_BIN:-$HOME/.local/bin/dictate}"
+TRACE="$HOME/.local/bin/dotfiles-trace"
+KEEP_DAYS="${SHOT_KEEP_DAYS:-7}"
+# Carried as text and expanded on the far machine, because $HOME there is not
+# $HOME here. Substituted now rather than read there: ssh forwards no
+# environment, so a SHOT_DIR read at the other end would always be unset.
+if [ -n "${SHOT_DIR:-}" ]; then
+    REMOTE_DIR=$SHOT_DIR
+else
+    REMOTE_DIR='$HOME/.cache/dotfiles/shots'
+fi
+
+# A clipboard image has no file of its own, so pick() makes one. Removed on
+# every exit path: it is a screenshot, and those are as sensitive as what is on
+# the screen.
+TMPIMG=""
+cleanup() { [ -n "$TMPIMG" ] && rm -f "$TMPIMG"; }
+trap cleanup EXIT
+
+trace() { [ -x "$TRACE" ] && "$TRACE" log shot "$@" 2>/dev/null || true; }
+die() {
+    echo "shot: $*" >&2
+    exit 1
+}
+is_mac() { [ "$(uname -s)" = "Darwin" ]; }
+# BSD date does not know %3N and hands the format back instead of failing, so
+# the fallback is a digit test, not an exit status.
+now_ms() {
+    local n
+    n=$(date +%s%3N 2>/dev/null) || n=""
+    case "$n" in
+        '' | *[!0-9]*) echo $(($(date +%s) * 1000)) ;;
+        *) echo "$n" ;;
+    esac
+}
+mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
+
+# Its own ControlPath namespace, as dictate keeps one: sharing the interactive
+# master would hand an `ssh -X` alias a connection with no forwarding. BatchMode
+# because a passphrase prompt nobody can see would hang the keypress that ran us.
+SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=5 -o ControlMaster=auto
+    -o ControlPersist=10m
+    -o "ControlPath=$HOME/.ssh/cm-shot-%r@%h:%p")
+
+# ---- where the image comes from --------------------------------------------
+# The clipboard read lives here rather than in `clip`, which is the copy
+# direction and has no paste path at all: one consumer, and the backends differ
+# from its own (pngpaste is not pbpaste).
+clip_image() {
+    if command -v pngpaste &>/dev/null; then
+        pngpaste - 2>/dev/null
+    elif command -v wl-paste &>/dev/null; then
+        wl-paste --type image/png 2>/dev/null
+    elif command -v xclip &>/dev/null; then
+        xclip -selection clipboard -t image/png -o 2>/dev/null
+    else
+        return 1
+    fi
+}
+
+clip_backend() {
+    for b in pngpaste wl-paste xclip; do
+        command -v "$b" &>/dev/null && {
+            echo "$b"
+            return
+        }
+    done
+    echo "none"
+}
+
+source_dir() {
+    [ -n "${SHOT_SOURCE_DIR:-}" ] && {
+        echo "$SHOT_SOURCE_DIR"
+        return
+    }
+    if is_mac; then
+        # macOS remembers a chosen folder here; unset means the Desktop.
+        local d
+        d=$(defaults read com.apple.screencapture location 2>/dev/null) || d=""
+        [ -n "$d" ] || d="$HOME/Desktop"
+        echo "${d/#\~/$HOME}"
+    else
+        echo "$HOME/Pictures/Screenshots"
+    fi
+}
+
+# The newest image in a folder. Never by filename - macOS localises it, so
+# "Screenshot"/"Bildschirmfoto" is not a pattern worth carrying.
+newest_image() {
+    local d=$1 f best='' bt=0 t
+    for f in "$d"/*.png "$d"/*.PNG "$d"/*.jpg "$d"/*.jpeg; do
+        [ -f "$f" ] || continue
+        t=$(mtime "$f") || continue
+        [ "$t" -gt "$bt" ] && {
+            bt=$t
+            best=$f
+        }
+    done
+    printf '%s' "$best"
+}
+
+# ---- where it goes ----------------------------------------------------------
+# "host|why". Empty host is this machine, which is the right answer only when the
+# agent is here too. The separator is not whitespace on purpose: IFS whitespace
+# collapses, so a tab here made an empty host vanish and every field shift left -
+# the local route then tried to ssh to its own reason string.
+ROUTE_SEP='|'
+route() {
+    if [ -n "${SHOT_REMOTE+x}" ]; then
+        printf '%s%s%s' "$SHOT_REMOTE" "$ROUTE_SEP" "pinned"
+        return
+    fi
+    local h
+    if [ -x "$DICTATE" ] && h=$("$DICTATE" --route 2>/dev/null) && [ -n "$h" ]; then
+        printf '%s%s%s' "$h" "$ROUTE_SEP" "dictate"
+        return
+    fi
+    # dictate's own candidate file - on macOS it has no /proc to discover with,
+    # so this file is the whole list there, and its first line is the usual one.
+    h=$(sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p' \
+        "$HOME/.config/dictate/remote" 2>/dev/null | head -1 || true)
+    if [ -n "$h" ]; then
+        printf '%s%s%s' "$h" "$ROUTE_SEP" "dictate-remote-file"
+    else
+        printf '%s%s' "$ROUTE_SEP" "local"
+    fi
+}
+
+# The receiving end, run on whichever machine that is: make the folder, take the
+# image on stdin, print back the absolute path it wrote, then drop old ones. It
+# prints the path because only that machine can expand its own $HOME.
+receiver() {
+    local name=$1
+    cat <<EOF
+d="$REMOTE_DIR"
+mkdir -p "\$d" || exit 1
+cat >"\$d/$name" || exit 1
+printf '%s\n' "\$d/$name"
+find "\$d" -type f -mtime +$KEEP_DAYS -delete 2>/dev/null || true
+EOF
+}
+
+# ship <file> <host> - the path it now has on <host>.
+ship() {
+    local src=$1 host=$2 name rcmd ext
+    # The extension follows the bytes. A jpeg delivered as .png is a file whose
+    # name lies about it, and the reader at the other end goes by the name.
+    # Clipboard temps are already made .png, so they fall through to the default.
+    case "$(printf '%s' "$src" | tr 'A-Z' 'a-z')" in
+        *.jpg | *.jpeg) ext=jpg ;;
+        *.gif) ext=gif ;;
+        *.webp) ext=webp ;;
+        *) ext=png ;;
+    esac
+    name="shot-$(date +%Y%m%d-%H%M%S)-$$.$ext"
+    rcmd=$(receiver "$name")
+    if [ -z "$host" ]; then
+        sh -c "$rcmd" <"$src"
+    else
+        # shellcheck disable=SC2086  # a destination may carry ssh options
+        ssh "${SSH_OPTS[@]}" $host -- "$rcmd" <"$src"
+    fi
+}
+
+# ---- the one action ---------------------------------------------------------
+# send <file> [--send]
+send() {
+    local src=$1 autosend=${2:-} host why path bytes rc=0 t0 ms
+    t0=$(now_ms)
+    [ -f "$src" ] || die "no such file: $src"
+    bytes=$(wc -c <"$src" | tr -d ' ')
+    [ "$bytes" -gt 0 ] || die "empty image: $src"
+
+    IFS="$ROUTE_SEP" read -r host why <<<"$(route)"
+    path=$(ship "$src" "$host") || rc=$?
+    ms=$(($(now_ms) - t0))
+    if [ "$rc" -ne 0 ] || [ -z "$path" ]; then
+        trace send host="${host:-local}" why="$why" bytes="$bytes" rc="${rc:-1}" ms="$ms"
+        die "could not write to ${host:-this machine} (rc=$rc). Try: shot --check"
+    fi
+
+    # Pinned to the host the file just landed on, so a focus change between the
+    # two halves cannot type this path at a machine that does not have it.
+    local args=(--type "$path ")
+    [ "$autosend" = "--send" ] && args=(--type "$path")
+    if [ -x "$DICTATE" ]; then
+        DICTATE_REMOTE="$host" "$DICTATE" "${args[@]}" || rc=$?
+        if [ "$autosend" = "--send" ]; then
+            DICTATE_REMOTE="$host" "$DICTATE" --send || rc=$?
+        fi
+    else
+        rc=127
+        echo "$path"
+        echo "shot: dictate not found - path printed, not typed" >&2
+    fi
+    trace send host="${host:-local}" why="$why" bytes="$bytes" path="$path" rc="$rc" ms="$ms"
+    [ "$rc" -eq 0 ] || exit "$rc"
+}
+
+# ---- picking the image ------------------------------------------------------
+# The clipboard first, then the folder: the two screenshot keys write to
+# different places, and only one of them leaves a file. A clipboard holding
+# text simply fails the read, so it cannot win a turn it has nothing for.
+pick() {
+    local want=$1 tmp
+    tmp=$(mktemp "${TMPDIR:-/tmp}/shot-XXXXXX.png")
+    if clip_image >"$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+        TMPIMG=$tmp
+        printf '%s' "$tmp"
+        return
+    fi
+    rm -f "$tmp"
+    [ "$want" = clip ] && die "the clipboard holds no image (backend: $(clip_backend))"
+    local d f
+    d=$(source_dir)
+    f=$(newest_image "$d")
+    [ -n "$f" ] || die "no image in the clipboard and none in $d"
+    printf '%s' "$f"
+}
+
+# ---- watch ------------------------------------------------------------------
+# A new file is not a finished file: both watchers fire on create, before the
+# screenshotter has written the pixels. Settle, then send.
+watch_dir() {
+    local d f
+    d=$(source_dir)
+    [ -d "$d" ] || die "no such folder: $d"
+    echo "shot: watching $d - every new screenshot goes to the pane. Ctrl-C to stop."
+    if command -v fswatch &>/dev/null; then
+        fswatch -0 --event Created --event MovedTo "$d" | while IFS= read -r -d '' f; do
+            watch_one "$f"
+        done
+    elif command -v inotifywait &>/dev/null; then
+        inotifywait -m -q "$d" -e create -e moved_to --format '%w%f' | while read -r f; do
+            watch_one "$f"
+        done
+    else
+        die "needs fswatch (macOS) or inotifywait (Linux)"
+    fi
+}
+
+watch_one() {
+    # tr, not ${1,,}: macOS ships bash 3.2 and this is the half that runs there.
+    case "$(printf '%s' "$1" | tr 'A-Z' 'a-z')" in
+        *.png | *.jpg | *.jpeg) ;;
+        *) return 0 ;;
+    esac
+    sleep 0.5
+    [ -f "$1" ] || return 0
+    send "$1" || true # one bad send must not take the watcher down
+}
+
+# ---- check ------------------------------------------------------------------
+check() {
+    local host why d f age
+    IFS="$ROUTE_SEP" read -r host why <<<"$(route)"
+    d=$(source_dir)
+    f=$(newest_image "$d")
+    echo "platform    $(uname -s)"
+    echo "clipboard   $(clip_backend)"
+    if clip_image 2>/dev/null | head -c 1 | grep -q .; then
+        echo "            holds an image - this is what a bare \`shot\` would send"
+    else
+        echo "            holds no image - a bare \`shot\` would take the newest file"
+    fi
+    echo "folder      $d"
+    if [ -n "$f" ]; then
+        age=$(($(date +%s) - $(mtime "$f")))
+        echo "newest      $f  (${age}s ago)"
+    else
+        echo "newest      (none)"
+    fi
+    echo "route       ${host:-this machine}  (via $why)"
+    echo "lands in    $REMOTE_DIR, pruned after ${KEEP_DAYS}d"
+    if [ -n "$host" ]; then
+        # shellcheck disable=SC2086
+        if ssh "${SSH_OPTS[@]}" $host -- true 2>/dev/null; then
+            echo "ssh         reaches $host"
+        else
+            echo "ssh         CANNOT reach $host - set SHOT_REMOTE, or check your ssh config"
+        fi
+    fi
+    if [ -x "$DICTATE" ]; then
+        echo "types via   $DICTATE --type"
+    else
+        echo "types via   (dictate not found - shot would print the path instead)"
+    fi
+}
+
+USAGE="shot - put a local screenshot where the agent you are typing to can read it.
+
+  shot                  the clipboard image, else the newest screenshot
+  shot FILE             that file
+  shot --clip           the clipboard image only
+  shot --send           ... and press Enter once the path is in the pane
+  shot --watch          stay up; send every screenshot as it lands
+  shot --check          what it would send, and where
+
+Docs: ~/dotfiles/shot/README.md
+"
+
+main() {
+    case "${1:-}" in
+        --check) check ;;
+        --watch) watch_dir ;;
+        --clip) send "$(pick clip)" "${2:-}" ;;
+        --send) send "$(pick any)" --send ;;
+        -h | --help) printf '%s' "$USAGE" ;;
+        "") send "$(pick any)" ;;
+        -*) die "unknown option: $1" ;;
+        *) send "$1" "${2:-}" ;;
+    esac
+}
+
+main "$@"

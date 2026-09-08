@@ -46,6 +46,7 @@ tasks:
       - task: theme
       - task: settings
       - task: workdesk-toggle
+      - task: shot
       - task: test
 
   lint:
@@ -220,6 +221,11 @@ tasks:
     desc: One command opens the ≡ workdesk float and closes it - the chip is a toggle
     cmds:
       - bash test/workdesk.sh
+
+  shot:
+    desc: A screenshot reaches the agent's machine, and the path typed is the file written
+    cmds:
+      - bash test/shot.sh
 
   fresh:
     desc: Full bootstrap in a clean container, twice (needs docker, ~10 min). IMAGE=debian:13 for Debian

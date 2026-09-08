@@ -50,6 +50,15 @@ see "Platform support" in README.md for the per-layer detail.
 - `nvim/` → `~/.config/nvim/` (LazyVim config)
 - `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (Linux only - auto-copy screenshots
   to the clipboard)
+- `shot/` → `~/.local/bin/shot` (send a local screenshot to the machine your agent is on, and type its path into the
+  pane; has its own `README.md`). **A terminal carries no image inbound** - OSC 52 is text and outbound only - so the
+  file goes over ssh and only its _path_ is typed. **It runs where the screen is, never the far end**, the same rule as
+  dictate's mic: a `shot` on the remote has no clipboard to read. **One host, resolved once, for both halves** - the
+  file must land on the machine whose pane gets the path, so the route (`SHOT_REMOTE` → `dictate --route` → dictate's
+  candidate file) is settled here and pinned for the typing via `DICTATE_REMOTE`. `dictate --route` is read-only: it
+  resolves a route and never delivers on one, so dictate keeps its single delivery path. **No tmux key and no chip**,
+  deliberately - both would run on the machine hosting tmux, which is the one with no clipboard; the trigger has to be
+  local (Shortcuts.app, or `shot --watch`). Bash 3.2 clean, since macOS ships that and brew's bash is not installed.
 - `tex/` → `~/.local/bin/` (`tex-dev`, `texpeek`, `texpage` - LaTeX build/preview helpers)
 - `theme/` → `~/.local/bin/theme` (theme switcher; re-skins the terminal stack across the five flavors from
   `design/palette.toml`, writing per-tool files into `~/.config/theme/`. **Opt-in per machine** - nothing applies a
@@ -451,7 +460,7 @@ _edges_ across the whole interactive stack.
 - **Where:** `${XDG_STATE_HOME:-~/.local/state}/dotfiles/trace.log` (outside the repo, never committed). Size-capped at
   1 MiB with one rotation (`trace.log.1`).
 - **View:** `dotfiles-trace tail -f`, or
-  `dotfiles-trace show --since 5m --src <tmux|agentbar|clip|hook|sidebar|picker|dictate|resurrect|yank> --grep <pat>`.
+  `dotfiles-trace show --since 5m --src <tmux|agentbar|clip|hook|sidebar|picker|dictate|shot|resurrect|yank> --grep <pat>`.
   `dotfiles-trace path` prints the file.
 - **Format:** logfmt - `ts=<iso ms> src=… evt=… pid=… k=v …`. The on-screen status clock is `%H:%M:%S`, so a screenshot
   anchors to a log window.
@@ -468,6 +477,10 @@ What to read, by symptom:
   **`rc` non-zero** means the backend failed, and `wl=`/`dsp=` say why. A long-lived tmux server keeps the
   `WAYLAND_DISPLAY` it started with, so after a re-login `wl-copy` cannot reach the compositor until the server is
   restarted or its environment updated.
+- **A screenshot never reached the agent.** `src=shot evt=send host=… why=… bytes=… path=… rc=… ms=…` is every send. No
+  line means `shot` never ran, so the failure is the local trigger, not this repo. `rc` non-zero with no `path=` is the
+  transport - `shot --check` names the route and says whether ssh reaches it. A `host=` that is not the machine Claude
+  runs on is a wrong route, and `SHOT_REMOTE` is the fix.
 - **The layout drifted.** A squeezed sidebar or skewed split is a screen change: tmux takes a shrink evenly from every
   pane and has no fixed-size pane. `src=sidebar evt=pin` is the `window-resized` hook fixing the width itself.
   `prefix + R` logs `src=tmux evt=reset … changed=N floated=N` plus one `evt=layout win=… before=… after=…` per window

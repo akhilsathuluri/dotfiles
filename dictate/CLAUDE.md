@@ -82,6 +82,10 @@ values still resolve.
 Every tmux call funnels through `tmux()`, so a remote is an `ssh` wrap there and nothing else moves: the mic, the model
 and the GPU stay local and only the transcript crosses.
 
+- **`--route` prints the resolved host and delivers nothing.** `shot` ships a file to the machine whose pane will be
+  typed, so it has to resolve the same route this does - and resolving it twice is how the file and its path end up on
+  different machines. Exposing the resolver is not a second delivery path; keep it read-only, and keep `--type` the only
+  way text reaches a pane.
 - **One routing point: `tmux()`.** Never grow a second delivery path - a remote-only send would drift from the local
   one, and the `@dictate` chips would stop reporting. A machine with no tmux binary at all (a laptop that only ever
   dictates into remotes) is a failed local probe there, never a crash.

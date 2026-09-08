@@ -71,6 +71,21 @@ launch hunk's native interactive reviewer directly. delta also colors `git add -
 | `gdm`         | review merge request (branch vs main)         |
 | `t`           | theme picker inside hunk (persists)           |
 
+### shot (screenshot → the agent's machine)
+
+Run it **where the screen is** - your laptop - not in the ssh session. It ships the image to the machine your agent runs
+on and types only the path into the pane, because a terminal carries no image inbound. Claude reads a path.
+
+| Command        | Action                                             |
+| -------------- | -------------------------------------------------- |
+| `shot`         | the clipboard image, else the newest screenshot    |
+| `shot FILE`    | that file                                          |
+| `shot --send`  | ... and press Enter once the path is in the pane   |
+| `shot --watch` | every new screenshot goes over on its own          |
+| `shot --check` | what it would send, where, and whether ssh answers |
+
+`SHOT_REMOTE=<host>` names the machine the agent is on when dictate has not already been pointed at it.
+
 ### workdesk (GitLab work inbox)
 
 Reads a local mirror, so every command below is instant and offline. `workdesk sync` is the only one that touches the
