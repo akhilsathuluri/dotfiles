@@ -160,6 +160,10 @@ Far right, past the clock. Click it for a centred dialogue: setting names down t
 every value on screen. Click a value or press `↵` and it applies at once - there is no save step, and the dialogue stays
 open so you can try another. `j`/`k` move, `q` closes.
 
+Theme's first row is `Ghostty Default` - the unswitched machine, every tool on the default baked into its tracked
+config. It is what a machine that has never run `theme` is already on, and the row you come back to after trying a
+flavor on.
+
 ### Status bar - the centred chips
 
 The five centred chips are clickable, and each has a key - worth knowing, because a status click has to survive the

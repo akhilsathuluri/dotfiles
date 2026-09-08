@@ -9,7 +9,7 @@ _How one command re-skins the whole terminal stack from [`palette.toml`](./palet
 theme                      # print the current flavor
 theme --list               # list the four flavors
 theme <flavor>             # re-skin the whole stack
-theme none                 # clear the state - back to the tracked defaults
+theme ghostty-default      # clear the state - back to the tracked defaults
 ```
 
 Flavors: `catppuccin-mocha-black` (the default) · `catppuccin-mocha` · `catppuccin-latte` · `solarized-dark` ·
@@ -20,8 +20,8 @@ running tmux/ghostty. It is **explicit** - the switcher never picks a theme from
 ghostty's built-in dark (`#282c34`), tmux's green status bar, nvim's Catppuccin Mocha **on that ghostty ground**, the
 hue-only fzf `--color` block in `fzf.bash` (its surfaces follow the terminal, so the popup blends into whatever bg
 ghostty is wearing), the sidebar's compiled-in default. That is a coherent look in its own right, not a broken one, and
-`theme none` returns to it: it deletes everything under `~/.config/theme/`, unsets `@agentbar-theme`, reloads ghostty
-and re-sources `~/.tmux.conf`.
+`theme ghostty-default` returns to it: it deletes everything under `~/.config/theme/`, unsets `@agentbar-theme`, reloads
+ghostty and re-sources `~/.tmux.conf`.
 
 **nvim's baseline is the one that had to be built.** Every other tool's tracked default either follows the terminal
 (fzf, the popup's ANSI slots) or is the terminal (ghostty). nvim paints its own ground, so `vscode`'s did not match

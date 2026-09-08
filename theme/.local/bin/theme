@@ -5,14 +5,15 @@
 #   theme                 print the current flavor
 #   theme --list          list the supported flavors
 #   theme <flavor>        switch everything to <flavor>
-#   theme none            clear the state - every tool back to its tracked default
+#   theme ghostty-default clear the state - every tool back to its tracked default
+#                         ('none' and 'off' are older names for the same thing)
 #
 # Flavors: catppuccin-mocha-black · catppuccin-mocha · catppuccin-latte · solarized-dark ·
 #          solarized-light
 #
 # Nothing applies a flavor for you, bootstrap included: an unswitched machine stays on
 # the defaults baked into the tracked configs - ghostty's own dark background, tmux's
-# green status bar, nvim's vscode - and `theme none` returns to exactly that.
+# green status bar, nvim's vscode - and `theme ghostty-default` returns to exactly that.
 set -euo pipefail
 
 # Repo root: this script is stowed as <repo>/<pkg>/.local/bin/<name>, so walk up
@@ -369,7 +370,7 @@ apply_nvim() {
     } >"$STATE_DIR/nvim.lua"
 }
 
-# theme none - drop the generated state so every tool falls back to the default in its
+# theme ghostty-default - drop the generated state so every tool falls back to the default in its
 # tracked config: ghostty's own dark background, tmux's green status bar, nvim's vscode,
 # the fzf block in fzf.bash, the sidebar's built-in solarized-dark. Deleting the files is
 # enough for anything that reads them at startup; ghostty and the tmux server already
@@ -386,7 +387,7 @@ clear_theme() {
         # overlay include, which is now missing.
         tmux source-file "$HOME/.tmux.conf" 2>/dev/null || true
     fi
-    local msg="→ none. Ghostty + tmux revert now; new shells drop THEME/BAT_THEME and the fzf colors;"
+    local msg="→ ghostty-default. Ghostty + tmux revert now; new shells drop THEME/BAT_THEME and the fzf colors;"
     msg="$msg next git diff / nvim launch reverts delta / nvim."
     echo "$msg Restart sidebars with prefix+e twice."
 }
@@ -394,10 +395,13 @@ clear_theme() {
 main() {
     case "${1:-}" in
         --list | -l)
+            # First: it is the baseline every flavor is a departure from, and the
+            # row you come back to. Not in FLAVORS - it applies no palette.
+            echo "ghostty-default"
             echo "$FLAVORS" | tr ' ' '\n'
             return 0
             ;;
-        none | off)
+        ghostty-default | none | off)
             clear_theme
             return 0
             ;;
@@ -405,14 +409,14 @@ main() {
             if [ -f "$STATE_DIR/current" ]; then
                 cat "$STATE_DIR/current"
             else
-                echo "none (tools on their tracked defaults)"
+                echo "ghostty-default"
             fi
             return 0
             ;;
     esac
     local flavor="$1"
     if ! valid "$flavor"; then
-        echo "theme: unknown flavor '$flavor' (try: theme --list, or 'theme none')" >&2
+        echo "theme: unknown flavor '$flavor' (try: theme --list, or 'theme ghostty-default')" >&2
         return 2
     fi
     mkdir -p "$STATE_DIR"

@@ -35,7 +35,9 @@ LAST="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/dotfiles-settings-last-$UID"
 # shellcheck source=tmux/.local/bin/tmux-agent-state.sh
 . "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/tmux-agent-state.sh"
 
-current_flavor() { cat "$STATE/current" 2>/dev/null || echo solarized-light; }
+# No state file is not a missing value - it is the unswitched machine, every tool on
+# the default in its tracked config. It has a row, so it needs the name that row uses.
+current_flavor() { cat "$STATE/current" 2>/dev/null || echo ghostty-default; }
 # How long a session stays in the sidebar's active band after its last agent
 # activity. Only the offered values, so a typo cannot leave the row unmarked.
 current_active_for() {
@@ -78,7 +80,7 @@ list_rows() {
     _area=''
     group agentbar "Active for" "$(current_active_for)" "activefor:" $ACTIVE_FORS
     group agentbar Notify "$(current_notify)" "notify:" off on
-    group theme Theme "$(current_flavor)" "theme:" $FLAVORS
+    group theme Theme "$(current_flavor)" "theme:" ghostty-default $FLAVORS
 }
 
 # fzf's reload resets the cursor to the first row, so after applying we put it back

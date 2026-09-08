@@ -60,9 +60,14 @@ start() {
     tmux kill-server 2>/dev/null
     : >"$TMP/applied"
     rm -f "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/dotfiles-settings-last-$UID"
-    printf '%s' "$1" >"$XDG_CONFIG_HOME/theme/current"
+    # An empty flavor is the unswitched machine: no state file, not an empty one.
+    if [ -n "$1" ]; then
+        printf '%s' "$1" >"$XDG_CONFIG_HOME/theme/current"
+    else
+        rm -f "$XDG_CONFIG_HOME/theme/current"
+    fi
     # THEME_BIN points the dialogue at the recorder instead of the real switcher.
-    tmux new-session -d -s ui -x 80 -y 12 \
+    tmux new-session -d -s ui -x 80 -y 14 \
         "PATH=$TMP/shim:\$PATH THEME_BIN=$TMP/shim/theme $DIALOGUE"
     sleep 2
 }
@@ -99,7 +104,7 @@ applied() { tr -d '\n' <"$TMP/applied"; }
 in_span() { snap | sed -n "$2,${3}p" | grep -n -- "$1" | head -1 | cut -d: -f1; }
 arow() { in_span "$1" 2 4; }  # agentbar · Active for
 nrow() { in_span "$1" 5 6; }  # agentbar · Notify
-trow() { in_span "$1" 7 11; } # theme · Theme
+trow() { in_span "$1" 7 12; } # theme · Theme (ghostty-default, then the flavors)
 
 # ---- the list ---------------------------------------------------------------
 printf '\nlist\n'
@@ -108,12 +113,13 @@ out=$(snap)
 for want in agentbar theme "Active for" Notify Theme; do
     grep -qF "$want" <<<"$out" && ok "names $want" || no "missing $want"
 done
-for want in 30m 1h 4h Off On "Solarized Light" "Catppuccin Mocha" "Catppuccin Mocha Black"; do
+for want in 30m 1h 4h Off On "Ghostty Default" "Solarized Light" "Catppuccin Mocha" \
+    "Catppuccin Mocha Black"; do
     grep -qF "$want" <<<"$out" && ok "shows $want" || no "missing $want"
 done
 eq "the window defaults to an hour" 2 "$(arow '●')"
 eq "notify defaults to off" 1 "$(nrow '●')"
-eq "the active flavor is marked" 1 "$(trow '●')"
+eq "the active flavor is marked" 2 "$(trow '●')"
 eq "the cursor starts on the first row" 1 "$(arow '▸')"
 
 # ---- keyboard ---------------------------------------------------------------
@@ -141,15 +147,28 @@ eq "and back off again" off "$(tmux show-option -gqv @agent_notify)"
 # ---- mouse ------------------------------------------------------------------
 printf '\nmouse\n'
 start solarized-light
-click 9
+click 10
 eq "a click applies that flavor" "catppuccin-mocha" "$(applied)"
-eq "the marker moved to it" 4 "$(trow '●')"
-eq "the cursor stayed on it" 4 "$(trow '▸')"
+eq "the marker moved to it" 5 "$(trow '●')"
+eq "the cursor stayed on it" 5 "$(trow '▸')"
 
 click 1
 eq "a click in another area applies there" 30m "$(tmux show-option -gqv @agentbar-active-for)"
 eq "cursor on the clicked row" 1 "$(arow '▸')"
 eq "without re-applying the theme" "catppuccin-mocha" "$(applied)"
+
+# ---- the baseline -----------------------------------------------------------
+# An unswitched machine has no state file. Marking a flavor there was the bug: the
+# dialogue claimed a flavor nobody had applied, and offered no row for where you
+# actually were - so trying one on was a one-way door.
+printf '\nbaseline\n'
+start ''
+eq "unswitched marks ghostty-default" 1 "$(trow '●')"
+
+start catppuccin-mocha
+click 6
+eq "and clicking it asks for the way back" "ghostty-default" "$(applied)"
+eq "the marker moved to the baseline" 1 "$(trow '●')"
 
 # ---- closing ----------------------------------------------------------------
 printf '\nclose\n'
