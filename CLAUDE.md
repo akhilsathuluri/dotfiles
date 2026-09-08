@@ -47,7 +47,13 @@ see "Platform support" in README.md for the per-layer detail.
   `[themes.solarized-light]`, since leaf ships only `solarized-dark`; that registration is what lets the theme switcher
   drive leaf by name via `LEAF_THEME`. **leaf writes this file itself** - a first run with no config seeds upstream's
   sample there, which blocks `stow leaf`, so the backup step in `bootstrap.sh` is load-bearing)
-- `nvim/` → `~/.config/nvim/` (LazyVim config)
+- `nvim/` → `~/.config/nvim/` (LazyVim config). **Over ssh the clipboard is write-only OSC 52.** The terminal is the
+  only route to the local clipboard there, and `unnamedplus` makes `v:register` `+`, so anything reading a register -
+  blink.cmp resolving a snippet's `$TM_SELECTED_TEXT`, once per completion, and 54 of the LaTeX snippets carry it -
+  fires an OSC 52 read, which the terminal asks about before answering (Ghostty's `clipboard-read = ask`): a dialogue
+  per keystroke. So `config/options.lua` pins `g:clipboard` to a provider that writes and never reads. Yank still
+  reaches the local clipboard, `p` returns nvim's own last yank, and the terminal's own paste (Cmd/Ctrl+V) is what
+  brings the system clipboard in.
 - `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (Linux only - auto-copy screenshots
   to the clipboard)
 - `shot/` → `~/.local/bin/shot` (send a local screenshot to the machine your agent is on, and type its path into the
