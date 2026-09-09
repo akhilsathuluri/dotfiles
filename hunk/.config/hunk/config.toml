@@ -1,4 +1,9 @@
-mode = "split"             # side-by-side, matching the delta side-by-side setup
-theme = "ayu-dark"         # built-in Ayu Dark
+mode = "stack"
+theme = "ayu-dark"
 line_numbers = true
-wrap_lines = true          # wrap long diff lines instead of truncating
+wrap_lines = true
+hunk_headers = true
+menu_bar = true
+agent_notes = true
+copy_decorations = false
+cursor_line = "row"
