@@ -228,6 +228,11 @@ stow -R <package>    # Re-link (unlink + link)
   `xterm-256color` if that fails. The host needs `tic` (`ncurses-bin`). `ghostty +ssh-cache` lists the hosts already
   done, and a host seeded before this landed can be fixed by hand with
   `infocmp -x xterm-ghostty | ssh HOST -- tic -x -`.
+- **`ssh host tmux` needs a pty**, and ssh requests one only for a bare login session, so a remote command fails with
+  `open terminal failed: not a terminal`. `~/.bashrc.d/ssh.bash` wraps `ssh` with `RequestTTY yes` so anything you type
+  gets one; `-T` opts out per call, and a script passes `-tt` itself. Deliberately a shell function rather than
+  `~/.ssh/config`, which would also reach git, rsync and cron - they give ssh a pipe on stdin, and it then prints
+  `Pseudo-terminal will not be allocated...` on every fetch.
 - **Commit guard**: this repo is public, and the stowed `~/.claude/settings.json` is written by the Claude runtime -
   which parks machine-local state (an `autoMode` block naming your org, internal services and local paths) in a tracked
   file. `.githooks/pre-commit`, wired by `bootstrap.sh`, refuses to commit that block, private IPs, emails, credential

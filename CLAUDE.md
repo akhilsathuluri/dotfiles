@@ -9,7 +9,15 @@ see "Platform support" in README.md for the per-layer detail.
 
 ## Stow packages
 
-- `bash/` → `~/.bashrc.d/` (shell customizations)
+- `bash/` → `~/.bashrc.d/` (shell customizations). `ssh.bash` wraps `ssh` with `RequestTTY yes`, so a remote command
+  gets a pty and `ssh host tmux` stops failing with `open terminal failed: not a terminal` - ssh requests one only for a
+  bare login session. **A shell function, not `~/.ssh/config`**: `RequestTTY yes` under `Host *` reaches git, rsync and
+  cron too, which hand ssh a pipe on stdin, and ssh then logs
+  `Pseudo-terminal will not be allocated because stdin is not a terminal.` on every fetch - measured, and cosmetic only,
+  since ssh still declines the pty. A function is scoped to interactive shells, so nothing scripted sees it, and
+  `~/.ssh/config` stays untracked (it holds hosts). Opt out per call with `-T`; the wrapper's `-o` is parsed before the
+  config files, so it wins over a per-host `RequestTTY no`. A script that wants a pty passes `-tt` itself, and
+  `Match exec` cannot condition on this - ssh runs it with stdin detached, so it never sees the terminal.
 - `bat/` → `~/.config/bat/`
 - `claude/` → `~/.claude/hooks/`, `~/.claude/settings.json`, `~/.claude/statusline-command.sh`, `~/.claude/skills/`. The
   statusLine prints `model · effort · ctx:% · limit:%` under the input box. `settings.json` wires **two** agent-state
