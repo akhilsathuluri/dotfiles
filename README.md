@@ -12,6 +12,7 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 - [Platform support](#platform-support)
 - [Setup on a new machine](#setup-on-a-new-machine)
 - [Usage](#usage)
+- [Development](#development)
 - [Managing configs](#managing-configs)
 - [Notes](#notes)
 - [License](#license)
@@ -20,25 +21,25 @@ with [GNU Stow](https://www.gnu.org/software/stow/) and reproducible on a fresh 
 
 ### Configs (stow packages)
 
-| Package              | Description                                                                                                | Target                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `bash`               | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode                                            | `~/.bashrc.d/`                          |
-| `bat`                | Syntax highlighter theme                                                                                   | `~/.config/bat/`                        |
-| `claude`             | Claude Code settings.json (agentbar + local hooks, statusLine, permissions), statusline script, skills     | `~/.claude/`                            |
-| `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                                         | `~/.local/bin/`, `~/.config/autostart/` |
-| `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)                       | `~/.local/bin/clip`                     |
-| `dictate`            | Toggle-key local speech-to-text into tmux - faster-whisper on CPU, or whisper.cpp on the GPU               | `~/.local/bin/`                         |
-| `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)                                | `~/.config/ghostty/`                    |
-| `git`                | Git tool settings (delta pager, staging/blame, merge)                                                      | `~/.config/git/config`                  |
-| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                     | `~/.config/hunk/`                       |
-| `leaf`               | leaf markdown previewer config, carrying a full Solarized Light palette (leaf ships only `solarized-dark`) | `~/.config/leaf/`                       |
-| `nvim`               | Neovim config (LazyVim, LSP, plugins)                                                                      | `~/.config/nvim/`                       |
-| `shot`               | Send a local screenshot to the machine your agent is on, and type its path into the pane                   | `~/.local/bin/shot`                     |
-| `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                        | `~/.local/bin/`, `~/.config/autostart/` |
-| `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                              | `~/.local/bin/`                         |
-| `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)                   | `~/.local/bin/theme`                    |
-| `tmux`               | Tmux config, pane rails, GitLab status script, `prefix + R` UI reset, agent-following diff pane            | `~/.tmux.conf`                          |
-| `trace`              | Shared always-on trace log for the tmux/agent stack                                                        | `~/.local/bin/dotfiles-trace`           |
+| Package              | Description                                                                                                     | Target                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `bash`               | Shell customizations, aliases, direnv/fzf/zoxide hooks, vi mode                                                 | `~/.bashrc.d/`                          |
+| `bat`                | Syntax highlighter theme                                                                                        | `~/.config/bat/`                        |
+| `claude`             | Claude Code `settings.json` (agentbar + local hooks, status line, permissions), the status line scripts, skills | `~/.claude/`                            |
+| `claude-indicator`   | GNOME top-bar indicator for Claude Code notifications (Linux only)                                              | `~/.local/bin/`, `~/.config/autostart/` |
+| `clip`               | Copy stdin to the clipboard - picks wl-copy (Wayland), xclip (X11) or pbcopy (macOS)                            | `~/.local/bin/clip`                     |
+| `dictate`            | Toggle-key local speech-to-text into tmux - faster-whisper on CPU, or whisper.cpp on the GPU                    | `~/.local/bin/`                         |
+| `ghostty`            | Ghostty terminal config (Solarized Dark, block cursor, cursor trail shader)                                     | `~/.config/ghostty/`                    |
+| `git`                | Git tool settings (delta pager, staging/blame, merge)                                                           | `~/.config/git/config`                  |
+| `hunk`               | hunk diff viewer config (Ayu Dark theme, side-by-side)                                                          | `~/.config/hunk/`                       |
+| `leaf`               | leaf markdown previewer config, carrying a full Solarized Light palette (leaf ships only `solarized-dark`)      | `~/.config/leaf/`                       |
+| `nvim`               | Neovim config (LazyVim, LSP, plugins)                                                                           | `~/.config/nvim/`                       |
+| `shot`               | Send a local screenshot to the machine your agent is on, and type its path into the pane                        | `~/.local/bin/shot`                     |
+| `screenshot-watcher` | Auto-copy screenshots to the clipboard (Linux only)                                                             | `~/.local/bin/`, `~/.config/autostart/` |
+| `tex`                | LaTeX build/preview helpers (`tex-dev`, `texpeek`, `texpage`)                                                   | `~/.local/bin/`                         |
+| `theme`              | Theme switcher - re-skins the terminal stack across four flavors (`design/palette.toml`)                        | `~/.local/bin/theme`                    |
+| `tmux`               | Tmux config, pane rails, GitLab status script, `prefix + R` UI reset, agent-following diff pane                 | `~/.tmux.conf`                          |
+| `trace`              | Shared always-on trace log for the tmux/agent stack                                                             | `~/.local/bin/dotfiles-trace`           |
 
 `bootstrap.sh` auto-skips the Linux-only packages (`claude-indicator`, `screenshot-watcher`) on macOS.
 
@@ -50,10 +51,12 @@ Binaries built from source under `apps/` (not stow packages). Each has a `Makefi
 | App        | Description                                                            | Language |
 | ---------- | ---------------------------------------------------------------------- | -------- |
 | `agentbar` | tmux sidebar showing every Claude Code agent's state across sessions   | Go       |
+| `folio`    | markdown reader that reads like a page; swappable TOML styles          | Rust     |
 | `workdesk` | GitLab work inbox: merge requests, issues, todos and agents in a float | Go       |
 
-Both binaries build from the one module under `apps/agentbar/`. `workdesk` is linked into `~/.local/bin`; `agentbar` is
-invoked by absolute path from tmux and the Claude hooks.
+`agentbar` and `workdesk` build from the one Go module under `apps/agentbar/`; `folio` is its own Cargo crate under
+`apps/folio/`. `workdesk` and `folio` are linked into `~/.local/bin`; `agentbar` is invoked by absolute path from tmux
+and the Claude hooks.
 
 The sidebar loads from here via a `run-shell` line in `tmux/.tmux.conf`. `prefix + R` picks up changes: it reloads the
 config, rebuilds the binary if the source moved, and restarts that session's sidebar.
@@ -71,8 +74,12 @@ so both install the same pinned versions:
 - [Ghostty](https://ghostty.org/) - terminal emulator
 - [git-cliff](https://git-cliff.org/) - changelog and release notes from conventional commits
 - [gitleaks](https://github.com/gitleaks/gitleaks) - secret scanning over the tree and history
+- [glab](https://gitlab.com/gitlab-org/cli) - GitLab CLI; workdesk and the status bar's MR segment authenticate through
+  it
 - [GNU Stow](https://www.gnu.org/software/stow/) - symlink manager
 - [Go](https://go.dev/) - toolchain for building `apps/` (agentbar)
+- [herdr](https://github.com/herdrdev/herdr) - terminal multiplexer for coding agents; installs its own Claude
+  integration and the dictate plugin
 - [hunk](https://github.com/modem-dev/hunk) - interactive diff viewer (via `gd`/`gds` aliases)
 - [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) - terminal/editor font
 - [jq](https://github.com/jqlang/jq) - JSON processor
@@ -80,13 +87,16 @@ so both install the same pinned versions:
 - [lazygit](https://github.com/jesseduffield/lazygit) - terminal git UI
 - [leaf](https://github.com/rivolink/leaf) - terminal markdown previewer
 - [Neovim](https://neovim.io/) - editor
+- [Node.js](https://nodejs.org/) - npm and npx: installs hunk, runs the pinned prettier
 - [ripgrep](https://github.com/BurntSushi/ripgrep) - fast recursive search
 - [ruff](https://docs.astral.sh/ruff/) - Python linter (gates the `dictate` script)
+- [Rust](https://www.rust-lang.org/) - toolchain for building `apps/` (folio), via a pinned rustup
 - [shellcheck](https://www.shellcheck.net/) - shell linter (gates every script here)
-- [shfmt](https://github.com/mvdan/sh) - finds shell files by shebang for the lint gate
+- [shfmt](https://github.com/mvdan/sh) - shell formatter, and what finds every shell file by shebang for the gates
 - [Task](https://taskfile.dev/) - task runner for this repo's `Taskfile.yml`
 - [tmux](https://github.com/tmux/tmux) - terminal multiplexer (pinned, built from source on Linux: 24.04 ships 3.4)
 - [tree](https://gitlab.com/OldManProgrammer/unix-tree) - directory listing utility
+- [uv](https://docs.astral.sh/uv/) - runs the PEP 723 `dictate` script
 - [zoxide](https://github.com/ajeetdsouza/zoxide) - smarter cd
 
 ## Platform support
@@ -160,7 +170,7 @@ so the editor matches the terminal it sits in. See [`design/theme-switcher.md`](
 ## Development
 
 `task` lists everything this repo can do. `task check` is the gate CI runs on every push - shellcheck, ruff, prettier,
-gitleaks and the agentbar test suite - and `task check-ci` reruns that suite in a container mirroring the runner (older
+gitleaks and the app test suites - and `task check-ci` reruns that suite in a container mirroring the runner (older
 tmux, no `LANG`, `CI` set). Commits follow [Conventional Commits](https://www.conventionalcommits.org/), and releases
 are cut by pushing an annotated `v*` tag: `.github/workflows/release.yml` re-runs the gate, runs the container
 fresh-install test, and publishes a GitHub Release with notes generated from the commit history. See
@@ -218,11 +228,11 @@ stow -R <package>    # Re-link (unlink + link)
 - **System `.bashrc` / `.zshrc` is never overwritten** - customizations live in `~/.bashrc.d/*.bash`, sourced by a loop
   `bootstrap.sh` appends between markers (with a backup). macOS patches `~/.zshrc`; Linux patches `~/.bashrc`.
 - **Private/work aliases** go in `~/.bashrc.d/local.bash` (not tracked).
-- **Notes vaults**: `bootstrap.sh` seeds two plain-markdown PARA vault skeletons (`~/vaults/personal`, `~/vaults/work`)
-  from `vault-template/`, each with an agent layer - the global `vault-manager` skill adds and maintains notes, and a
-  deterministic `.claude/vault-check.sh` integrity gate runs in the git pre-commit hook (which also blocks secrets). It
-  prints optional git-remote wiring steps for any not yet synced; each vault's contents live in its own private repo,
-  never here.
+- **Notes vault**: `bootstrap.sh` seeds a plain-markdown vault skeleton (`~/vaults/work`) from `vault-template/`, with
+  an agent layer - the global `vault-manager` skill adds and maintains notes, and a deterministic
+  `.claude/vault-check.sh` integrity gate runs in the git pre-commit hook (which also blocks secrets). It prints
+  optional git-remote wiring steps for any not yet synced; each vault's contents live in its own private repo, never
+  here.
 - **SSH into a remote**: Ghostty's `ssh-terminfo` installs its terminfo entry on the host on first connect, so remote
   `tmux`/`nvim` don't fail with `missing or unsuitable terminal: xterm-ghostty`; `ssh-env` downgrades `TERM` to
   `xterm-256color` if that fails. The host needs `tic` (`ncurses-bin`). `ghostty +ssh-cache` lists the hosts already

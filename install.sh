@@ -61,6 +61,8 @@ GIT_CLIFF_VERSION="2.13.1"
 GITLEAKS_VERSION="8.30.1"
 GLAB_VERSION="1.115.0"
 GO_VERSION="1.26.6"
+HERDR_DICTATE_VERSION="0.2.0"
+HERDR_VERSION="0.9.1"
 HUNK_VERSION="0.19.0"
 LAZYDOCKER_VERSION="0.25.2"
 LAZYGIT_VERSION="0.64.1"
@@ -68,6 +70,8 @@ LEAF_VERSION="1.27.1"
 NEOVIM_VERSION="0.12.4"
 NERD_FONT_VERSION="3.5.0"
 RUFF_VERSION="0.16.3"
+RUST_VERSION="1.98.1"   # toolchain; apps/folio/rust-toolchain.toml carries the same pin
+RUSTUP_VERSION="1.29.1" # the installer, fetched from the archive so it is pinned too
 SHELLCHECK_VERSION="0.11.0"
 SHFMT_VERSION="3.13.1"
 # Ubuntu 24.04 ships no SPIRV-Headers package, and whisper.cpp's Vulkan backend
@@ -405,6 +409,114 @@ install_go() {
     ok "Go $GO_VERSION installed"
 }
 
+# The herdr integration writes its SessionStart hook with this machine's
+# absolute home, and settings.json is stowed and tracked - so a second machine
+# adds a second entry and every machine then runs one path that does not exist.
+# Rewriting them $HOME-relative makes the tracked file the same on every
+# machine, and idempotent however many times install.sh runs.
+normalise_claude_hooks() {
+    local settings="${1:-$HOME/.claude/settings.json}"
+    [ -f "$settings" ] || return 0
+
+    # Writing through the symlink would replace it with a regular file.
+    local target tmp program
+    target=$(readlink -f "$settings")
+    tmp="$target.part"
+    program=$(
+        cat <<'JQ'
+def canonical:
+  gsub("'?/home/[^/'\"]+/\\.claude/hooks/herdr-agent-state\\.sh'?";
+       "\"$HOME/.claude/hooks/herdr-agent-state.sh\"");
+
+(.hooks // {}) |= with_entries(
+  .value |= (
+    map(.hooks = ((.hooks // []) | map(.command |= canonical)))
+    | reduce .[] as $m ([]; if any(.[]; . == $m) then . else . + [$m] end)
+  )
+)
+JQ
+    )
+    if jq "$program" "$target" >"$tmp"; then
+        mv "$tmp" "$target"
+    else
+        rm -f "$tmp"
+        warn "claude hooks: not normalised"
+    fi
+}
+
+install_herdr() {
+    if command -v herdr >/dev/null 2>&1 && herdr --version 2>/dev/null | grep -q "$HERDR_VERSION"; then
+        ok "herdr $HERDR_VERSION already installed"
+    else
+        log "Installing herdr $HERDR_VERSION..."
+        local arch
+        case "$(uname -m)" in
+            x86_64) arch=x86_64 ;;
+            aarch64 | arm64) arch=aarch64 ;;
+            *)
+                warn "herdr: no binary for $(uname -m)"
+                return 0
+                ;;
+        esac
+        mkdir -p "$HOME/.local/bin"
+        local url
+        url=$(gh_url herdrdev/herdr "v${HERDR_VERSION}" "herdr-linux-${arch}")
+        curl -sSL "$url" -o "$HOME/.local/bin/herdr.part"
+        chmod +x "$HOME/.local/bin/herdr.part"
+        mv "$HOME/.local/bin/herdr.part" "$HOME/.local/bin/herdr"
+        ok "herdr $HERDR_VERSION installed"
+    fi
+    # Writes ~/.claude/hooks/herdr-agent-state.sh and the SessionStart entry in
+    # the stowed settings.json, so the agent state the sidebar reads is wired up.
+    herdr integration install claude >/dev/null 2>&1 || warn "herdr: claude integration not installed"
+    normalise_claude_hooks
+    # The skill ships inside the binary, so generating it pins it to the version
+    # above. Gitignored in the claude repo, like hunk-review: never vendored.
+    mkdir -p "$HOME/.claude/skills/herdr"
+    if herdr --skill >"$HOME/.claude/skills/herdr/SKILL.md.part" 2>/dev/null; then
+        mv "$HOME/.claude/skills/herdr/SKILL.md.part" "$HOME/.claude/skills/herdr/SKILL.md"
+        ok "herdr Claude skill written"
+    else
+        rm -f "$HOME/.claude/skills/herdr/SKILL.md.part"
+        warn "herdr: skill not written"
+    fi
+}
+
+install_herdr_dictate() {
+    command -v herdr >/dev/null 2>&1 || return 0
+
+    # A plugin linked from a working tree is somebody developing it; installing
+    # the release over the top would replace their checkout with a download.
+    local installed kind ref
+    installed=$(herdr plugin list --json 2>/dev/null |
+        jq -r '.result.plugins[]? | select(.plugin_id == "abhishekrana.dictate")
+               | "\(.source.kind // "") \(.source.requested_ref // "")"' 2>/dev/null)
+    kind=${installed%% *}
+    ref=${installed##* }
+
+    case "$kind" in
+        "")
+            log "Installing herdr-dictate $HERDR_DICTATE_VERSION (compiles when no release matches)..."
+            ;;
+        github)
+            if [ "$ref" = "v${HERDR_DICTATE_VERSION}" ]; then
+                ok "herdr-dictate $HERDR_DICTATE_VERSION already installed"
+                return 0
+            fi
+            # The pin moved, so this machine is behind: upgrade it.
+            log "Updating herdr-dictate $ref -> v${HERDR_DICTATE_VERSION}..."
+            ;;
+        *)
+            ok "herdr-dictate linked from a working tree; leaving it alone"
+            return 0
+            ;;
+    esac
+
+    herdr plugin install abhishekrana/herdr-dictate --ref "v${HERDR_DICTATE_VERSION}" --yes \
+        >/dev/null 2>&1 ||
+        warn "herdr-dictate: install failed - run 'herdr plugin install abhishekrana/herdr-dictate'"
+}
+
 install_hunk() {
     if [ -x "$LOCAL_BIN/hunk" ] && "$LOCAL_BIN/hunk" --version 2>/dev/null | grep -q "$HUNK_VERSION"; then
         ok "hunk $HUNK_VERSION already installed"
@@ -596,6 +708,29 @@ install_ruff() {
     ok "ruff $RUFF_VERSION installed"
 }
 
+install_rust() {
+    if [ -x "$LOCAL_BIN/rustc" ] && "$LOCAL_BIN/rustc" --version 2>/dev/null | grep -q "rustc $RUST_VERSION "; then
+        ok "Rust $RUST_VERSION already installed"
+        return
+    fi
+    log "Installing Rust $RUST_VERSION (rustup $RUSTUP_VERSION)..."
+    # rustup keeps its default homes (~/.rustup, ~/.cargo) so its proxies resolve the toolchain with
+    # no environment; PATH is not touched, the binaries are linked into ~/.local/bin instead.
+    local url="https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${RUST_GNU}/rustup-init"
+    local tmp
+    tmp=$(mktemp -d)
+    curl -sSL -o "$tmp/rustup-init" "$url"
+    chmod +x "$tmp/rustup-init"
+    "$tmp/rustup-init" -y -q --no-modify-path --profile minimal \
+        --default-toolchain "$RUST_VERSION" -c clippy -c rustfmt
+    rm -rf "$tmp"
+    local bin
+    for bin in cargo cargo-clippy cargo-fmt clippy-driver rustc rustfmt rustup; do
+        ln -sf "$HOME/.cargo/bin/$bin" "$LOCAL_BIN/$bin"
+    done
+    ok "Rust $RUST_VERSION installed"
+}
+
 install_shellcheck() {
     is_linux || return 0 # macOS gets it from brew
     if [ -x "$LOCAL_BIN/shellcheck" ] &&
@@ -783,6 +918,7 @@ gate_tools() {
     install_git_cliff
     install_gitleaks
     install_ruff
+    install_rust
     install_shellcheck
     install_shfmt
     install_task
@@ -812,6 +948,9 @@ all_tools() {
     install_gitleaks
     install_glab
     install_go
+    install_herdr
+    # Needs herdr; compiles whisper.cpp when no release binary matches.
+    install_herdr_dictate
     install_hunk
     install_lazydocker
     install_lazygit
@@ -819,6 +958,7 @@ all_tools() {
     install_neovim
     install_nerd_font
     install_ruff
+    install_rust
     install_shellcheck
     install_shfmt
     install_task

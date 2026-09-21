@@ -1,0 +1,17 @@
+# The rendering everyone already reads: rules across the column under H1 and H2, boxed tables, pills for code.
+name = "GitHub"
+extends = "base"
+
+h1 = { rule = "column", below = 0 }
+h2 = { rule = "column", below = 0 }
+
+wikilink = { underline = true }
+
+quote = { bar = "▌", bar_fg = "muted", fg = "muted" }
+task = { done = "󰄲", todo = "󰄱" } # Nerd Font checkboxes (nf-md-checkbox_marked / _blank_outline)
+table = { lines = "box" }
+front_matter = { as = "table" }
+
+[callout]
+bar = "▌"
+icon = true

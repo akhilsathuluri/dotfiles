@@ -9,197 +9,34 @@ see "Platform support" in README.md for the per-layer detail.
 
 ## Stow packages
 
-- `bash/` → `~/.bashrc.d/` (shell customizations). `ssh.bash` wraps `ssh` with `RequestTTY yes`, so a remote command
-  gets a pty and `ssh host tmux` stops failing with `open terminal failed: not a terminal` - ssh requests one only for a
-  bare login session. **A shell function, not `~/.ssh/config`**: `RequestTTY yes` under `Host *` reaches git, rsync and
-  cron too, which hand ssh a pipe on stdin, and ssh then logs
-  `Pseudo-terminal will not be allocated because stdin is not a terminal.` on every fetch - measured, and cosmetic only,
-  since ssh still declines the pty. A function is scoped to interactive shells, so nothing scripted sees it, and
-  `~/.ssh/config` stays untracked (it holds hosts). Opt out per call with `-T`; the wrapper's `-o` is parsed before the
-  config files, so it wins over a per-host `RequestTTY no`. A script that wants a pty passes `-tt` itself, and
-  `Match exec` cannot condition on this - ssh runs it with stdin detached, so it never sees the terminal.
-- `bat/` → `~/.config/bat/`
-- `claude/` → `~/.claude/hooks/`, `~/.claude/settings.json`, `~/.claude/statusline-command.sh`, `~/.claude/skills/`. The
-  statusLine prints `model · effort · ctx:% · limit:%` under the input box. `settings.json` wires **two** agent-state
-  consumers on every Claude lifecycle event: the agentbar hook, which stamps `@agent_*` pane options for the tmux
-  sidebar, and the local `hooks/` scripts, which write `/tmp/claude-sessions/` for the GNOME `claude-indicator`. Claude
-  Code does not load a user-level `~/.claude/settings.local.json`, so anything that must take effect goes in
-  `settings.json`. **Its TUI theme is deliberately not switched by `theme`** - Claude owns that setting and `/theme`
-  writes it into `settings.json` itself, so a switcher write is a second writer that fights it and every `/theme`
-  dirties this tracked file. This repo pins `dark`; the `light-ansi` / `dark-ansi` variants paint from the terminal's
-  own 16 colours, so pick one of those to have the TUI follow the flavor. Plain `light`/`dark` are built-in hexes
-  nothing here can reach, and no theme at all leaves every accent faded on Solarized cream.
-- `claude-indicator/` → `~/.local/bin/claude-indicator`, `~/.config/autostart/` (Linux only - GNOME top-bar indicator,
-  fed by the `claude/.claude/hooks/` state files)
-- `clip/` → `~/.local/bin/clip` (copy stdin to the clipboard; picks wl-copy, xclip or pbcopy). Every copy path - tmux
-  `copy-command`, `tmux-yank.sh`, fzf's Ctrl-Y, nvim - goes through it, so the backend is chosen in one place.
-- `dictate/` → `~/.local/bin/dictate` (toggle-key local Whisper dictation into tmux; opt-in). Has its own nested
-  `CLAUDE.md` - read it before touching the script. Deps are opt-in too: `./bootstrap.sh dictate-deps`. Cross platform:
-  capture is `parec` on Linux and `ffmpeg -f avfoundation` on macOS, which also needs a one-time microphone grant for
-  the terminal. The `--install-shortcut` GNOME binding is Linux-only; on macOS use `prefix + m`. Two transcription
-  backends, named for the hardware and picked by what is installed rather than an env var: `gpu` (whisper.cpp via
-  Vulkan, on an AMD or Intel iGPU or NVIDIA) once `./install.sh whisper-vulkan` has run, else `cpu` (faster-whisper).
-  Same `small.en`, measured 2.7× faster on the GPU. Vulkan is Linux-only, so macOS is always `cpu`. Dictating into a
-  tmux on another machine needs no setup - the ssh sessions open now are the candidates, it routes to whichever tmux
-  holds focus, and only the transcript crosses, never the audio. `DICTATE_REMOTE` (older name: `DICTATE_TMUX_SSH`) pins
-  one host. dictate runs where the mic is, never on the remote (no mic there to reach).
-- `ghostty/` → `~/.config/ghostty/` (Ghostty terminal config)
-- `git/` → `~/.config/git/config` (delta pager, merge settings)
-- `hunk/` → `~/.config/hunk/` (hunk diff viewer config, Ayu Dark default; the `hunk()` wrapper in
-  `bash/.bashrc.d/theme.bash` passes the active flavor to `hunk diff`). `mode = "stack"` is what every hunk here starts
-  from - full width per line, no half-width columns. **Workdesk's `D` overrides it to `split` at the call**, because a
-  merge request's diff is the one that gets a window of its own and so the one with room for two columns; the diff pane
-  beside your work does not. The pane's `L` still flips its own window, and hunk reads the file at startup, so an open
-  pane keeps its layout until respawned.
-- `leaf/` → `~/.config/leaf/` (leaf markdown previewer config). Carries a full Solarized Light palette as
-  `[themes.solarized-light]`, since leaf ships only `solarized-dark`; that registration is what lets the theme switcher
-  drive leaf by name via `LEAF_THEME`. **leaf writes this file itself** - a first run with no config seeds upstream's
-  sample there, which blocks `stow leaf`, so the backup step in `bootstrap.sh` is load-bearing)
-- `nvim/` → `~/.config/nvim/` (LazyVim config). **Over ssh the clipboard is write-only OSC 52.** The terminal is the
-  only route to the local clipboard there, and `unnamedplus` makes `v:register` `+`, so anything reading a register -
-  blink.cmp resolving a snippet's `$TM_SELECTED_TEXT`, once per completion, and 54 of the LaTeX snippets carry it -
-  fires an OSC 52 read, which the terminal asks about before answering (Ghostty's `clipboard-read = ask`): a dialogue
-  per keystroke. So `config/options.lua` pins `g:clipboard` to a provider that writes and never reads. Yank still
-  reaches the local clipboard, `p` returns nvim's own last yank, and the terminal's own paste (Cmd/Ctrl+V) is what
-  brings the system clipboard in.
-- `screenshot-watcher/` → `~/.local/bin/screenshot-watcher`, `~/.config/autostart/` (Linux only - auto-copy screenshots
-  to the clipboard)
-- `shot/` → `~/.local/bin/shot` (send a local screenshot to the machine your agent is on, and type its path into the
-  pane; has its own `README.md`). **A terminal carries no image inbound** - OSC 52 is text and outbound only - so the
-  file goes over ssh and only its _path_ is typed. **It runs where the screen is, never the far end**, the same rule as
-  dictate's mic: a `shot` on the remote has no clipboard to read. **One host, resolved once, for both halves** - the
-  file must land on the machine whose pane gets the path, so the route (`SHOT_REMOTE` → `dictate --route` → dictate's
-  candidate file) is settled here and pinned for the typing via `DICTATE_REMOTE`. `dictate --route` is read-only: it
-  resolves a route and never delivers on one, so dictate keeps its single delivery path. **No tmux key and no chip**,
-  deliberately - both would run on the machine hosting tmux, which is the one with no clipboard; the trigger has to be
-  local (Shortcuts.app, or `shot --watch`). Bash 3.2 clean, since macOS ships that and brew's bash is not installed.
-- `tex/` → `~/.local/bin/` (`tex-dev`, `texpeek`, `texpage` - LaTeX build/preview helpers)
-- `theme/` → `~/.local/bin/theme` (theme switcher; re-skins the terminal stack across the five flavors from
-  `design/palette.toml`, writing per-tool files into `~/.config/theme/`. **Opt-in per machine** - nothing applies a
-  flavor for you, so an unswitched machine keeps the defaults in the tracked configs: ghostty's own dark `#282c34`,
-  tmux's green status bar, and nvim's Catppuccin Mocha re-grounded to that same `#282c34` (an unswitched nvim must match
-  the terminal, since it paints its own ground); `theme ghostty-default` clears the state and returns there - it is the
-  baseline, so it is also the first row of the `⛭` dialogue's Theme setting, which is what makes trying a flavor on
-  reversible (`none`/`off` are older names for it). `catppuccin-mocha-black` is Mocha's content and accent hues over a
-  neutral (R=G=B) ground, so it needs three adapters the others do not, all no-ops for them - ghostty takes
-  `theme = Catppuccin Mocha` then a `background =` override, nvim takes the palette's four surface roles through
-  catppuccin's `color_overrides`, and `HUNK_THEME` in `env.sh` maps it back to `catppuccin-mocha` because hunk ships no
-  theme by that name. `[meta] default` feeds only the sidebar's compiled fallback; change it in `palette.toml` alone,
-  then `make -C apps/agentbar gen`)
-- `tmux/` → `~/.tmux.conf`, `~/.local/bin/` scripts - see [tmux](#tmux) below
-- `trace/` → `~/.local/bin/dotfiles-trace` (shared always-on trace log for the tmux/agent stack; see "Debugging")
+`stow <pkg>` from the repo root links a package into `$HOME`. Only customizations are tracked - never stock Ubuntu
+defaults. Per-package pitfalls load from `.claude/rules/` when you touch those files; read the nested `CLAUDE.md` in
+`dictate/` before changing it.
+
+| Package               | Links to                                                                     |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `bash/`               | `~/.bashrc.d/`                                                               |
+| `bat/`                | `~/.config/bat/`                                                             |
+| `claude/`             | `~/.claude/` settings, the status lines and their hook                       |
+| `claude-indicator/`   | `~/.local/bin/`, `~/.config/autostart/` - GNOME notifier (Linux only)        |
+| `clip/`               | `~/.local/bin/clip` - the one clipboard path                                 |
+| `dictate/`            | `~/.local/bin/dictate` - local Whisper dictation                             |
+| `ghostty/`            | `~/.config/ghostty/`                                                         |
+| `git/`                | `~/.config/git/config`                                                       |
+| `hunk/`               | `~/.config/hunk/` - diff viewer                                              |
+| `leaf/`               | `~/.config/leaf/` - markdown previewer                                       |
+| `nvim/`               | `~/.config/nvim/` - LazyVim                                                  |
+| `screenshot-watcher/` | `~/.local/bin/`, `~/.config/autostart/` - clipboard screenshots (Linux only) |
+| `shot/`               | `~/.local/bin/shot` - a local screenshot to the agent's machine              |
+| `tex/`                | `~/.local/bin/` - LaTeX build and preview helpers                            |
+| `theme/`              | `~/.local/bin/theme` - re-skins the whole stack                              |
+| `tmux/`               | `~/.tmux.conf` and `~/.local/bin/` scripts                                   |
+| `trace/`              | `~/.local/bin/dotfiles-trace`                                                |
 
 Linux-only packages (`claude-indicator`, `screenshot-watcher`) are skipped automatically by `bootstrap.sh` on macOS.
 
-### tmux
-
-Scripts in `tmux/.local/bin/`:
-
-- `tmux-gitlab.sh` - GitLab status, `#issue !mr CI ✓`. No words: the sigils are GitLab's own notation, and the CI glyph
-  is fixed-width so a flipping pipeline never shifts the clock. `open-url <url>` is the one place a link leaves this
-  machine - the chips, and workdesk's `o` - so the ssh case (OSC 52 to the local clipboard, since the browser is at the
-  other end) is decided once. **A subcommand it does not have exits 2**: the catch-all used to render a status segment
-  and answer 0, which is how `o` came to report success and open nothing.
-- `tmux-session-preview.sh` - the picker's fzf preview: the session's dir, repo, branch, aggregate state, its agents
-  (one line each: glyph, title, state, age, and the `window.pane` it sits in) and its windows (one line each: index,
-  name, pane count, and the flags the status line shows - current, zoomed, bell; never activity, which
-  `monitor-activity on` puts on every window). It resolves the directory the same way the rows do - most of the
-  session's non-sidebar panes, an agent's worktree winning - never the session's active pane. **tmux's own words**: the
-  bottom line is the status line, `1:claude 2:bash` is the window list, and each entry is a window status of index
-  (`#I`), name (`#W`) and flags (`#F`); panes are the splits inside a window and never appear there.
-- `tmux-agent-state.sh` - sourced agent-state language: glyphs, colors, state ranking and `agent_title` (Claude's own
-  title for a session, from its pane title), shared by the session picker and its preview, mirroring the sidebar's.
-  Colors come from the theme switcher; the fallbacks for an unswitched machine are ANSI slots, never one flavor's hex.
-- `tmux-settings.sh` - the `⛭` chip's dialogue: the owning area down the left, its settings beside them, their values
-  down the right, one value per row. No submenu - fzf has one cursor and its preview cannot be focused, so showing every
-  value is what removes the need for two. Add a setting with a `group()` call in `list_rows` and an arm in `do_apply`;
-  areas and settings stay alphabetical. It is also the only home for a setting with no business being a sidebar key -
-  agentbar's Notify lives here, not on the bar.
-- `tmux-reset.sh` - the `prefix + R` UI reset: reload + default geometry, nothing killed.
-- `tmux-workdesk.sh` - the one command behind `Alt+n` and the `≡ workdesk` chip: close this window's workdesk float if
-  one is up, else open what `@workdesk_open` says. Matching is floating + a command named `workdesk`, so the mockup's
-  fixture override toggles the same way.
-- `tmux-mockup.sh` - `task mockup`, previews the whole frame with fake data on a private server.
-- Session picker, resurrect guard, yank.
-
-Rules:
-
-- **One session order everywhere.** The agentbar sidebar's bands (pinned / active / dormant, alphabetical inside each)
-  are the order, `Alt-h`/`Alt-l` walk it row by row and wrap, and the `Alt-;` picker popup renders the same bands. All
-  three read `agentbar order`, and `p` (pin) in either view is the only thing that moves a session.
-- **Every pane carries a rail** (`pane-border-status top`, `tmux-rail.sh`), same rule for all of them. LEFT, always:
-  this pane's folder and branch. RIGHT, only when that pane runs Claude: the worktree it is _writing_ in, which its cwd
-  never follows, since the Bash tool's `cd` does not move a pane. Two zones via `#[align=right]` - the left anchored at
-  one column, the right growing leftward into rule - so nothing shifts as state changes.
-- **The float wears the review hue, bold, and names itself.** A float IS a pane, so it drew its border in the same
-  accent as any focused split while the rail painted that accent on every border on screen - the one thing that should
-  read as a layer over the work looked like part of it. `pane-active-border-style` and `pane-border-format` both expand
-  formats, so `#{?pane_floating_flag,…}` states both cases in one setting each and nothing has to set and unset them
-  around the toggle. The hue is `changes`, already the palette's review surfaces; the label is `≡ workdesk`, the status
-  chip's own words, in place of the folder-and-branch rail every other pane repeats. **Bold is the only weight that
-  isolates**: `heavy`/`double` come from `pane-border-lines`, which takes no format and - even set on the float's own
-  pane with `set -p` - is resolved from the active pane for the whole window, so the dividers behind the float thicken
-  with it and it stops standing out at all. Attributes are honoured on the _active_ border, though the manual says they
-  are ignored on `pane-border-style`. **Both settings live twice** - `.tmux.conf` and the `theme` switcher, which
-  rewrites them per flavor - so a change to one without the other survives only until the next `theme`.
-- **A fresh diff pane follows the agent, not the pane.** `tmux-diff-pane.sh` targets `@agent_workdir` (stamped by the
-  agentbar hook from each Edit/Write) and records what is on screen in `@diff_target`.
-- **The target then sticks.** A mode item changes what you see, not where you look; only `f` (follow),
-  `tmux-worktree-picker.sh` (the menu's `W`) and per-window auto-follow (`F`, off by default) re-point a live pane.
-- An amber `◧ changes` chip means the worktree is in no agent's `@agent_workdirs`, and reports nothing else. A click
-  only opens the menu.
-- **Three keys, three bands.** `p` pins, `a` puts a session in the active band, `d` sends it to dormant now rather than
-  waiting out the window. One key, one destination: pressing it again changes nothing, and pressing another moves it -
-  so `a` on a pinned session unpins and holds it active. A row never says how it got into its band; a hand-placed
-  session looks exactly like one the clock put there. All three keys work in the sidebar and the `Alt-;` picker, which
-  share both stores, so `agentbar order` - what `Alt-h`/`Alt-l` walk - always agrees with what you see. A session nobody
-  has placed is left to the clock.
-- **`d` is a one-shot, and work is what ends it.** A session being worked in - an agent working, or blocked on you - is
-  never buried by a placement: it comes straight back up and the forced dormant is dropped, so it obeys the clock from
-  there rather than sinking again every time it falls quiet. So `d` on a session you are working in moves nothing, and a
-  stray `d` heals itself the moment you go back to that session. A pin is not a one-shot - `p` is yours until you press
-  another key.
-- **The active band is what you are working on now.** A session with no agents is dormant, and so is one whose agents
-  have all gone quiet for longer than `@agentbar-active-for` (default 1h, a `⛭` row). An agent that is working or
-  blocked on you keeps its session active however long it has been at it. Nothing runs in the background to make this
-  happen: the band is `now - @agent_since` evaluated on the sidebar's existing 1s poll, so there is no timer and nothing
-  to go stale. A pinned session never moves - pins are yours - and a session only sinks on its own; coming back up takes
-  a prompt, a permission or a new agent.
-- **The sidebar nests: session, then its agents.** A session line carries its name and its branch (dim, `⎇` as on the
-  pane rail); each agent under it carries the title Claude gave that session, with its state a step deeper. Both facts
-  are on screen at once, which is why there is no setting choosing between them. A session Claude has not titled yet
-  shows its state line alone, and so does one whose pane title is still the hostname tmux seeded it with.
-- **The `Alt-;` popup says the same things in three fixed columns**: session, branch, title. A row is one line and one
-  session - that is what `agentbar order`, pin, kill and rename all act on - so when a session holds several agents the
-  title shown is the most urgent one's, the same agent the row's glyph describes, and `+N` owns up to the rest. The
-  preview lists them all. Fixed columns are the point: cycling lands your eye in the same place on every row.
-- **Picking a theme is applying it.** The `⛭` chip opens a centred dialogue with every value on screen; a click or Enter
-  applies one and the dialogue stays open, so there is no save step and nothing to drill into. `theme <flavor>` re-skins
-  tmux and ghostty and re-runs the current session's sidebar and diff pane - hunk takes the flavor as a startup flag, so
-  the pane has to be respawned; other sessions recolour on `prefix + R`, because restarting every sidebar at once storms
-  this client.
-- **The footer holds no per-pane facts** - the work's commit (7-char sha), its CI, the clock, and the `⚙` settings chip
-  at the far right, where its fixed width cannot reflow the clock. Dropping the git-status plugin took ~72ms of git off
-  every status redraw.
-- **The centre band is a toolbar, and every chip is fixed width.** `≡ workdesk`, `● dictate`, `● dictate+send`,
-  `⇡ commit+push`, `◧ changes` - one space of padding inside each and one between, so the row reads as a toolbar rather
-  than a ragged sentence, and a chip that changed width would clip the right-aligned segments. Glyphs clear the top of
-  their cell: a full-height box (`▤`) butts against the pane above and reads as a second status bar. The order is the
-  order of the work: pick it up, say what to do, then commit it and look at the diff. Labels name what happens, never
-  the key; `≡ workdesk` is the one that names its tool instead, because it is the only thing in the row you also type.
-  Colour is the only feedback a status bar has, so a chip is coloured only when it has state to report - `≡ workdesk`
-  and `● dictate` rest muted for that reason.
-- **A chip and its key run one command.** `Alt+n` and `≡ workdesk` both run `tmux-workdesk.sh`, which opens what
-  `@workdesk_open` says or closes the float already up, so neither the geometry nor the toggle can drift between them -
-  and `tmux-mockup.sh` overrides that option rather than rebinding the key, which is what keeps a click in the mock off
-  the real queue.
-- **A float is placed, or tmux cascades it.** `new-pane` with no `-X`/`-Y` steps every new float 4 columns right and 2
-  rows down from the last one, so the second open is already off centre and the fifth is half off the screen -
-  `@workdesk_open` carries both offsets and `task conf` fails without them.
-- **An option holding a command is run by `run-shell`, never `if-shell`.** `if-shell` does not expand `#{}` in its
-  command argument: it reports success and runs nothing, so the config parses, `list-keys` looks right, the click even
-  logs its range - and nothing happens. `run-shell -b "tmux #{@opt}"` is the form that works; `task conf` fails the gate
-  on the other one.
+The terminal stack is one design: every flavor comes from `design/palette.toml` via the `theme` switcher, so no tool
+here carries its own colours.
 
 ## Apps (built from source)
 
@@ -207,225 +44,19 @@ Buildable projects live under `apps/` - these are **not** stow packages and are 
 own `Makefile` with a uniform `build` target, so `bootstrap.sh` builds any language the same way and the toolchain gets
 a pinned `install_*` step. Add one by dropping a project with a `Makefile` under `apps/`.
 
-- `apps/agentbar/` → **two binaries from one Go module.** `bin/agentbar` is the tmux plugin (the Claude agent sidebar);
-  `bin/workdesk` is the GitLab work inbox. Separate commands, not subcommands: agentbar runs on every Claude lifecycle
-  event and must not carry a forge client, so a GitLab failure can never be a sidebar failure. One module, because Go
-  forbids importing another module's `internal/`, and a second module would mean a **third** trace writer (see
-  "Debugging") plus a second copy of the tmux reader that already resolves agent → worktree → branch.
-  - `workdesk` mirrors the GitLab work you own into `~/.local/state/dotfiles/workdesk/`: `sync` fetches, `open` is the
-    Bubble Tea UI (inbox · issues · merge requests · agents, `1`-`4` and tab, `?` for help), `board` is the whole queue,
-    `mr <iid>` is one merge request end to end, `matrix` is one row per MR and one column per gate with a totals row,
-    and `ready` prints the actionable rows for an agent. `bootstrap.sh` links it into `~/.local/bin` - the one app
-    binary that does get a link, because it is a CLI you type.
-  - **`Alt+n` and the `≡ workdesk` chip** toggle it (`tmux/.tmux.conf`), both through `tmux-workdesk.sh` so the two
-    cannot drift. Invoked by absolute path like the agentbar bindings - `apps/` binaries are not stow packages, so there
-    is no `~/.local/bin` symlink to rely on inside tmux. Bare `workdesk` opens it too.
-  - **The todo feed is asked for by action, not filtered after the fact.** GitLab never marks todos done, so the pending
-    list is an accumulating log, and on a real account it is overwhelmingly `review_submitted`, `build_failed`,
-    `unmergeable` and `merge_train_removed` - machine notifications about state `mergeabilityChecks` and the pipeline
-    already report for a merge request you own, and noise for the far larger number you do not. Only the actions the
-    bands cannot derive are wanted (`assigned`, `mentioned`, `directly_addressed`, `marked`), so `TodoActions` asks
-    GitLab for exactly those, one call each and concurrent - measured, that is pages of download replaced by a fraction
-    of one, and three of the four come back empty. `informativeActions` stays as the local net, and is the same set, so
-    the request and the filter cannot drift. `TodoMaxAge` still drops the stale ones at render, and the band header
-    still owns up to anything left out - now only a todo about a commit or a wiki page, which has no row to go in.
-  - **Bubble Tea, not fzf, and the difference is structural.** fzf re-invoked a process per cursor movement, so previews
-    had to be markdown pre-rendered at sync time and cat'd, band headers had to be smuggled into the row list as fake
-    items the cursor was taught to skip, and the key hints had to fit ~52 columns or fzf truncated them silently. Here
-    the model is held: headers are derived at render time so the cursor is always on a real row, previews are built from
-    the snapshot with colour on the gates and a real table for the approval rules, the preview scrolls, and `?` renders
-    the keymap so no hint can go missing. The markdown documents are still written, and are still what
-    `workdesk mr <iid>`, `issue <iid>` and `board` print for an agent - nothing interactive opens them any more. The
-    palette is `internal/ui`, generated from `design/palette.toml`, so it matches tmux rather than approximating it.
-  - **The pointer does what the keys do, and a click is how you look - which is all it does.** The wheel walks whichever
-    pane it is over - the list by a row, the preview by lines - and stops at the ends, where `j`/`k` deliberately wrap.
-    A click selects a row, and on a ticket that is the whole of it: the preview beside the list is the detail, so there
-    is nothing left for a second click or for `↵` to open. **The agents view is the exception**, because an agent row is
-    a place rather than a document - `↵` and the second click go to its pane, which is why `↵` stays out of the footer
-    strip and lives in the `?` overlay alone. The guard is in `request`, not in the caller: a pending action tears the
-    UI down and rebuilds it, so a second click that recorded one would flash and lose the cursor to do nothing. The tabs
-    and the `synced` marker are clickable, a band header answers with the first row under it, and everything fires on
-    release - terminals eat the press of a click that also focuses their window. `listItems` is the one pass the
-    renderer, the scroll window and the hit test share.
-  - **A link in the preview is clicked, and workdesk is what answers.** tmux has the mouse while the float is up, so the
-    terminal never gets the chance to make a URL clickable itself - the click arrives here. `findLinks` indexes the
-    rendered preview when its content is set: every `https://`, and every `#1234` and `!1234`, which no terminal could
-    make clickable because a bare reference is not a URL. It reads the _rendered_ text, so a markdown link glamour has
-    already expanded, a reference in a comment and the `url` row are all found by one scanner. Columns are display
-    columns, not bytes - `columns` walks the escape sequences - and the target comes from the mirror, falling back to
-    the shape of a URL the mirror already holds, which is what keeps a host out of this repo.
-  - **Where you were survives an action.** Every action tears the UI down and the caller builds a new one, so
-    `CurrentRef`/`PreviewOffset` go out and `Restore` puts the cursor and the scroll position back - otherwise a link
-    clicked forty lines into a description returns you to the top of the list. A row that has since left the view leaves
-    both alone rather than guessing.
-  - **A float, not a popup, and the chip is the reason.** A popup is an overlay: it swallows every click outside its own
-    box, so a second click on `≡ workdesk` never reached `MouseUp1Status` and the chip could only ever open. A float
-    (tmux 3.7 `new-pane`) is a pane, so the click lands and `tmux-workdesk.sh` closes what it opened. Probed both ways,
-    not assumed. `Alt+n` and `✕` still close it from the keyboard and the pointer, and one float per window - the toggle
-    reads the current window's panes.
-  - **A float is a column to `select-layout`.** Evening a window that holds one shrinks it to a share of the width, so
-    `tmux-reset.sh` skips those windows whole rather than repairing geometry by breaking it; `prefix + R` picks them up
-    once the float is closed. `workdesk`'s own `P` (promote to a pane) targets `{last}` for the same family of reason -
-    tmux refuses to split a floating pane at all.
-  - **The UI never acts.** It records which key was pressed on which row and quits; the caller runs the action. That is
-    what keeps every action a plain function `workdesk act <key> <ref>` can run with no terminal, and it is why the
-    write confirms do not live inside the render loop.
-  - **The view ring follows the work, not the volume.** `1` inbox, `2` issues, `3` merge requests, `4` agents: not
-    started, then in flight, then who is doing it, with the inbox first because it cuts across all three. The `View`
-    const block is the only place that order lives - the tab bar, the digits, their help text, `tab` and `shift+tab` all
-    derive from it, so a reorder is one line. It was encoded in five places before, which is how three views came to
-    sort one way and three the other.
-  - **Newest first inside a band, in all six places that sort.** The band is already the priority signal, so within one
-    the useful order is what you touched most recently. Oldest-first was the first attempt - the longest-waiting item is
-    the most forgotten - but it opened a band with a merge request from seven months ago, and it silently disagreed with
-    the issue, todo and agent views, which were newest-first all along. `prio::` is a label on the row, not a second
-    sort: one list cannot be ordered by two things without disagreeing with the other five. It still picks the issues
-    the inbox surfaces. **The index is a stored artifact, so changing a sort needs `workdesk render`** (no network)
-    before `list` reflects it.
-  - **The model holds no presentation.** Titles are stored unpadded and ages not at all - only an epoch. A pre-padded
-    title looks harmless until a UI sizes the column to the terminal and re-pads it, at which point every row grows an
-    ellipsis it never earned. `Row.TSV()` is the one place a fixed column belongs, because its consumer is not this
-    program.
-  - **Band names are GitLab's own**, from the merge request homepage that has shipped by default since 18.2, so this
-    view and the web UI say the same words. Its active/inactive split is modelled too: the picker draws a line where the
-    bands stop asking anything of you.
-  - **Issues band by GitLab's status, and the lifecycle is read, never written down.** The bands are the board's own
-    columns (`project.workItemTypes` → the `STATUS` widget's `allowedStatuses`), so a column added or moved upstream
-    appears here on the next sync and nothing in this repo names a workflow. **Not from a board**: a project can carry
-    dozens, they disagree about which statuses to show and in what order, and picking one would be picking a workflow
-    rather than reading it. **The sequence is GitLab's, read from the far end** - furthest along at the top, backlog at
-    the bottom. A board is read left to right, where the backlog costs nothing to scroll past; a list is read top down,
-    and the backlog is the biggest band there is, so declared order buries everything you are doing under it. The
-    finished categories keep the bottom whichever way the rest runs, because the divider needs them contiguous at one
-    end. `Lifecycle` answers the only two questions a row asks of it - where a status sorts, and whether it is still
-    asking something. The flag comes from _position_ (where the `done`/`canceled` statuses begin), not from each
-    status's own category, which is what guarantees the one active-to-inactive transition the divider draws. A status
-    the lifecycle no longer carries, and an issue GitLab has no status for (`no status`), sort after everything known
-    rather than joining the first band. `s` still lists the lifecycle as GitLab declares it: a numbered menu is not a
-    reading order, and stable numbers are what `workdesk act` takes.
-  - **Labels are a column, never a grouping.** An issue carries several, so any one of them makes a grouping that puts
-    the same issue in two places or neither. The row shows a scoped label as its value alone (`high · chore`, not
-    `prio::high`) - on a list where every row shares the namespace, the namespace is the half that says nothing - and
-    the preview keeps the full titles. The column is sized against the title and given up entirely on a narrow pane.
-  - **A preview carries the ticket, not a link to it.** An issue's `description`, its comments and its assignees are
-    fetched and rendered - what was asked, then what was said about it, system notes dropped - because a preview that
-    showed only metadata and a URL made you leave for the browser to read the thing you had already found. Comments are
-    whole here and first lines only on a merge request: an issue's argument is the content, where a merge request's
-    annotates a diff you can go and read. **Bodies are wrapped to the pane** (`renderPreview` wraps once, at the end):
-    the viewport truncates what it cannot fit, so before this the right-hand half of every long line was silently not
-    there. `workdesk preview` on a command line has no pane and is left unwrapped.
-  - **The body is rendered markdown, not its source.** A ticket is written in markdown and GitLab renders it, so showing
-    the source meant reading around `##`, backticks and pipes. glamour does it - the same family as the rest of this UI,
-    what glab itself renders with, and a parser rather than a set of patterns, which is what makes nested lists, tables
-    and paragraph reflow come out right. **It costs ~8.7MB of binary** (6.5 → 15.2, most of it chroma's lexers) and
-    1.3ms a render, measured; goldmark alone was +1.4MB, and a renderer of our own was the thing that 250 lines would
-    have got wrong. The stylesheet is `markdownStyle`, built in Go from the theme, because a second palette that only
-    approximated `design/palette.toml` would show. Two renderers are held and rebuilt on resize alone - what they wrap
-    to is the pane width - the second one an indent narrower, for a comment body sitting under the line naming its
-    author. No renderer (a pane not yet sized, or `workdesk preview` on a command line) falls back to the wrapped
-    source.
-  - **The sprint is a marker, and the row is what says which way `i` goes.** `◆` between the title and the age on the
-    issues in the iteration the sync recorded; two cells are reserved on every issue row, marked or not, so the age
-    column does not move as the sprint changes under it.
-  - **"Can I merge it" comes from `mergeabilityChecks`, never inferred.** `detailedMergeStatus` names one blocker and is
-    computed lazily (`UNCHECKED` for much of any real queue); `mergeabilityChecks` returns every gate with its own
-    state, so an MR with three problems says so instead of revealing them one at a time. The identifier→message map is
-    deliberately open: GitLab adds checks and does not document the set, so an unknown one degrades to a readable label.
-  - **`approvalState.rules` is the one that explains a stuck MR.** An approval count can read as satisfied while GitLab
-    refuses the merge, because the approver was not eligible for the rule that gates it.
-  - **The mirror has two tiers, and that is what makes the popup instant.** `index.json` is a few kilobytes and holds
-    only what rows need; the full snapshot and the pre-rendered documents are read by nothing interactive. fzf re-runs
-    the preview command on every cursor movement, so decoding the snapshot per keystroke would cost ~7ms against ~0.2ms.
-    Ages are stored as epochs and formatted at read time - a baked-in "3d" is wrong by morning.
-  - **A manifest first, then only what moved.** A detail node - description, threads, merge checks - costs GitLab about
-    0.4s on its own, and a queue of them is most of a minute. So a sync opens with one cheap call per collection
-    (`iid updatedAt`, 100 at a time, ~0.4s for a whole queue), and fetches in full only the rows whose `updatedAt` moved
-    since the mirror was written. Measured on a real queue: 26.6s every time before, 1.4s when nothing changed and 8.2s
-    when everything did. `updatedAt` is the only change token GitLab offers here - it has no content hash, and its
-    GraphQL endpoint sends an `ETag` but ignores `If-None-Match` (its REST endpoints do honour it). **The manifest is
-    also what keeps the snapshot full**: it is the authority on which rows are open, so a merged MR falls out of the
-    mirror by being absent from it, exactly as an overwrite used to manage - and that property has its own test.
-  - **Detail fetches go out several at a time.** GitLab charges per node either way, so the only thing a single long
-    request buys is a single slow one: the same 52 merge requests took 29s in one call and 9s in four concurrent chunks.
-    Hence `detailChunk`/`detailAtOnce` rather than the cursor walk this replaced, which could not overlap at all.
-  - **How far back the inbox reaches is a window, and `w` widens it.** The inbox is the view that asks what you are
-    working on now, so it opens on the last week (`inbox_since` in the config, `WORKDESK_WINDOW` overrides it) and `w`
-    cycles that stop, then a month, then the whole queue - only ever widening until it wraps, so a configured window a
-    fixed stop already covers drops that stop rather than narrowing halfway round. **The window is the inbox's alone**:
-    views 2 and 3 are the complete lists you widen into, `list` and `ready` are never windowed - an agent handed a
-    shortened queue is one quietly missing work - and the mockup sets `WORKDESK_WINDOW=30d`, since the fixture's dates
-    are fixed and a week would empty it as it ages (a month rather than `all`, which would leave a ring of one and `w`
-    inert). **It is a lens, not a reclassification**: membership is settled before the window, so a merge request ageing
-    out cannot hand its todo a row and make the item look like it changed bands. Two things say so on screen, because a
-    list that quietly leaves rows out reads as complete when it is not - the window in the tab bar beside the staleness,
-    accented only while it is holding rows back, and one pinned line at the foot of the list naming the count and the
-    next stop. **The count is one total, not a tally per band**: at a narrow window whole bands age out, and a band with
-    no rows left has no header to carry a count. `TodoMaxAge` is still the todos' own bound and no window reaches past
-    it, so a todo it dropped is never offered by that line.
-  - **Whose work it is, is configurable, and the file is not in this repo.** `~/.config/workdesk/config.toml` holds
-    `accounts = ["@me", "..."]` and `inbox_since = "7d"` (`WORKDESK_CONFIG` overrides the path); `@me` is whoever glab
-    authenticates as, so the file never has to carry a project bot's generated username, and no config at all means that
-    identity alone - what it did before there was a file. A username is exactly what must never be committed here, which
-    is why the config lives outside the repo rather than in a stow package. The parser takes the slice of TOML this
-    needs and **refuses a line it does not understand by name**: a silently ignored table header is a board that looks
-    complete while holding one account's work, and an ignored `inbox_since` is a window you did not ask for.
-  - **A row is yours by author OR assignee, for every account, and the union is done here.** They are different queues -
-    the account that files the work is rarely the account it is assigned to - so the manifest is asked once per account
-    per relation and deduped by iid in `refresh`, which decodes them anyway. GitLab's own `or:` filter would do it in
-    one call and was measured returning a fraction of what its parts return, so it is not used. `meta.user` stays the
-    token's identity (whose todo feed the mirror holds); `meta.users` is every account fetched for.
-  - A full snapshot every sync, so a merged MR disappears with no cursor state to drift, and the mirror is derived, so
-    deleting it costs nothing. It lives outside any repo because MR bodies can carry credentials. Project comes from the
-    git remote and identity from glab's token, so nothing here holds a host, group or username.
-  - **A null `project` is not an empty project.** GitLab answers `project(fullPath:)` for a path it cannot see with a
-    null rather than an error - once read as zero rows that silently replaced a good board with an empty one. A remote
-    whose host is not glab's is refused for the same reason. `workdesk schema-check` validates the query against the
-    live schema by probing a path that cannot exist, so a GitLab upgrade that moves a field is one command.
-  - **A sync says what it is doing, because it is slow and the UI is down.** `r` tears the UI down - the UI never acts -
-    and a full fetch runs tens of seconds, so `progressLine` draws one row, rewritten in place: the project, every leg
-    (identity, merge requests, issues, todos, workflow, writing) with the rows it brought back as it lands, and the
-    seconds so far. Naming the legs is the point - "syncing…" for half a minute says nothing about whether it is stuck,
-    and this is what shows the merge request pages are the entire wait, since they are cursor-chained while the other
-    two run beside them. Silent when stdout is not a terminal, so a scripted `workdesk sync` prints its result and
-    nothing else.
-  - **`r` refreshes what is on screen, so the mirror is the fallback.** The working directory wins when it names a
-    GitLab project - that is what lets a `cd` point the board at another one - but it usually names none: the float
-    inherits the cwd of the pane it was opened from. Resolving only from there made `r` refuse in every repo that is not
-    on GitLab, this one included, with a perfectly good mirror on disk naming the project it holds. The trace's
-    `via=cwd|mirror` says which answered.
-  - **`D` reads a merge request's diff, fetched, with the files around it.** It fetches `refs/merge-requests/<iid>/head`
-    (FETCH_HEAD only, so nothing is written into the clone) and runs `hunk diff <base>...<head>`, where **the base is
-    GitLab's own `diff_refs.base_sha`, never a local merge-base**: a working clone's `origin/main` is routinely months
-    behind, and computing the base against it reported 8996 files changed for a two-file merge request. The fetch is
-    seconds and the window is already up, so it says what it is waiting on rather than sitting blank.
-  - **The patch alone is the command, not a key.** `glab mr diff` piped into `hunk patch -` needs no clone and no fetch
-    and takes about a second, and it is the only form that can answer for a project this machine has never cloned - so
-    it stays as `workdesk diff <iid> --patch`, and it is what the missing-clone error points at. It is not a second key:
-    two keys for one question is a question you answer every time. (GitLab's patch carries `---`/`+++` pairs but no
-    `diff --git` headers; hunk splits it into files on those alone.)
-  - **A diff opens in a window of its own, and that window declines the sidebar.** It wants the full width, and it
-    leaves both the float and the agent's diff pane where they are. The sidebar follows the session's active window, so
-    without declining it moves in - and when hunk exits it is the last pane standing: the window survives holding
-    nothing but a full-width sidebar, and the screen never comes back. The window is therefore opened **detached**,
-    marked `@agentbar-skip 1`, and only then selected, so the mark is in place before `session-window-changed` can fire.
-    `follow.sh` honours that mark on any window, so anything else opened to hold one transient thing can say the same.
-    The window runs `workdesk diff <iid>` rather than a quoted shell pipeline, so there is one command to get right.
-  - **`d` needs a directory, not a branch.** The diff pane's helper takes a worktree path; it was being handed the
-    branch, so it answered "<branch> is not a git repo" - and answered 0 while doing it, so the fallback never fired
-    either and `d` on a merge request row did nothing and said nothing. `worktreeOn` resolves the branch to the checkout
-    holding it, and a branch nothing holds now says which key does want it.
-  - Five keys write to GitLab - `a` assign, `e` auto-merge, `M` merge on a merge request; `s` move to a status and `i`
-    in/out of the current sprint on an issue - each behind the one `confirm` gate. `WORKDESK_DRY=1` prints the command
-    and stops, which is what the mockup sets. Everything else is read-only.
-  - **`s` and `i` are one mutation, and `i` is one key both ways.** Neither status nor iteration has a glab subcommand,
-    so both go through `workItemUpdate` - addressed as `gid://gitlab/WorkItem/<n>`, which is the same n GitLab hands out
-    as `gid://gitlab/Issue/<n>`. `s` lists the lifecycle and asks (`workdesk act s issues:128 "In review"` names it
-    instead, for an agent); `i` reads the row's `◆` and goes the other way. **A refused mutation is a 200**: GitLab puts
-    its complaint in the payload's own `errors` array, which glab does not read, so `Do` reads it - without that a move
-    GitLab declined printed as one that worked.
-- `apps/agentbar/` (the sidebar itself) is loaded by a `run-shell` line at the end of `tmux/.tmux.conf`, so it builds
-  and runs straight from the repo. The Claude lifecycle hooks in `claude/.claude/settings.json` invoke its binary at
-  `$HOME/dotfiles/apps/agentbar/bin/agentbar`. It has its own nested `CLAUDE.md` - read that before touching the code.
+- `apps/agentbar/` → **two binaries from one Go module**, each with its own nested `CLAUDE.md` - read the relevant one
+  before touching the code. `bin/agentbar` is the tmux sidebar, loaded by a `run-shell` line at the end of
+  `tmux/.tmux.conf` and invoked by the Claude lifecycle hooks in `claude/.claude/settings.json` at
+  `$HOME/dotfiles/apps/agentbar/bin/agentbar`. `bin/workdesk` is the GitLab work inbox (`cmd/workdesk/CLAUDE.md`),
+  toggled by `Alt+n` and the `≡ workdesk` chip - both through `tmux-workdesk.sh` so the two cannot drift, by absolute
+  path so the binding never depends on tmux's PATH. Separate commands, not subcommands: agentbar runs on every lifecycle
+  event and must not carry a forge client, so a GitLab failure can never be a sidebar failure.
+- `apps/folio/` → **a markdown reader that reads like a page**, in Rust (ratatui, comrak). One binary, `bin/folio`,
+  linked into `~/.local/bin` by `bootstrap.sh`. The look is a TOML style file (`styles/github.toml` first) naming
+  palette roles, so every flavor in `design/palette.toml` works and the `theme` switcher drives it via `FOLIO_THEME`.
+  `--inline` renders to stdout for previews. Rust is pinned twice by necessity - `RUST_VERSION` in `install.sh` and
+  `rust-toolchain.toml` - and `task conf` checks they agree. It has its own nested `CLAUDE.md` and `DESIGN.md` - read
+  both before touching it. leaf stays the previewer until folio reaches parity.
 
 ## Installing software
 
@@ -437,8 +68,6 @@ so CI installs with the same code a machine does:
 ./install.sh all             # every tool (bootstrap.sh calls this)
 ./install.sh gate-tools      # just what `task check` needs (CI calls this)
 ./install.sh install_tmux    # one step by name
-./install.sh dictate-deps    # uv + pulseaudio-utils (also part of `all`)
-./install.sh whisper-vulkan  # whisper.cpp built against Vulkan for dictate's GPU backend (also part of `all`)
 ```
 
 `bootstrap.sh` sources it and adds the machine wiring: stow, the shell-rc patch (`~/.bashrc` on Linux, `~/.zshrc` on
@@ -461,91 +90,31 @@ applying empty colors - all failing quietly, because each call site is guarded.
 **On Linux tmux is pinned and built from source.** Ubuntu 24.04 ships 3.4, which the sidebar's e2e suite fails on. macOS
 gets brew's tmux, which is new enough.
 
+**herdr is a second writer to the stowed `claude/.claude/settings.json`**: `install_herdr` runs
+`herdr integration install claude`, which adds a `SessionStart` entry there and writes a hook and a generated skill
+under `~/.claude/`. Both are herdr-managed and deliberately untracked, so an integration update shows up as a diff in
+that tracked file. `install_herdr_dictate` follows the pinned ref, upgrading a plugin installed from a different one,
+but leaves a plugin linked from a working tree alone - a checkout is never replaced by the release.
+
 ## Release furniture
 
 - `.github/workflows/` - `ci.yml` on every push/PR, `release.yml` on a `v*` tag
 - `cliff.toml` - git-cliff config: Conventional Commits to CHANGELOG.md and release notes
 
-## Debugging (trace log)
+## Debugging
 
-**Read the trace log first** when anything in the tmux/agent workflow misbehaves. It is always on and records action
-_edges_ across the whole interactive stack.
-
-- **Where:** `${XDG_STATE_HOME:-~/.local/state}/dotfiles/trace.log` (outside the repo, never committed). Size-capped at
-  1 MiB with one rotation (`trace.log.1`).
-- **View:** `dotfiles-trace tail -f`, or
-  `dotfiles-trace show --since 5m --src <tmux|agentbar|clip|hook|sidebar|picker|dictate|shot|resurrect|yank> --grep <pat>`.
-  `dotfiles-trace path` prints the file.
-- **Format:** logfmt - `ts=<iso ms> src=… evt=… pid=… k=v …`. The on-screen status clock is `%H:%M:%S`, so a screenshot
-  anchors to a log window.
-
-What to read, by symptom:
-
-- **A click did nothing.** `src=tmux evt=click range=…` means tmux received it, so the failure is downstream - our bug.
-  No line for a click you made means the terminal dropped the event first: the known Ghostty+tmux status-click bug, not
-  fixable here.
-- **A copy did nothing.** Every copy path goes through `clip`, leaving
-  `src=clip evt=copy backend=… sel=… bytes=… rc=… wl=… dsp=…`; a mouse yank adds
-  `src=yank evt=copy bytes=… rc=… rc_primary=…` for the tmux edge above it. Read in this order: **no `src=yank` line**
-  means tmux never fired the yank (the selection or the binding, not the clipboard); **`bytes=0`** means an empty drag;
-  **`rc` non-zero** means the backend failed, and `wl=`/`dsp=` say why. A long-lived tmux server keeps the
-  `WAYLAND_DISPLAY` it started with, so after a re-login `wl-copy` cannot reach the compositor until the server is
-  restarted or its environment updated.
-- **A screenshot never reached the agent.** `src=shot evt=send host=… why=… bytes=… path=… rc=… ms=…` is every send. No
-  line means `shot` never ran, so the failure is the local trigger, not this repo. `rc` non-zero with no `path=` is the
-  transport - `shot --check` names the route and says whether ssh reaches it. A `host=` that is not the machine Claude
-  runs on is a wrong route, and `SHOT_REMOTE` is the fix.
-- **The layout drifted.** A squeezed sidebar or skewed split is a screen change: tmux takes a shrink evenly from every
-  pane and has no fixed-size pane. `src=sidebar evt=pin` is the `window-resized` hook fixing the width itself.
-  `prefix + R` logs `src=tmux evt=reset … changed=N floated=N` plus one `evt=layout win=… before=… after=…` per window
-  changed, and nothing when nothing had drifted. A `floated=` above zero is windows the reset skipped whole: a float
-  counts as a column to `select-layout`, so those wait until it is closed.
-- **The ≡ workdesk chip did nothing.** `src=tmux evt=workdesk action=open|close rc=…` is every press of the chip and of
-  `Alt+n`, which run the same script. `action=close` with no float on screen means the match found someone else's
-  floating `workdesk`; `rc` non-zero on `open` means `@workdesk_open` failed, and `err=no_command` that the option is
-  unset - a config that was never sourced.
-- **A session jump landed wrong.** `Alt-h`/`Alt-l` log `src=agentbar evt=switch session=… from=… key=prev|next ms=…`. No
-  line means the binary never ran, so the binding fell through to tmux's alphabetical `switch-client` - rebuild it. A
-  `session=` that is not the neighbouring row means the bands moved under you; `agentbar order` prints the list the keys
-  walk, and `src=agentbar evt=pin session=… pinned=…` is every pin change from either view.
-- **The sidebar state looks stale.** `src=hook evt=event name=… prev=… new=… sid=…` is ground truth of what Claude told
-  the sidebar (`via=cwd` means the pane was recovered by the cwd fallback - a resumed or `claude daemon run` session
-  that fired the hook with no `$TMUX_PANE`). `src=hook evt=drop reason=no_pane cwd=… sid=…` flags a hook that arrived
-  with no pane to land on. `$HOME/dotfiles/apps/agentbar/bin/agentbar doctor` rolls this into a per-pane health check -
-  the one-command way to spot a stale sidebar.
-- **The diff pane shows the wrong tree.** `src=hook evt=workdir pane=… before=… after=…` is every move of an agent's
-  worktree; absent means the agent has only read files, or a hook is not wired - the pane then falls back to its own
-  cwd. An empty `after=` is a session boundary dropping it, so a new agent cannot inherit the last one's target.
-  `src=tmux evt=diff action=create|respawn target=…` is what the pane was pointed at, and `action=follow from=… to=…`
-  every catch-up; a `to=` you did not expect means `@agent_workdir` is stale, so read the `evt=workdir` line above it.
-  `bg=bg` marks an auto-follow (no focus change), `bg=0` an explicit one.
-
-Writing to it:
-
-- **Two writers, one format:** the `dotfiles-trace` CLI (`trace/`, used by all shell/tmux callers) and the Go
-  `apps/agentbar/internal/trace` package (used by the sidebar, the hook and workdesk). Keep them in sync on timestamp,
-  escaping, and rotation.
-- **Log edges only, never hot loops** (mouse motion, ticks, status redraws, the dictate silence poll, fzf preview/list,
-  statusline) - that keeps it free.
-- **Toggles:** `tmux set -g @agentbar-trace-verbose on` adds the noisy sidebar events for a live hunt (effect within
-  ~1s, no restart). `DOTFILES_TRACE=0` disables entirely; for tmux `run-shell` children use
-  `tmux set-environment -g DOTFILES_TRACE 0`.
-
-### Tracing a new feature
-
-- One `dotfiles-trace log <src> <evt> k=v ...` per action edge, never in a hot loop. Reuse an existing `src`.
-- Log the outcome, not the intent - `rc=`, `bytes=` are what separate "it ran" from "it worked".
-- Changing state: `before=… after=…` on one line, only when it actually changed. Values are capped at 200 chars.
-- Tests run under `DOTFILES_TRACE=0`, never into the live log.
+**Read the trace log first** when anything in the tmux/agent workflow misbehaves: `dotfiles-trace tail -f`, or
+`dotfiles-trace show --since 5m --src <src> --grep <pat>`. It is always on, records action edges across the whole
+interactive stack, and lives at `${XDG_STATE_HOME:-~/.local/state}/dotfiles/trace.log` (never committed, 1 MiB with one
+rotation). `.claude/rules/trace.md` has the per-symptom guide and the rules for adding a trace point.
 
 ## Vault template
 
-`vault-template/` holds the boilerplate for the two notes vaults (`~/vaults/personal`, `~/vaults/work`). Like `apps/`,
-it is **not** a stow package - `bootstrap.sh` copies it into each vault as **real files**, so the scaffolding is
-committed into that vault's own private repo. `common/` is shared by both vaults (skeleton, templates, `.claude/`
-guardrail hooks + `vault-check`, `.githooks/` pre-commit guard); `personal/` and `work/` carry their own `CLAUDE.md` +
-`README.md`. Copies are seed-if-missing, so re-running bootstrap never clobbers live edits. Vault _content_ never lives
-here - this repo is public.
+`vault-template/` holds the boilerplate for the notes vault (`~/vaults/work`). Like `apps/`, it is **not** a stow
+package - `bootstrap.sh` copies it into the vault as **real files**, so the scaffolding is committed into that vault's
+own private repo. `common/` carries the skeleton, templates, `.claude/` guardrail hooks + `vault-check` and the
+`.githooks/` pre-commit guard; `work/` carries its `CLAUDE.md` + `README.md`. Copies are seed-if-missing, so re-running
+bootstrap never clobbers live edits. Vault _content_ never lives here - this repo is public.
 
 ## Rules
 
@@ -581,8 +150,8 @@ here - this repo is public.
   missing `+x` makes a rail or a status segment silently vanish)
 - Private/work-specific config goes in `~/.bashrc.d/local.bash` (not tracked)
 - `bootstrap.sh` must be idempotent (safe to re-run)
-- `bootstrap.sh` scaffolds the two notes vaults (see "Vault template"); a vault with no git remote is reported once at
-  the end, and the remote/identity are never created or stored here
+- `bootstrap.sh` scaffolds the notes vault (see "Vault template"); a vault with no git remote is reported once at the
+  end, and the remote/identity are never created or stored here
 - Keep lists alphabetically sorted (stow packages, apt/brew packages, pinned versions, bootstrap calls, docs)
 
 ## Deploy
@@ -610,9 +179,9 @@ notes are generated from these, so the type and scope are the machine-readable p
 
 - **Types**: `feat` · `fix` · `docs` · `refactor` · `perf` · `test` · `build` · `ci` · `chore`
 - **Scope** is the area, matching a stow package, an app, or a repo concern: `agentbar`, `bash`, `bat`, `bootstrap`,
-  `claude`, `clip`, `design`, `dictate`, `ghostty`, `git`, `hunk`, `indicator`, `install`, `leaf`, `lint`, `nvim`,
-  `release`, `screenshot`, `task`, `tex`, `theme`, `tmux`, `trace`, `vault`, `workdesk`. Omit it only when a change
-  genuinely spans everything.
+  `claude`, `clip`, `design`, `dictate`, `folio`, `ghostty`, `git`, `hunk`, `indicator`, `install`, `leaf`, `lint`,
+  `nvim`, `release`, `screenshot`, `shot`, `task`, `tex`, `theme`, `tmux`, `trace`, `vault`, `workdesk`. Omit it only
+  when a change genuinely spans everything.
 - **Breaking = needs manual steps on the machine.** A `!` after the scope (`feat(tmux)!:`) or a `BREAKING CHANGE:`
   footer marks a release that can't just be pulled - a re-login, a re-stow, a GNOME shortcut, a systemd unit. It renders
   as "needs manual steps" in the changelog and, pre-1.0, drives the MINOR bump.
@@ -634,14 +203,12 @@ git push origin v0.2.0                  # fires release.yml
 ```
 
 SemVer, `v`-prefixed. **This repo stays on 0.x - do not bump to 1.0.** Pre-1.0 shifts the meanings down one: a release
-needing manual steps bumps the MINOR, everything else bumps the PATCH. `task release-notes` previews what the next
-release would publish; `task changelog` prepends to `CHANGELOG.md` rather than regenerating it.
+needing manual steps bumps the MINOR, everything else the PATCH.
 
-**A tag with no published Release is not a release.** Before tagging, check the newest tag has one. If it does not, fix
-the failure and ask whether to re-tag that version or bump - never tag over it.
-
-**Green `task check` does not mean the release will publish.** `release.yml` also runs `test/bootstrap-fresh.sh`, which
-the gate does not. Run `task fresh` before tagging.
+- **A tag with no published Release is not a release.** Check the newest tag has one before tagging; if not, fix the
+  failure and ask whether to re-tag or bump - never tag over it.
+- **Green `task check` does not mean it will publish.** `release.yml` also runs `test/bootstrap-fresh.sh`, which the
+  gate does not: run `task fresh` before tagging.
 
 ## Tasks
 
@@ -664,7 +231,7 @@ one line and quits dies on CI and passes here. Match a first row with a flag, ne
   column, which mangles the file.
 - Lint gates on bugs, not style: `shellcheck -S warning` for shell, `ruff --select E9,F` for the Python in `dictate`.
   Deliberate idioms that a linter misreads carry a directive rather than being rewritten.
-- **120 columns**, enforced per language: `task width` (shell, Go), `ruff` E501 (Python), prettier `printWidth`
+- **120 columns**, enforced per language: `task width` (shell, Go, Rust), `ruff` E501 (Python), prettier `printWidth`
   (markdown, yaml, json). Markdown table rows and long inline-code spans can exceed it - prettier will not break an
   unbreakable token.
 - Always use a plain hyphen (`-`), never em or en dashes

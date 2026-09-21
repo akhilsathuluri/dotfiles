@@ -95,18 +95,19 @@ it after; `dictate --check` reports whether it is there.
 ## Setup
 
 ```bash
-dictate --install-shortcut    # bind the Copilot and Pause keys to `dictate --toggle --send`
+dictate --install-shortcut    # bind right Alt to `dictate --toggle --send`
 dictate --check               # parec + tmux, the target pane, the model cache and the bound keys
 ```
 
-Two keys are bound, both to dictate+send:
+One key is bound to dictate+send: **right Alt**, as `Alt_R`.
 
-- the **Copilot key**, between AltGr and right Ctrl, as `<Shift><Super>XF86TouchpadOff` - it emits
+Pass keys to bind others; the dconf list ends up matching the arguments exactly. Two whose spelling is not the obvious
+one:
+
+- the **Copilot key**, between AltGr and right Ctrl, is `<Shift><Super>XF86TouchpadOff` - it emits
   `LeftMeta`+`LeftShift`+`F23`, and `KEY_F23`'s keycode carries the `XF86TouchpadOff` keysym, so `F23` does not match.
 - **Pause**, bare. GNOME claims no shortcut on that keysym; the media pair is a different one (`XF86AudioPlay` /
   `XF86AudioPause`), held by static grabs a custom binding cannot outrank.
-
-Pass keys to bind others; the dconf list ends up matching the arguments exactly.
 
 ## Usage
 
@@ -145,7 +146,7 @@ whether from the key or the `dictate+send` chip.
 | `DICTATE_TMUX_TARGET` | _(unset)_      | force a pane (pane id or `session:win.pane`)                |
 | `DICTATE_REMOTE`      | _(unset)_      | force a host, skipping the focus probe (ssh destination)    |
 | `DICTATE_TMUX_SSH`    | _(unset)_      | older name for `DICTATE_REMOTE`, still honoured             |
-| `DICTATE_PROBE_WAIT`  | `2.5`          | seconds to wait for hosts to answer when none holds focus   |
+| `DICTATE_PROBE_WAIT`  | `2.5`          | seconds the no-focus fallback waits on the remote probes    |
 | `DICTATE_TEST_SECS`   | `5`            | seconds recorded by `--test`                                |
 
 Put per-machine overrides in `~/.bashrc.d/local.bash` (untracked), e.g. `export DICTATE_SOURCE=...`.

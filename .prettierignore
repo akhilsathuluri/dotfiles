@@ -8,3 +8,5 @@ bat/.config/bat/themes/
 # renders still match.
 apps/agentbar/internal/workdesk/fixture/
 apps/agentbar/internal/workdesk/testdata/
+# Test inputs: their exact source is what the tests exercise.
+apps/folio/tests/fixtures/

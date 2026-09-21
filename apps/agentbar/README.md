@@ -281,7 +281,7 @@ Notes for hacking:
 - The sidebar TUI (Go, Bubble Tea) snapshots `list-panes -a` once a second and renders sessions in three bands - pinned,
   active, dormant - alphabetical within each. Jumping runs `switch-client` + `select-window` + `select-pane`, publishes
   the selection, and signals a `wait-for` channel every sidebar blocks on.
-- `agentbar order` / `next` / `prev` / `pin` expose that same grouping (`model.Arrange`) to the keys and the picker
+- `agentbar order` / `next` / `prev` / `band` expose that same grouping (`model.Arrange`) to the keys and the picker
   popup, so nothing outside the TUI has to reimplement the bands. They skip the per-pane git lookups the sidebar does
   for branch names - order needs none, and they run on a keypress.
 - A `session-window-changed` hook moves the sidebar pane into whichever window becomes active (`join-pane -d`), with a

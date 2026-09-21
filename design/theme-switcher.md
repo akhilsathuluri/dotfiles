@@ -55,6 +55,7 @@ tracked config.
 | bat / `$THEME` | named           | `env.sh` (`export THEME`, `export BAT_THEME`)                                              | new shells                          |
 | hunk name map  | named           | `env.sh` (`export HUNK_THEME`) - the flavor id unless hunk has no theme by that name       | next `hunk diff` / diff-pane re-run |
 | leaf           | named           | `env.sh` (`export LEAF_THEME`)                                                             | next `leaf` launch                  |
+| folio          | named           | `env.sh` (`export FOLIO_THEME`, the flavor id itself; folio reads `design/palette.toml`)   | next `folio` launch                 |
 | git-delta      | hex + named     | `delta.gitconfig` (a `[delta]` block, git-included)                                        | next `git` invocation               |
 | nvim           | named           | `nvim.lua` (`colorscheme`, `background`, and `ground` for the catppuccin schemes)          | live `:colorscheme` / next launch   |
 | session popup  | hex → generated | `agent-state.sh` (state colors + the popup's fzf palette, base mode and ground included)   | next open                           |

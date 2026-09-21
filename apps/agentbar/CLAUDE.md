@@ -39,7 +39,7 @@ title mode's branch fallback shows), and all three bands (pinned/active/dormant)
 
 ## Layout
 
-- `cmd/agentbar` - subcommands: `run`, `mockup`, `status`, `order`, `next`/`prev`, `pin`, `hook`, `doctor`
+- `cmd/agentbar` - subcommands: `run`, `mockup`, `status`, `order`, `next`/`prev`, `band`, `hook`, `doctor`
 - `internal/hook` - event JSON → `@agent_*` pane options; `Decide()` is pure; `ResolvePane()` finds the pane by the
   event `cwd` when `$TMUX_PANE` is absent; `workdir.go` stamps `@agent_workdir` (the worktree the agent is _writing_ in,
   which its pane's cwd never follows) at pane and window scope, from the `file_path` of an Edit/Write tool event - a
@@ -56,6 +56,8 @@ title mode's branch fallback shows), and all three bands (pinned/active/dormant)
 - `scripts/` - `toggle.sh` (global), `open.sh`, `restart.sh` (one session, in place - used by the dotfiles `prefix + R`
   reset), `pin.sh` (`window-resized` hook: holds the sidebar at `@agentbar-width`, since tmux takes a shrink evenly from
   every pane and has no fixed-size pane), `follow.sh`, `resurrect-save.sh`, `common.sh` (shared helpers)
+- `cmd/workdesk` + `internal/workdesk`, `internal/deskui`, `internal/gitlab` - the GitLab work inbox: a separate product
+  that shares this module (see `cmd/workdesk/CLAUDE.md`), not part of the sidebar
 - `agentbar.tmux` - TPM entry point
 
 ## Rules

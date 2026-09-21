@@ -8,7 +8,7 @@
 #   bg surface selection border   - surfaces & structure
 #   fg emphasis muted             - content
 #   accent                        - the one interactive/identity hue
-#   changes                       - review surfaces: the changes chip, MR glyph, diff menu
+#   changes                       - review surfaces: the changes chip, MR glyph, diff menu, ◧ diff
 #   float                         - a floating pane's border: a layer over the work, not a pane in it
 #   working asking blocked done   - the agent-state language (idle reuses `muted`)
 #   add remove                    - diff tints
@@ -117,6 +117,7 @@ emphasis  = "#eef1fb"
 muted     = "#6c7086"
 accent    = "#89b4fa"
 changes   = "#cba6f7"
+float     = "#f5c2e7"
 working   = "#94e2d5"
 asking    = "#fab387"
 blocked   = "#f38ba8"

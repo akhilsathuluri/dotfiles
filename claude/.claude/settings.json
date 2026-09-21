@@ -1,6 +1,10 @@
 {
+  "attribution": {
+    "commit": ""
+  },
   "permissions": {
     "allow": [
+      "Bash(slack api auth.test:*)",
       "mcp__plugin_Notion_notion__notion-search",
       "mcp__plugin_Notion_notion__notion-fetch",
       "mcp__plugin_Notion_notion__notion-download-attachment",
@@ -95,6 +99,10 @@
           {
             "type": "command",
             "command": "[ -x \"$HOME/dotfiles/apps/agentbar/bin/agentbar\" ] && \"$HOME/dotfiles/apps/agentbar/bin/agentbar\" hook || true"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/statusline-workdir.sh\""
           }
         ]
       }
@@ -109,6 +117,15 @@
           {
             "type": "command",
             "command": "[ -x \"$HOME/.claude/hooks/on-pre-tool-use.sh\" ] && \"$HOME/.claude/hooks/on-pre-tool-use.sh\" || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -x \"$HOME/.claude/slack-post-gate.sh\" ] && bash \"$HOME/.claude/slack-post-gate.sh\" || exit 0"
           }
         ]
       }
@@ -133,6 +150,16 @@
           {
             "type": "command",
             "command": "[ -x \"$HOME/dotfiles/apps/agentbar/bin/agentbar\" ] && \"$HOME/dotfiles/apps/agentbar/bin/agentbar\" hook || true"
+          }
+        ]
+      },
+      {
+        "matcher": "^(startup|resume|clear|compact|fork)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session",
+            "timeout": 10
           }
         ]
       }
@@ -188,8 +215,25 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash $HOME/.claude/statusline-command.sh"
+    "command": "bash $HOME/.claude/statusline-command.sh",
+    "refreshInterval": 1
   },
+  "subagentStatusLine": {
+    "type": "command",
+    "command": "bash $HOME/.claude/subagent-statusline.sh"
+  },
+  "footerLinksRegexes": [
+    {
+      "pattern": "https://gitlab\\.com/(?<path>[A-Za-z0-9._/-]+)/-/issues/(?<iid>\\d+)",
+      "url": "https://gitlab.com/{path}/-/issues/{iid}",
+      "label": "#{iid}"
+    },
+    {
+      "pattern": "https://gitlab\\.com/(?<path>[A-Za-z0-9._/-]+)/-/merge_requests/(?<iid>\\d+)",
+      "url": "https://gitlab.com/{path}/-/merge_requests/{iid}",
+      "label": "!{iid}"
+    }
+  ],
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
@@ -204,7 +248,18 @@
       }
     }
   },
-  "effortLevel": "xhigh",
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "high"
+    },
+    "claude-fable-5-1": {
+      "effortLevel": "high"
+    }
+  },
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "opus"
+  },
+  "autoCompactEnabled": true,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "dark",
