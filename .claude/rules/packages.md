@@ -5,6 +5,7 @@ paths:
   - "claude-indicator/**"
   - "clip/**"
   - "dictate/**"
+  - "herdr/**"
   - "hunk/**"
   - "leaf/**"
   - "nvim/**"
@@ -32,14 +33,18 @@ paths:
   `$XDG_STATE_HOME/dotfiles/claude-workdir/<session id>` and the row reads that. `refreshInterval` is 1s: no event fires
   when a hook writes that file, and the dictation chip has to light while you are still talking. That cadence is only
   affordable because the script forks nothing - helpers write a named global instead of printing into a `$( )` subshell,
-  and jq reading the payload is the one process a run starts (5ms; a subshell per segment cost 14ms). Anything needing a
-  command sits behind a TTL and refreshes detached. `test/statusline.sh` is the guard, tmux off PATH. The second row's
-  rate limits ride the same stdin payload, so they cost no process and no network; each window is absent before the
-  session's first API response and after its own reset, and an absent window shows nothing. The dictation chip reads the
-  herdr plugin's state file (`$XDG_STATE_HOME/herdr/plugins/abhishekrana.dictate/recording.json`) and never writes it,
-  so polling cannot disturb a recording; a pid with no process is a recorder that died, not a recording. Its label never
-  changes, only its colour - grey idle, red recording, amber transcribing, the tmux footer chip's rule - because the
-  meters sit beside it and must not shift as you speak.
+  and jq reading the payload is the one process a run starts (5ms; a subshell per segment cost 14ms). The branch's
+  ticket, MR and pipeline are herdr's tab bar (`herdr/`), not a row here. `test/statusline.sh` is the guard, tmux off
+  PATH. The second row is the model and three fixed-width meters - context, 5h, week: a word, an 8-cell bar, a padded
+  number, yellow past 80 and red past 95 - which fit a 99-column pane, the narrowest Claude pane measured. The rate
+  limits ride the same stdin payload, so they cost no process and no network; each window is absent before the session's
+  first API response and after its own reset, and an absent window shows nothing. The dictation chip reads the herdr
+  plugin's state files in `$XDG_STATE_HOME/herdr/plugins/abhishekrana.dictate/` and never writes them, so polling cannot
+  disturb a recording. `recording.json` is a recorder on this machine, and a pid with no process is one that died, not a
+  recording. `remote.json` is a dictation from another machine delivering here: the plugin writes it over ssh with the
+  pane label, carrying an expiry in this machine's clock rather than a pid, so a lost connection goes grey within the
+  label's TTL. Its label never changes, only its colour - grey idle, red recording, amber transcribing, the tmux footer
+  chip's rule - because it opens row one and the place beside it must not shift as you speak.
 - **`claude/` has three writers**: this repo, `herdr integration install claude`, and Claude's own `/theme`. Its TUI
   theme is therefore **deliberately not switched by `theme`**. Prefer `light-ansi`/`dark-ansi`, which paint from the
   terminal's own 16 colours and so follow this palette; this repo pins `dark`, so the tracked value only moves when
@@ -62,6 +67,34 @@ paths:
   tmux on another machine needs no setup - the ssh sessions open now are the candidates, it routes to whichever tmux
   holds focus, and only the transcript crosses, never the audio. `DICTATE_REMOTE` (older name: `DICTATE_TMUX_SSH`) pins
   one host. dictate runs where the mic is, never on the remote (no mic there to reach).
+- **`herdr/`** - `herdr-forge line` is a `tab_bar_right` command entry in `~/.config/herdr/config.toml`, which stays
+  untracked because `herdr-dictate setup` appends to it. Herdr strips colour from that entry, so state is words and
+  glyphs. `line` runs every 1s (about 7 ms) and forks only git; GitLab is one GraphQL call per branch per TTL, detached.
+  Pass the branch as `-f b=<name>`: glab's `-F 'b[]=…'` form drops the filter and returns the project's newest MR. Herdr
+  cannot make tab bar text clickable, so `herdr-forge open` hands off to `herdr-forge-popup` (stdlib Python), an `alt+u`
+  popup with `prefix+u` as a fallback (`[[keys.command]]`, same file): ticket, MR and pipeline in three columns, stacked
+  below 150 columns, each with Browser and New tab buttons (keys `t m p` and `T M P`). New tab names the herdr tab for
+  what it shows (`diff !45`) and focuses it rather than opening a second; there is no split. A popup hands every click
+  to its program and never to herdr's Ctrl+click link handling (v0.9.1), so it reads SGR mouse reports and maps the
+  clicked row and column itself. Its GraphQL is two queries asked in parallel, because one exceeds GitLab's complexity
+  limit of 250. Most branches carry no ticket number, so the ticket falls back to what the MR closes. MR pipelines run
+  on `refs/merge-requests/N/merge`, so the pipeline opens with `glab ci view -p <id>`, never `-b <branch>`; the MR diff
+  is live: `hunk diff <merge-base> --watch`, the working tree against where the branch left its target, with
+  `--sidebar`, since a tab has the room (hunk's config keeps the file list off elsewhere). Never pipe a patch into hunk
+  there: piped input is pager mode, which drops the file list and cannot watch. `test/herdr-forge.sh` stubs glab, herdr
+  and xdg-open, and drives the popup through `--dump` and `--act`. Every tab runs under `herdr-forge-popup run-tab`, a
+  supervisor that restarts its tool on SIGUSR1 with fresh data and stops the tool's whole process tree (hunk's node
+  launcher leaves its real process behind otherwise); the ticket reads a page file it rewrites every 60s, which folio
+  reloads by itself. The popup's top line is a toolbar: the branch, the "updated" stamp, then Refresh (`r`), All in tabs
+  and Close, with Close at the right edge. Refresh and All in tabs are drawn from the first frame, dimmed while the
+  popup asks GitLab, so nothing shifts when the answer arrives. All in tabs (key `a`, popup only) opens the focused
+  workspace's ticket, diff and jobs tabs without focus, signals the supervisors of the ones already open, replaces a tab
+  that has none, and names in its toast what does not exist; there is deliberately no global key for it. The popup uses
+  only Solarized's colours, each in Solarized's own role, read from the theme switcher's `colors.sh` as truecolor
+  (terminal slot 7 renders a dark grey): primary content (`fg`, base00) for values and labels, secondary content
+  (`muted`, base1) for names and rules, background highlights (`surface`, base2) for the buttons (borderless blocks),
+  chips, toolbar and the bar's empty part; accents only on marks and state words. The palette's `border` is not a
+  Solarized colour, so it is not used.
 - **`hunk/`** - `~/.config/hunk/` (hunk diff viewer config, Ayu Dark default; the `hunk()` wrapper in
   `bash/.bashrc.d/theme.bash` passes the active flavor to `hunk diff`). `mode = "stack"` is what every hunk here starts
   from - full width per line, no half-width columns. **Workdesk's `D` overrides it to `split` at the call**, because a

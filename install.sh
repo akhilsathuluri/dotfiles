@@ -61,7 +61,7 @@ GIT_CLIFF_VERSION="2.13.1"
 GITLEAKS_VERSION="8.30.1"
 GLAB_VERSION="1.115.0"
 GO_VERSION="1.26.6"
-HERDR_DICTATE_VERSION="0.2.0"
+HERDR_DICTATE_VERSION="0.2.1"
 HERDR_VERSION="0.9.1"
 HUNK_VERSION="0.19.0"
 LAZYDOCKER_VERSION="0.25.2"
@@ -915,6 +915,7 @@ gate_tools() {
         return
     fi
     install_apt_packages
+    install_fzf
     install_git_cliff
     install_gitleaks
     install_ruff

@@ -54,36 +54,17 @@ row() {
         '{model: {display_name: "Opus"}, session_id: $sid, workspace: {current_dir: $dir}}
          + (if $used == "" then {} else {context_window: {used_percentage: ($used | tonumber)}} end)
          + (if $lim == null then {} else {rate_limits: $lim} end)' |
-        env XDG_STATE_HOME="$TMP/state" XDG_CACHE_HOME="$TMP/cache" PATH=/usr/bin:/bin \
+        env XDG_STATE_HOME="$TMP/state" PATH=/usr/bin:/bin STATUSLINE_DICTATE_WAIT_MS="${WAIT_MS:-0}" \
             bash "$REPO/claude/.claude/statusline-command.sh"
 }
 
 # A row without its colours.
 plain() { sed 's/\x1b\[[0-9;]*m//g'; }
 
-# What a refresh would have written, fresh. glab is off PATH, so none runs.
-gl_cache() {
-    local key=$MAIN::main now
-    now=$(date +%s)
-    key=${key//[^A-Za-z0-9]/_}
-    mkdir -p "$TMP/cache/claude-statusline"
-    printf 'url=%s\nurl_at=%s\nci=%s\nci_at=%s\n' "${1-}" "$now" "${2-}" "$now" \
-        >"$TMP/cache/claude-statusline/$key"
-}
-
-# The per-checkout verdict: 1 is GitLab, 0 is not.
-gl_repo() {
-    local key=$MAIN::
-    key=${key//[^A-Za-z0-9]/_}
-    mkdir -p "$TMP/cache/claude-statusline"
-    printf 'repo=%s\nrepo_at=%s\n' "$1" "$(date +%s)" >"$TMP/cache/claude-statusline/repo-$key"
-}
-link_row() { row | sed -n 3p | plain; }
-
 # What the herdr dictate plugin leaves behind while a dictation is live. No
 # argument clears it, as the plugin does when the transcript lands.
 DICTATE=$TMP/state/herdr/plugins/abhishekrana.dictate
-CHIP="● dictate · "
+CHIP="● dictate   "
 recording() {
     mkdir -p "$DICTATE"
     [ -n "${1-}" ] || {
@@ -94,7 +75,7 @@ recording() {
         "$1" "${2:+,\"phase\":\"$2\"}" >"$DICTATE/recording.json"
 }
 
-# Row one is where you are; row two is how you are doing.
+# Row one is the dictation chip and where you are; row two is the model and the meters.
 place_row() { row "$@" | sed -n 1p | plain; }
 meter_row() { row "$@" | sed -n 2p | plain; }
 
@@ -102,7 +83,7 @@ meter_row() { row "$@" | sed -n 2p | plain; }
 limits() {
     jq -nc --argjson five "${1:-null}" --argjson seven "${2:-null}" \
         --argjson fa "$(($(date +%s) + ${3:-$((3 * 86400 + 3600))}))" \
-        --argjson sa "$(($(date +%s) + ${4:-$((5 * 86400))}))" \
+        --argjson sa "$(($(date +%s) + ${4:-$((5 * 86400 + 3600))}))" \
         '(if $five == null then {} else {five_hour: {used_percentage: $five, resets_at: $fa}} end)
          + (if $seven == null then {} else {seven_day: {used_percentage: $seven, resets_at: $sa}} end)'
 }
@@ -122,65 +103,81 @@ rows() {
 
 echo "status line: place"
 
-eq "names the checkout and its branch" "main ⎇ main" "$(place_row)"
-eq "a linked worktree reads its own branch" "side ⎇ side" "$(place_row "$WT")"
-eq "a directory in no repo is just its name" "state" "$(place_row "$TMP/state")"
+eq "names the checkout and its branch" "${CHIP}main ⎇ main" "$(place_row)"
+eq "a linked worktree reads its own branch" "${CHIP}side ⎇ side" "$(place_row "$WT")"
+eq "a directory in no repo is just its name" "${CHIP}state" "$(place_row "$TMP/state")"
 # An absent percentage used to collapse into the next field and carry the path
 # into the context segment.
-eq "an absent field shifts nothing" "${CHIP}Opus" "$(meter_row "$MAIN" "")"
+eq "an absent field shifts nothing" "Opus" "$(meter_row "$MAIN" "")"
 
 echo "status line: the second place"
 
-eq "silent before anything is written" "main ⎇ main" "$(place_row)"
+eq "silent before anything is written" "${CHIP}main ⎇ main" "$(place_row)"
 
 wrote "$WT/f"
-eq "names the worktree Claude wrote in" "main ⎇ main · ⚠ side ⎇ side" "$(place_row)"
+eq "names the worktree Claude wrote in" "${CHIP}main ⎇ main   ⚠ side ⎇ side" "$(place_row)"
 
 mkdir -p "$MAIN/sub"
 : >"$MAIN/sub/f"
 wrote "$MAIN/sub/f"
 # Roots are compared, never paths.
-eq "a subdirectory is not a move" "main ⎇ main" "$(place_row)"
+eq "a subdirectory is not a move" "${CHIP}main ⎇ main" "$(place_row)"
 
 wrote "$WT/f"
-eq "coming home clears the warning" "main ⎇ main" "$(
+eq "coming home clears the warning" "${CHIP}main ⎇ main" "$(
     wrote "$MAIN/f"
     place_row
 )"
 
 wrote "$WT/f"
-eq "the session's own view never warns" "side ⎇ side" "$(place_row "$WT")"
+eq "the session's own view never warns" "${CHIP}side ⎇ side" "$(place_row "$WT")"
 
 wrote "$WT/f"
 git -C "$MAIN" worktree remove --force "$WT"
-eq "a worktree deleted underneath goes quiet" "main ⎇ main" "$(place_row)"
+eq "a worktree deleted underneath goes quiet" "${CHIP}main ⎇ main" "$(place_row)"
 git -C "$MAIN" worktree add -q "$WT" side
 
 echo "status line: meters"
 
-eq "context reads as a percentage" "${CHIP}Opus · ctx 12%" "$(meter_row)"
-eq "an absent window shows nothing" "${CHIP}Opus · ctx 12%" "$(meter_row "$MAIN" 12 "$(limits)")"
-eq "both windows read their fill" "${CHIP}Opus · ctx 12% · 5h 23% ↻3d · 7d 41%" \
+# Each meter is a word, an 8-cell bar and a padded number, four spaces apart.
+CTX12="Opus    context ▰▱▱▱▱▱▱▱  12%"
+eq "context reads as a meter" "$CTX12" "$(meter_row)"
+eq "an absent window shows nothing" "$CTX12" "$(meter_row "$MAIN" 12 "$(limits)")"
+FIVE23="5h ▰▰▱▱▱▱▱▱  23% ↻3d" WEEK41="week ▰▰▰▱▱▱▱▱  41% ↻5d"
+eq "both windows read their fill" "$CTX12    $FIVE23    $WEEK41" \
     "$(meter_row "$MAIN" 12 "$(limits 23 41)")"
-# Under the threshold the countdown stays off.
-eq "a quiet window hides its countdown" "${CHIP}Opus · ctx 12% · 7d 41%" \
+# The week counts down too, hot or not: how many days are left is what the meter is for.
+eq "a quiet week still counts down" "$CTX12    $WEEK41" \
     "$(meter_row "$MAIN" 12 "$(limits null 41)")"
-eq "past 80 the reset joins the number" "${CHIP}Opus · ctx 12% · 7d 84% ↻3d" \
+eq "past 80 the reset joins the meter" "$CTX12    week ▰▰▰▰▰▰▰▱  84% ↻3d" \
     "$(meter_row "$MAIN" 12 "$(limits null 84 3600 $((3 * 86400 + 3600)))")"
-eq "past 95 reads the same way" "${CHIP}Opus · ctx 12% · 5h 96% ↻3d" \
+eq "past 95 reads the same way" "$CTX12    5h ▰▰▰▰▰▰▰▰  96% ↻3d" \
     "$(meter_row "$MAIN" 12 "$(limits 96 null)")"
 # The 5h window turns over inside a session, so its countdown never waits for a threshold.
-eq "the five-hour window always counts down" "${CHIP}Opus · ctx 12% · 5h 23% ↻3d" \
+eq "the five-hour window always counts down" "$CTX12    5h ▰▰▱▱▱▱▱▱  23% ↻3d" \
     "$(meter_row "$MAIN" 12 "$(limits 23 null)")"
-eq "a window past its reset counts nothing" "${CHIP}Opus · ctx 12% · 5h 23%" \
+eq "a window past its reset counts nothing" "$CTX12    5h ▰▰▱▱▱▱▱▱  23%" \
     "$(meter_row "$MAIN" 12 "$(limits 23 null -60)")"
+five=$(meter_row "$MAIN" 5)
+eq "a meter keeps its width as its number moves" "${#CTX12}" "${#five}"
+hot=$(row "$MAIN" 96 | sed -n 2p)
+case $hot in *$'\e[31m▰▰▰▰▰▰▰▰\e[0m'*$'\e[31m 96%\e[0m'*) ok "a hot meter turns bar and number red" ;;
+*) no "a hot meter turns bar and number red" "$(printf '%q' "$hot")" ;;
+esac
+calm=$(row "$MAIN" 12 | sed -n 2p)
+case $calm in *$'\e[31m'* | *$'\e[33m'*) no "a calm meter stays in the text colour" "$(printf '%q' "$calm")" ;;
+*) ok "a calm meter stays in the text colour" ;;
+esac
+wide=$(row "$MAIN" 96 "$(limits 96 97 60 60)" | sed -n 2p | plain | LC_ALL=C.UTF-8 wc -m)
+[ "$wide" -le 98 ] && ok "the meter row fits a 99-column pane" ||
+    no "the meter row fits a 99-column pane" "$wide columns"
 
 echo "status line: dictation"
 
 # Colour carries the phase, so the colour is what gets asserted. The label is
-# checked separately, and must never change: the meters sit beside it.
+# checked separately, and must never change: the place sits beside it.
 GREY=96 RED=31 AMBER=33
-chip() { row | sed -n 2p | sed -n 's/^\x1b\[\([0-9;]*\)m● dictate.*/\1/p'; }
+chip() { row | sed -n 1p | sed -n 's/^\x1b\[\([0-9;]*\)m● dictate.*/\1/p'; }
 
 eq "nothing recording, the chip is grey" "$GREY" "$(chip)"
 recording $$
@@ -199,33 +196,54 @@ eq "a state file with no process is no recording" "$GREY" "$(chip)"
 recording
 eq "a cleared file rests again" "$GREY" "$(chip)"
 
-# Nothing beside the chip may move as the phase changes.
-recording $$
-eq "recording shifts no text" "${CHIP}Opus · ctx 12%" "$(meter_row)"
-recording $$ transcribing
-eq "transcribing shifts no text" "${CHIP}Opus · ctx 12%" "$(meter_row)"
+# A dictation on another machine delivering here leaves a phase and an expiry, not a pid.
+remote() {
+    mkdir -p "$DICTATE"
+    printf '{"phase":"%s","until":%d}\n' "$1" "$(($(date +%s) + $2))" >"$DICTATE/remote.json"
+}
+remote recording 10
+eq "a remote dictation turns it red" "$RED" "$(chip)"
+remote transcribing 10
+eq "a remote dictation outlives the microphone too" "$AMBER" "$(chip)"
+remote recording -1
+eq "an expired remote dictation is none" "$GREY" "$(chip)"
+remote recording 10
+sleep 0 &
+dead=$!
+wait $dead
+recording $dead
+eq "a dead local recorder does not hide a remote dictation" "$RED" "$(chip)"
 recording
-eq "idle shifts no text" "${CHIP}Opus · ctx 12%" "$(meter_row)"
+rm -f "$DICTATE/remote.json"
+eq "a cleared remote file rests again" "$GREY" "$(chip)"
 
-echo "status line: the issue row"
+# A run holds the line until the chip changes, so a press shows as it happens rather than at the next one-second run.
+ms_since() { echo $(((${EPOCHREALTIME//[!0-9]/} - $1) / 1000)); }
+t0=${EPOCHREALTIME//[!0-9]/}
+(
+    sleep 0.3
+    recording $$
+) &
+got=$(WAIT_MS=900 chip)
+took=$(ms_since "$t0")
+wait
+eq "a press during a run shows in that run" "$RED" "$got"
+((took < 600)) && ok "it shows as it happens (${took}ms)" || no "it shows as it happens" "took ${took}ms"
+t0=${EPOCHREALTIME//[!0-9]/}
+got=$(WAIT_MS=300 chip)
+took=$(ms_since "$t0")
+eq "an unchanged chip holds for the wait" "$RED" "$got"
+((took >= 300)) && ok "the wait is honoured (${took}ms)" || no "the wait is honoured" "took ${took}ms"
+recording
 
-# The row follows the worktree Claude last wrote in: pin it to the main one.
-wrote "$MAIN/f"
-gl_repo 1
-gl_cache "https://gitlab.example.com/group/project/-/issues/4997" success
-eq "the pipeline and the issue share the row" \
-    "CI ✓ · https://gitlab.example.com/group/project/-/issues/4997" "$(link_row)"
-gl_cache "" failed
-eq "a pipeline with no issue is the whole row" "CI ✗" "$(link_row)"
-gl_cache "https://gitlab.example.com/group/project/-/issues/4997" ""
-eq "an issue with no pipeline is the whole row" \
-    "https://gitlab.example.com/group/project/-/issues/4997" "$(link_row)"
-# A checkout glab cannot resolve is marked, not asked again every render.
-gl_repo 0
-gl_cache "" ""
-eq "a checkout that is not GitLab has no row" "" "$(link_row)"
-rm -rf "$TMP/cache"
-eq "nothing cached yet, no row" "" "$(link_row)"
+# Nothing beside the chip may move as the phase changes.
+resting=$(place_row)
+recording $$
+eq "recording shifts no text" "$resting" "$(place_row)"
+recording $$ transcribing
+eq "transcribing shifts no text" "$resting" "$(place_row)"
+recording
+eq "idle shifts no text" "$resting" "$(place_row)"
 
 echo "status line: what the hook records"
 

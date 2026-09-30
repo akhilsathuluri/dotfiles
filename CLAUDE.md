@@ -23,6 +23,7 @@ defaults. Per-package pitfalls load from `.claude/rules/` when you touch those f
 | `dictate/`            | `~/.local/bin/dictate` - local Whisper dictation                             |
 | `ghostty/`            | `~/.config/ghostty/`                                                         |
 | `git/`                | `~/.config/git/config`                                                       |
+| `herdr/`              | `~/.local/bin/herdr-forge` - forge line and popup                            |
 | `hunk/`               | `~/.config/hunk/` - diff viewer                                              |
 | `leaf/`               | `~/.config/leaf/` - markdown previewer                                       |
 | `nvim/`               | `~/.config/nvim/` - LazyVim                                                  |
@@ -179,9 +180,9 @@ notes are generated from these, so the type and scope are the machine-readable p
 
 - **Types**: `feat` · `fix` · `docs` · `refactor` · `perf` · `test` · `build` · `ci` · `chore`
 - **Scope** is the area, matching a stow package, an app, or a repo concern: `agentbar`, `bash`, `bat`, `bootstrap`,
-  `claude`, `clip`, `design`, `dictate`, `folio`, `ghostty`, `git`, `hunk`, `indicator`, `install`, `leaf`, `lint`,
-  `nvim`, `release`, `screenshot`, `shot`, `task`, `tex`, `theme`, `tmux`, `trace`, `vault`, `workdesk`. Omit it only
-  when a change genuinely spans everything.
+  `claude`, `clip`, `design`, `dictate`, `folio`, `ghostty`, `git`, `herdr`, `hunk`, `indicator`, `install`, `leaf`,
+  `lint`, `nvim`, `release`, `screenshot`, `shot`, `task`, `tex`, `theme`, `tmux`, `trace`, `vault`, `workdesk`. Omit it
+  only when a change genuinely spans everything.
 - **Breaking = needs manual steps on the machine.** A `!` after the scope (`feat(tmux)!:`) or a `BREAKING CHANGE:`
   footer marks a release that can't just be pulled - a re-login, a re-stow, a GNOME shortcut, a systemd unit. It renders
   as "needs manual steps" in the changelog and, pre-1.0, drives the MINOR bump.
@@ -190,9 +191,10 @@ notes are generated from these, so the type and scope are the machine-readable p
 
 ## Releasing
 
-`task check` must be green and pushed first. Then the tag is the trigger: `.github/workflows/release.yml` re-runs the
-gate, runs the Docker fresh-install test, and publishes a GitHub Release with notes from `git cliff`. Never move a
-published tag - bump the patch instead.
+`task check` must be green and pushed, and **CI must have passed on that commit** - `task changelog` refuses until it
+has, because the runner is not this machine and a local pass says nothing about it. Then the tag is the trigger:
+`.github/workflows/release.yml` re-runs the gate, runs the Docker fresh-install test, and publishes a GitHub Release
+with notes from `git cliff`. Never move a published tag - bump the patch instead.
 
 ```sh
 task check                              # gate: shellcheck, ruff, prettier, gitleaks, tests

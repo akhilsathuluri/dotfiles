@@ -51,6 +51,8 @@ tasks:
       - task: settings
       - task: claude-hooks
       - task: statusline
+      - task: usage-statusline
+      - task: herdr-forge
       - task: workdesk-toggle
       - task: shot
       - task: test
@@ -220,7 +222,7 @@ tasks:
       - >-
         docker run --rm -e CI=true -v "$PWD:/src:ro" dotfiles-ci-mirror bash -c 'cp -r /src /work && cd /work && make -C
         {{.AGENTBAR}} build && bash test/clipboard.sh && bash test/session-picker.sh && bash test/reset.sh && bash
-        test/diff-target.sh && cd {{.AGENTBAR}} && go test ./... -count=1'
+        test/diff-target.sh && bash test/settings.sh && cd {{.AGENTBAR}} && go test ./... -count=1'
 
   theme:
     desc: Every flavor writes its own colors into every generated per-tool file
@@ -241,6 +243,16 @@ tasks:
     desc: The status line names the session's place, and the worktree Claude writes in when it differs
     cmds:
       - bash test/statusline.sh
+
+  usage-statusline:
+    desc: The shareable status line renders the model, context and usage windows on bash 3.2 with only jq
+    cmds:
+      - bash test/usage-statusline.sh
+
+  herdr-forge:
+    desc: The herdr tab bar line names the focused branch's ticket, MR and pipeline, and goes blank when unsure
+    cmds:
+      - bash test/herdr-forge.sh
 
   workdesk-toggle:
     desc: One command opens the ≡ workdesk float and closes it - the chip is a toggle
@@ -270,6 +282,13 @@ tasks:
       # 0.1.0 is hand-written; generating it again would add a second section.
       - sh: '! grep -q "^## \[$(echo {{.V}} | sed s/^v//)\]" CHANGELOG.md'
         msg: "CHANGELOG.md already has a {{.V}} section - edit it by hand instead"
+      # release.yml re-runs the gate on a runner, which a local `task check` cannot stand in for: the newest ci run
+      # on HEAD must have passed. No run at all means HEAD is not pushed.
+      - sh: |
+          repo=$(git remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')
+          curl -fsS "https://api.github.com/repos/$repo/actions/runs?head_sha=$(git rev-parse HEAD)&event=push" |
+            jq -e '[.workflow_runs[] | select(.name == "ci")][0].conclusion == "success"' >/dev/null
+        msg: "CI has not passed on HEAD (not pushed, still running, failed, or GitHub unreachable) - fix that first"
     cmds:
       # --prepend, not -o: regenerating would drop the hand-written 0.1.0 entry.
       - git cliff --unreleased --tag {{.V}} --prepend CHANGELOG.md
