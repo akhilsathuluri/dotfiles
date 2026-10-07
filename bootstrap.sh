@@ -156,6 +156,20 @@ enable_tmux_resurrect_timer() {
     loginctl enable-linger "$USER" 2>/dev/null || true
 }
 
+link_herdr_forge() {
+    # The plugin routes Ctrl+clicked merge request and issue links to herdr tabs;
+    # its manifest ships with the herdr stow package.
+    command -v herdr &>/dev/null || return 0
+    if herdr plugin list --json 2>/dev/null | jq -e '.result.plugins[]? | select(.plugin_id == "dotfiles.forge")' \
+        >/dev/null 2>&1; then
+        ok "herdr forge plugin already linked"
+    elif herdr plugin link "$HOME/.local/share/herdr-forge" >/dev/null 2>&1; then
+        ok "herdr forge plugin linked"
+    else
+        warn "herdr forge plugin: run 'herdr plugin link ~/.local/share/herdr-forge'"
+    fi
+}
+
 # =============================================================================
 # Patch the shell rc (~/.bashrc on Linux, ~/.zshrc on macOS)
 # =============================================================================
@@ -407,9 +421,10 @@ enable_commit_guard
 all_tools
 
 stow_packages
-# These two need the stowed configs in place first.
+# These need the stowed configs in place first.
 install_bat_themes
 enable_tmux_resurrect_timer
+link_herdr_forge
 patch_shell_rc
 create_vault
 install_nvim_plugins

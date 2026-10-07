@@ -94,10 +94,16 @@ paths:
   (terminal slot 7 renders a dark grey): primary content (`fg`, base00) for values and labels, secondary content
   (`muted`, base1) for names and rules, background highlights (`surface`, base2) for the buttons (borderless blocks),
   chips, toolbar and the bar's empty part; accents only on marks and state words. The palette's `border` is not a
-  Solarized colour, so it is not used.
+  Solarized colour, so it is not used. The `dotfiles.forge` plugin (`~/.local/share/herdr-forge`, linked by
+  `bootstrap.sh`) is a `[[link_handlers]]` entry: a Ctrl+clicked GitLab MR or issue URL runs `herdr-forge-popup link`,
+  which focuses the workspace's tab named `!N` or `#N` or opens it, and any other URL opens in the browser as before. An
+  MR tab is `hunk diff <base_sha> <head_sha> --sidebar` after fetching `refs/merge-requests/N/head`, so it needs a pane
+  in a checkout of that project and falls back to the browser without one; an issue tab is folio on `ticket-md`'s page,
+  with no checkout needed. Each link tab keeps its URL beside its pane id, which the plugin's `browser` action opens
+  (`alt+o` in the untracked config.toml).
 - **`hunk/`** - `~/.config/hunk/` (hunk diff viewer config, Ayu Dark default; the `hunk()` wrapper in
-  `bash/.bashrc.d/theme.bash` passes the active flavor to `hunk diff`). `mode = "stack"` is what every hunk here starts
-  from - full width per line, no half-width columns. **Workdesk's `D` overrides it to `split` at the call**, because a
+  `bash/.bashrc.d/theme.bash` passes the active flavor to `hunk diff`). `mode = "unified"` is what every hunk here
+  starts from - full width per line, no half-width columns. **Workdesk's `D` overrides it to `split` at the call**, because a
   merge request's diff is the one that gets a window of its own and so the one with room for two columns; the diff pane
   beside your work does not. The pane's `L` still flips its own window, and hunk reads the file at startup, so an open
   pane keeps its layout until respawned.
