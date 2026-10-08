@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "opus"
+  },
   "attribution": {
     "commit": "",
     "pr": ""
@@ -280,6 +283,7 @@
   "skipWorkflowUsageWarning": true,
   "theme": "dark",
   "autoCompactEnabled": true,
+  "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
   "model": "claude-fable-5[1m]"
 }
