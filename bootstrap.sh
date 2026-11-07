@@ -114,6 +114,7 @@ stow_packages() {
     # specific files we ship, leaving the rest of the directory intact.
     backup_pkg_files "$DOTFILES_DIR/bash/.bashrc.d" "$HOME/.bashrc.d"
     backup_pkg_files "$DOTFILES_DIR/claude/.claude/hooks" "$HOME/.claude/hooks"
+    backup_pkg_files "$DOTFILES_DIR/git/.config/git" "$HOME/.config/git"
 
     # Directories we own outright: back up the whole directory.
     backup_if_not_symlink "$HOME/.config/nvim"
